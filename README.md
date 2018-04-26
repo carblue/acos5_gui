@@ -2,13 +2,14 @@
 An Administration tool (and more) for ACS ACOS5-64 (v2: Smart Card/CryptoMate64 or v3: Smart Card/CryptoMate Nano in mode Non-FIPS/64K), based on driver acos5_64
 
 The acos5_64 driver/SM binary included is bound to a specific opensc version and depends on specific shared object(s) (phobos and druntime; for DMD, they are combined into one: libphobos2.so) of a D compiler (currently DMD Beta 2.080.0 (-beta.1) only: https://dlang.org/download.html).<br>
-Other "systemDependencies" are listed in dub.json
+Other "systemDependencies" are listed in dub.json.<br>
+dub.json has no provision where to find the driver libacos5_64.so, thus it's expected to be found in the standard library search path (it will be dynamically loaded just by it's filename "libacos5_64.so"; opensc.conf patched must be adapted accordingly),
 
 This is [WIP] work in progress
 
 Features planned/about to be implemented:
 
-- [/] i18n via gettext. Basically, that's implemented, though not yet activated; it's to early to extract strings from source code to the .pot file for translation<br>
+- [ ] i18n via gettext. Basically, that's implemented, though not yet activated; it's to early to extract strings from source code to the .pot file for translation<br>
 - [x] View Cryptoki/Slot/Token-Info.<br>
 - [ ] View (, manipulate) the opensc configuration file opensc.conf.<br>
 - [ ] View (, manipulate) /usr/share/opensc/acos5_64.profile.<br>
@@ -22,9 +23,9 @@ Features planned/about to be implemented:
 - [ ] <br>
 - [ ] Last but not least: Fill the gap of ACOS5-64 card/token specific features/settings that currently are not covered/being possible to set by opensc tools.<br>
 - [ ] Centralized access to instructions, howtos and useful links, help in general.<br>
-- [/] Access to an extensive filesystem sanity check (PKCS#15 compliance, recommended access rights etc.). There is a kind of pre-stage already by analysing/ASN.1-decoding PKCS#15 relevant files<br>
-- [?] Perhaps integrate some opensc-debug.log analysis; zeroize opensc-debug.log.<br>
-- [?] Perhaps integrate gscriptor functionality (send any APDU(s) to card/token).<br>
+- [ ] Access to an extensive filesystem sanity check (PKCS#15 compliance, recommended access rights etc.). There is a kind of pre-stage already by analysing/ASN.1-decoding PKCS#15 relevant files<br>
+- [ ] Perhaps integrate some opensc-debug.log analysis; zeroize opensc-debug.log.<br>
+- [ ] Perhaps integrate gscriptor functionality (send any APDU(s) to card/token).<br>
 
 Summarized, I want this to be THE one-stop tool for my ACOS5-64 (cards/)tokens CryptoMate64 and CryptoMate Nano.<br>
 
@@ -43,5 +44,4 @@ The meaning is:<br>
 
 PKCS#15 specials with acos5_64_gui:
 Deviating from PKCS#15, if an EF.SKDF is present, it doesn't expect the file path, but the path of the DF that contains the secret key file (analogous as prescribed by PKCS#15 for the Pin describing file EF.AODF)<br>
-Though the PKCS#15 detection code is working for me, it may not yet be as robust as required to cover the diversity possible (probably/possibly I'm going to switch to the opensc implementation available). If it fails, then change in module util_opensc source code:<br>
-doCheckPKCS15 = true -> doCheckPKCS15 = false
+Though the PKCS#15 detection code is working for me, it may not yet be as robust as required to cover the diversity possible (probably/possibly I'm going to switch to the opensc implementation available). If it fails, then change in module util_opensc source code:  doCheckPKCS15 = true -> doCheckPKCS15 = false

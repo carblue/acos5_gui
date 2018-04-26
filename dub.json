@@ -1,0 +1,36 @@
+{
+	"name" : "acos5_64_gui",
+	"description" : "Administration tool for ACOS5-64, based on driver acos5_64",
+	"license": "GNU General Public License v2.0",
+	"copyright": "Copyright © 2018-, Carsten Blüggel",
+	"authors": ["Carsten Blüggel"],
+	"homepage": "https://github.com/carblue/acos5_64_gui",
+	"dependencies" : {
+		"iup": "~>0.0.10",
+		"opensc": "==0.15.16",
+		"tree_k_ary": "~>0.0.3",
+		"asn1": "~>2.2.0",
+		"pkcs11": "~>2.40.0-alpha.3"
+	},
+	"subConfigurations": {
+		"opensc": "deimos",
+		"pkcs11": "derelict"
+	},
+	"systemDependencies": "IUP-Portable User Interface shared libraries installed, opensc installation v.0.17.0, libacos5_64.so (binary from this package's opensc_0.*/ +libphobos2.so.0.80 from a DMD installation) located in a common .so look-up path, opensc.conf configured appropriately; (not yet required: for gettext the exports available from libintl.so or ?)",
+	"sourceFiles-windows-x86-dmd": [
+		"C:/D/dmd2/windows/lib/ole32.lib",
+		"oleaut32.lib",
+		"uuid.lib"
+	],
+	"targetName": "acos5_64_gui",
+	"targetType": "executable",
+	"excludedSourceFiles": [],
+	"xxxbuildRequirements" : ["disallowDeprecations"],
+
+	"dflags-posix-dmd": ["-mcpu=native", "-defaultlib=libphobos2.so"],
+	"lflags-posix-dmd" : ["--no-undefined", "--as-needed"],
+	"libs-posix": ["iupimglib"],
+	"lflags-windows-x86-fixme": ["/SUBSYSTEM:WINDOWS:6.00"],
+	"postGenerateCommands-windows" : ["strip -s acos5_64_gui.exe"],
+	"versions": []
+}

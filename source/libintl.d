@@ -35,6 +35,7 @@ module libintl;
 
 import core.stdc.config : c_ulong;
 import std.string : fromStringz;
+import std.exception : assumeUnique;
 
 
 alias _   = gettextD;
@@ -42,7 +43,7 @@ alias __  = gettext;
 
 version(I18N) {
 
-string gettextD(const(char)* str) @nogc nothrow pure @trusted { return fromStringz(gettext(str)); }
+string gettextD(const(char)* str) @nogc nothrow pure @trusted { return assumeUnique(fromStringz(gettext(str))); }
 
 
 ////#include <features.h>
@@ -140,8 +141,6 @@ bind_textdomain_codeset (const(char)* __domainname, const(char)* __codeset); // 
 +/
 }
 else {
-
-import std.exception : assumeUnique;
 
 pragma(inline, true)
 string gettextD(const(char)* __msgid) /*@nogc*/ @nogc nothrow pure @trusted { return assumeUnique(fromStringz(__msgid)); }
