@@ -1,5 +1,5 @@
---- opensc_original_linux_17.conf	2017-11-22 20:52:19.000000000 +0100
-+++ opensc_original_linux_17x.conf	2018-04-26 11:16:14.053600822 +0200
+--- opensc_original_linux_18.conf	2018-04-24 14:19:11.000000000 +0200
++++ opensc_original_linux_18x.conf	2018-04-28 23:36:05.248991672 +0200
 @@ -13,6 +13,7 @@
  	# Default: 0
  	#
@@ -16,13 +16,18 @@
  
  	# Reopen debug file at the every debug message.
  	#
-@@ -150,7 +152,19 @@
- 	# Default: internal
- 	# NOTE: When "internal" keyword is used, must be last entry
+@@ -49,6 +51,7 @@
  	#
--	card_drivers = npa, internal;
-+	#card_drivers = npa, internal;
-+
+ 	# Default: false
+ 	# disable_popups = true;
++	  disable_popups = true;
+ 
+ 	# Enable default card driver
+ 	# Default card driver is explicitly enabled for the 'opensc-explorer' and 'opensc-tool'.
+@@ -155,6 +158,16 @@
+ 	#
+ 	#card_drivers = old, internal;
+ 
 +	# NOTE: the driver acos5 (included in internal; it's for ACOS5-32 but claims to serve ACOS5-64 as well) must be
 +	#       avoided, either by this setting, or by e.g. force_card_driver=acos5_64,
 +	#       or by other settings (ignored_readers doesn't seem to work as expected);
@@ -31,29 +36,31 @@
 +	#       In the beginning, to test that acos5_64 is well configured, start with excluding all internal drivers,
 +	#       but the dummy default driver (as set below). 
 +	#       Later, if other cards/token than acos5_64 shall be served by opensc as well, replace default by internal
-+	#       and care for exluding acos5 in some other way !
-+	#       E.g. if building OpenSC from sources, the best solution is to remove the overlapping ATR from card-acos5.c
-+	 card_drivers = acos5_64, default;
- 
++	card_drivers = acos5_64, default;
++
  	# Card driver configuration blocks.
  
-@@ -162,6 +176,14 @@
+ 	# For card drivers loaded from an external shared library/DLL,
+@@ -165,6 +178,17 @@
  		# module = /usr/lib/libcard_customcos.so;
  	# }
  
 +	card_driver acos5_64 {
 +		# The (/path/to/) filename of the driver library. /path/to/ is dispensable if it's in a 'standard search path'
-+		module = /home/bodo/workspace/libacos5_64/lib/libacos5_64.so;
-+		# Params for the Graph. User Interface app 'Consent for signing' (currently Linux only; activated, if popup_user_consent_app=/path/to/some/pinentry(_program like pinentry);
-+		# Only used if compiled with ENABLE_ACOS5_64_UI
-+		popup_user_consent_app =;
++		module = libacos5_64.so;
++		# The Graph. User Interface application/popup 'Consent for signing' (currently Linux only)
++		# There are 3 conditions to be satisfied in order to enable this:
++		# 1. The driver must be compiled with ENABLE_ACOS5_64_UI (by default: Yes),
++		# 2. The opensc.conf setting 'disable_popups' must be set to false,
++		# 3. The next line must identify the popup application, e.g. user_consent_popup =/usr/bin/pinentry;
++		user_consent_popup =;
 +	}
 +
  	card_driver npa {
  		# German ID card requires the CAN to be verified before QES PIN. This,
  		# however, is not part of the PKCS#15 profile of the card. So for
-@@ -427,6 +449,76 @@
- 		md_guid_as_label = true;
+@@ -823,6 +847,76 @@
+ 		notify_pin_bad_text = "GoID ist gesperrt";
  	}
  
 +	# ACOS5-64 V2.00
@@ -76,7 +83,7 @@
 +		# name of external SM module
 +		module_name = libacos5_64.so;
 +		# directory with external SM module, required, if module_name isn't in an OS's 'standard search path'
-+		module_path = /home/bodo/workspace/libacos5_64/lib;
++		#module_path = ;
 +
 +		# specific data to tune the module initialization
 +		# module_data = "Here can be your SM module init data";
@@ -129,13 +136,13 @@
  	secure_messaging local_authentic  {
  		# name of external SM module
  		# module_name = libsmm-local.so;
-@@ -582,6 +674,12 @@
+@@ -978,6 +1072,12 @@
  			# module = /usr/lib/libp15emu_custom.so;
  		# }
  
 +		pkcs15init acos5_64 {
 +			# The location of the driver library: /path/to/libacos5_64.so;
-+			module = /home/bodo/workspace/libacos5_64/lib/libacos5_64.so;  # /path/to/libacos5_64.so;
++			module = libacos5_64.so;
 +			# function = "sc_pkcs15emu_acos5_64_init_ex";
 +		}
 +

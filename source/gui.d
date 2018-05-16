@@ -179,7 +179,7 @@ private Hbox create_filesystem_tab() {
         SetCallback("VALUECHANGED_CB", &list_op_file_possible_val_changed_cb);
     }
     child_array2 ~= list;
-    child_array2 ~= new Label("Read-Result (hexadecimal)");
+    child_array2 ~= new Label("Read-Result (hexadecimal; content ending with 4 zero bytes got 'zero byte truncated')");
 
     auto text1 = new Text("fs_text");
     with (text1) {
