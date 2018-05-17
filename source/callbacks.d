@@ -27,7 +27,7 @@ import std.stdio;
 import std.string : /*fromStringz,*/ toStringz;
 import std.exception : assumeWontThrow;//(expr, msg, file, line)
 import std.algorithm.comparison : max, /*min, clamp, equal, mismatch,*/ among;
-import std.algorithm.searching : maxElement;
+import std.algorithm.searching : maxElement, countUntil;
 import std.traits : EnumMembers;
 
 import libopensc.opensc;
@@ -39,16 +39,10 @@ import iup.iup_plusD;
 
 import libintl : _, __;
 
-import util_general;
+import util_general;// : ub22integral;
 import acos5_64_shared;
 
-import util_opensc : lh, card, util_connect_card, TreeTypeFS, acos5_64_short_select, readFile, decompose, PKCS15Path_FileType;
-
-
-extern(C) int slot_token_dropcheck_cb(Ihandle* self, int lin, int col) nothrow
-{
-  return IUP_IGNORE; // draw nothing
-}
+import util_opensc : lh, card, util_connect_card, TreeTypeFS, acos5_64_short_select, readFile, decompose, PKCS15Path_FileType, PKCS15_FILE_TYPE, fs, sitTypeFS;
 
 
 ub8 map2DropDown = [1, 2, 3, 4, 5, 6, 7, 8];
@@ -75,9 +69,9 @@ void populate_list_op_file_possible(TreeTypeFS.nodeType* pn, ub2 fid, EFDB fdb, 
                  Purse_EF,// TODO for this and Cyclic_EF ???
                  Cyclic_EF:           return 2;
             case Linear_Variable_EF:  return 3;
-    	    case RSA_Key_EF,
-    	         Sym_Key_EF:          return 4;
-        	case SE_EF:               return 5;
+            case RSA_Key_EF,
+                 Sym_Key_EF:          return 4;
+            case SE_EF:               return 5;
         }
     }
 
@@ -117,16 +111,29 @@ void populate_list_op_file_possible(TreeTypeFS.nodeType* pn, ub2 fid, EFDB fdb, 
     h.SetCallback("VALUECHANGED_CB", &list_op_file_possible_val_changed_cb);
 //    assumeWontThrow(writeln(map2DropDown));
 
-    ubyte PKCS15fileType;
-    PKCS15Path_FileType[] pkcs15Extracted;
-    if (fileReadPossible && auto_read && (sac[0]==0 || sac[0]&0x40))
-        readFile(pn, fid, fdb, /*size, mrl, nor*/ decompose(fdb, size_or_MRL_NOR).expand, PKCS15fileType/*, pathExtracted*/, pkcs15Extracted);
+    if (fileReadPossible && auto_read && (sac[0]==0 || sac[0]&0x40)) {
+        ubyte expectedFileType = pn.data[6];
+        ubyte detectedFileType;
+        PKCS15Path_FileType[] pkcs15Extracted;
+        readFile(pn, fid, fdb, decompose(fdb, size_or_MRL_NOR).expand, expectedFileType, detectedFileType, pkcs15Extracted);
+    }
 }
 
 
-extern(C) int selectbranchleaf_cb(Ihandle* ih, int id, int status) nothrow
+extern(C) nothrow:
+
+
+int slot_token_dropcheck_cb(Ihandle* self, int lin, int col)
 {
-    import std.range : chunks, enumerate;
+  return IUP_IGNORE; // draw nothing
+}
+
+int selectbranchleaf_cb(Ihandle* ih, int id, int status)
+{ // status==1 (enter);  status==0 (leave the node)
+    import std.range : chunks, enumerate, retro;
+    import std.format : format;
+
+    printf("selectbranchleaf_cb id(%d), status(%d)\n", id, status);
 
     if (status==0 || id==0) {
         AA["fs_text"].SetAttributeVALUE("");
@@ -139,10 +146,13 @@ extern(C) int selectbranchleaf_cb(Ihandle* ih, int id, int status) nothrow
         return IUP_DEFAULT;
     }
     auto pn = cast(TreeTypeFS.nodeType*) (cast(iup.iup_plusD.Tree) AA["tree_fs"]).GetUserId(id);
-////    printf("selectbranchleaf_cb id(%d), status(%d), data(%s)\n", id, status, sc_dump_hex(pn.data.ptr, pn.data.length)); // selectbranchleaf_cb id(2), status(1), data(0A04000115010105 3F00 0001)
-  // selectbranchleaf_cb id(5), status(1), data(01 04 2F00 00 21 00 05  3F00 2F00)
+//    printf("selectbranchleaf_cb id(%d), status(%d), data(%s)\n", id, status, sc_dump_hex(pn.data.ptr, pn.data.length)); // selectbranchleaf_cb id(2), status(1), data(0A04000115010105 3F00 0001)
+    // selectbranchleaf_cb id(5), status(1), data(01 04 2F00 00 21 00 05  3F00 2F00)
+    with (PKCS15_FILE_TYPE) if (pn.data[6].among(PKCS15_Pin, PKCS15_SecretKey, PKCS15_RSAPrivateKey))
+        return IUP_DEFAULT;
+
     fci_se_info info;
-    fci_se_info info_df;
+//    fci_se_info info_df;
     int rv;
 
     /* connect to card */
@@ -156,7 +166,6 @@ extern(C) int selectbranchleaf_cb(Ihandle* ih, int id, int status) nothrow
 //        assert(ctx);
 //        assumeWontThrow(writeln(*ctx));
 
-version(OPENSC_VERSION_LATEST)
         ctx.flags |= SC_CTX_FLAG_ENABLE_DEFAULT_DRIVER;
         ctx.debug_ = SC_LOG_DEBUG_NORMAL/*verbose*/;
         sc_ctx_log_to_file(ctx, toStringz(debug_file));
@@ -168,21 +177,21 @@ version(OPENSC_VERSION_LATEST)
         mixin (log!(__FUNCTION__, " util_connect_card returning with: %i (%s)", "rc", "sc_strerror(rc)"));
 //        writeln("PASSED: util_connect_card");
         scope(exit) {
-			if (card) {
-				if (! assumeWontThrow(Runtime.unloadLibrary(lh)))
-    				assumeWontThrow(writeln("Failed to do: Runtime.unloadLibrary(lh)"));//return IUP_CONTINUE;
+            if (card) {
+                if (! assumeWontThrow(Runtime.unloadLibrary(lh)))
+                    assumeWontThrow(writeln("Failed to do: Runtime.unloadLibrary(lh)"));//return IUP_CONTINUE;
 version(Windows) {}
 else {
-	version(unittest) {}
-	else {
-				if (! assumeWontThrow(Runtime.terminate()))
-					assumeWontThrow(writeln("Failed to do: Runtime.terminate()"));//return IUP_CONTINUE;
-	}
+    version(unittest) {}
+    else {
+                if (! assumeWontThrow(Runtime.terminate()))
+                    assumeWontThrow(writeln("Failed to do: Runtime.terminate()"));//return IUP_CONTINUE;
+    }
 }
 
-				sc_unlock(card);
-				sc_disconnect_card(card);
-			}
+                sc_unlock(card);
+                sc_disconnect_card(card);
+            }
 
             if (ctx)
                 sc_release_context(ctx);
@@ -194,23 +203,38 @@ else {
             return IUP_CONTINUE;
 
         assert(pn.data[1]);
+        ubyte[MAX_FCI_GET_RESPONSE_LEN] rbuf;
+        ubyte len2 = pn.data[1]/2;
         int i = 1;
+        AA["fs_text"].SetString("APPEND", "Header/meta infos (FCI):");
         foreach (ub2 fid; chunks(pn.data[8..8+pn.data[1]], 2)) {
             info = fci_se_info.init;
-            rv= acos5_64_short_select(card, &info, fid, false);
-            if (i < pn.data[1]/2 /* last i*/)
-                info_df = info;
+            rbuf = typeof(rbuf).init;
+            rv= acos5_64_short_select(card, &info, fid, false, rbuf);
+            if (i.among(len2, len2==1? 1 : len2-1)) {
+//                info_df = info;
 //            assumeWontThrow(writeln(info)); //writefln("0x[%(%02X %)]", fid);
+//                while (buf.length>=5 && !any(buf[$-5..$]))
+//                    buf.length = buf.length-1;
+                ptrdiff_t pos = max(1, countUntil!"a>0"(rbuf[].retro))-1; // if possible, show 00 at the end for AB
+                AA["fs_text"].SetString("APPEND",  assumeWontThrow(format!"%(%02X %)"(rbuf[0..$-pos])));
+            }
             ++i;
         }
+        AA["fs_text"].SetString("APPEND", "\nContent:");
+
+/+
+//        assumeWontThrow(writefln("fci: 0X[ %(%02X %) ]", rbuf));
++/
+//assumeWontThrow(writeln(info)); //writefln("0x[%(%02X %)]", fid);
         assert(info.fdb.among(EnumMembers!EFDB));
         ub2 size_or_MRL_NOR = pn.data[4..6];
         populate_list_op_file_possible(pn, info.fid, cast(EFDB)info.fdb, size_or_MRL_NOR, pn.data[7], info.sac);
     } // disconnected from card now !
     return IUP_DEFAULT;
-}
+} // selectbranchleaf_cb
 
-extern(C) int executeleaf_cb(Ihandle* h, int id) nothrow
+int executeleaf_cb(Ihandle* h, int id)
 {
   auto pn = cast(TreeTypeFS.nodeType*) (cast(iup.iup_plusD.Tree) AA["tree_fs"]).GetUserId(id);
   printf("executeleaf_cb (%d) %s\n", id, sc_dump_hex(pn.data.ptr, pn.data.length));
@@ -218,20 +242,20 @@ extern(C) int executeleaf_cb(Ihandle* h, int id) nothrow
   return IUP_DEFAULT;
 }
 
-extern(C) int branchopen_cb(Ihandle* h, int id) nothrow
+int branchopen_cb(Ihandle* h, int id)
 {
   printf("branchopen_cb (%d)\n", id);
   return IUP_DEFAULT;
 }
 
-extern(C) int branchclose_cb(Ihandle* h, int id) nothrow
+int branchclose_cb(Ihandle* h, int id)
 {
   printf("branchclose_cb (%d)\n", id);
   return IUP_DEFAULT;
 }
 
 /* Callback called when a key is hit */
-extern(C) int k_any_cb(Ihandle* h, int c) nothrow
+int k_any_cb(Ihandle* h, int c)
 {
   if (c == K_DEL)
   {
@@ -242,7 +266,7 @@ extern(C) int k_any_cb(Ihandle* h, int c) nothrow
 }
 
 //  list.SetCallback("VALUECHANGED_CB", &list_op_file_possible_val_changed_cb);
-extern(C) int list_op_file_possible_val_changed_cb(Ihandle* ih) nothrow
+int list_op_file_possible_val_changed_cb(Ihandle* ih)
 {
     Handle h = createHandle(ih);
     int val = h.GetIntegerVALUE;
@@ -250,19 +274,19 @@ extern(C) int list_op_file_possible_val_changed_cb(Ihandle* ih) nothrow
   return IUP_DEFAULT;
 }
 
-extern(C) int toggle_op_file_possible_suppress_cb(Ihandle* ih, int state) nothrow
+int toggle_op_file_possible_suppress_cb(Ihandle* ih, int state)
 {
   printf("toggle_op_file_possible_suppress_cb (%d)\n", state);
   return IUP_DEFAULT;
 }
 
-extern(C) int toggle_auto_read_cb(Ihandle* ih, int state) nothrow
+int toggle_auto_read_cb(Ihandle* ih, int state)
 {
   printf("toggle_auto_read_cb (%d)\n", state);
   return IUP_DEFAULT;
 }
 
-extern(C) int toggle_auto_decode_asn1_cb(Ihandle* ih, int state) nothrow
+int toggle_auto_decode_asn1_cb(Ihandle* ih, int state)
 {
   printf("toggle_auto_decode_asn1_cb (%d)\n", state);
   return IUP_DEFAULT;

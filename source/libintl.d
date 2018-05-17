@@ -137,7 +137,7 @@ bind_textdomain_codeset (const(char)* __domainname, const(char)* __codeset); // 
 # define dngettext(domainname, msgid1, msgid2, n) \
   dcngettext (domainname, msgid1, msgid2, n, LC_MESSAGES)
 
-//#endif	/* Optimizing.  */
+//#endif    /* Optimizing.  */
 +/
 }
 else {

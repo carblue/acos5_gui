@@ -29,6 +29,7 @@ TODO check about countermeasures like locking etc. provided by PKCS#11
 module acos5_64_gui;
 
 
+//import core.stdc.stdlib : strtol;
 import core.memory : GC;
 import core.runtime : Runtime;
 import core.stdc.config : c_long, c_ulong;
@@ -41,6 +42,7 @@ import std.string : fromStringz, toStringz, representation;
 import std.algorithm.searching;
 import std.algorithm.comparison;
 import std.conv : to;
+//import std.uni;
 //import std.concurrency;
 //import core.thread;
 
@@ -73,65 +75,76 @@ import iup.iup_plusD;
 //import deimos.p11; "dependencies" : "p11:deimos": "~>0.0.3", // it's an alternative for "dependencies" : "pkcs11": "~>2.40.0-alpha.3"
 import pkcs11;
 
+import util_general;
 import gui : create_dialog_dlg0;
-import util_opensc : lh, card, util_connect_card, populate_tree_fs, acos5_64_short_select; // , uploadHexfile
+import util_opensc : lh, card, util_connect_card, populate_tree_fs, TreeTypeFS, fs, PKCS15_FILE_TYPE; //, acos5_64_short_select, uploadHexfile
 import util_pkcs11 : pkcs11_check_return_value, pkcs11_get_slot;
+import generateKeyPair_RSA;
 
 
+void dummy_function(sc_context* ctx) /*@safe*/ {
+    writeln("This is going to be printed from @safe code: ", *ctx);
+}
 
 string blankPaddingTrimmed(ubyte[] buf) {
 return "";
 }
 
-version(unittest) {}
-else
+//version(unittest) {}
+//else
 int main(string[] args) {
 
 version(I18N) {
+    /* import std.demangle : demangle;  Error when compiling with dmd and -dip1000, originating in iup_plusD.d, import std.string : toStringz, fromStringz, empty;
+    Warnung: undefinierter Verweis auf »_D3std6string__T10stripRightTAyaZQrFNaNiNfNkQpZQs«
+    Warnung: undefinierter Verweis auf »_D3std6string__T10stripRightTAyaZQrFNaNiNfNkQpZQs«
+    writeln(demangle("_D3std6string__T10stripRightTAyaZQrFNaNiNfNkQpZQs")); // "pure @nogc @safe immutable(char)[] std.string.stripRight!(immutable(char)[]).stripRight(return immutable(char)[])" */
     /* Setting the i18n environment */
     setlocale (LC_ALL, "");
     cast(void) bindtextdomain ("acos5_64_gui", getenv("PWD"));
     cast(void) textdomain ("acos5_64_gui");
     /*printf("bind_textdomain_codeset: %s\n",*/cast(void) bind_textdomain_codeset("acos5_64_gui", "UTF-8");//);
 }
+
     /* connect to card  and release all resources (opensc/driver when leaving the following scope */
     {
         string debug_file = "/tmp/opensc-debug.log";
 
+        int rc; // used for any return code except Cryptoki return codes, see next decl
         sc_context*         ctx;
         sc_context_param_t  ctx_param = { 0, "acos5_64_gui " };
-        if (sc_context_create(&ctx, &ctx_param))
+        if ((rc= sc_context_create(&ctx, &ctx_param)) != SC_SUCCESS)
             return EXIT_FAILURE;
-//        assert(ctx);
+        if (ctx is null)
+            return EXIT_FAILURE;
 //        writeln(*ctx);
+//(() /*@safe*/ { dummy_function(ctx);})();
 
-version(OPENSC_VERSION_LATEST)
         ctx.flags |= SC_CTX_FLAG_ENABLE_DEFAULT_DRIVER;
         ctx.debug_ = SC_LOG_DEBUG_NORMAL/*verbose*/;
         sc_ctx_log_to_file(ctx, toStringz(debug_file));
         if (sc_set_card_driver(ctx, "acos5_64"))
             return EXIT_FAILURE;
 
-        int rc; // used for any return code except Cryptoki return codes, see next decl
         rc = util_connect_card(ctx, &card, null/*opt_reader*/, 0/*opt_wait*/, 1 /*do_lock*/, SC_LOG_DEBUG_NORMAL/*verbose*/);
         mixin (log!(__FUNCTION__, " error of util_connect_card: %d", "rc"));
 //        writeln("PASSED: util_connect_card");
         scope(exit) {
             if (card) {
-    			if (! Runtime.unloadLibrary(lh))
-    				exit(1);
+                if (! Runtime.unloadLibrary(lh))
+                    exit(1);
 version(Windows) {}
 else {
-	version(unittest) {}
-	else {
-				if (! Runtime.terminate())
-					exit(1);
-	}
+    version(unittest) {}
+    else {
+                if (! Runtime.terminate())
+                    exit(1);
+    }
 }
 
-				sc_unlock(card);
-				sc_disconnect_card(card);
-			}
+                sc_unlock(card);
+                sc_disconnect_card(card);
+            }
             if (ctx)
                 sc_release_context(ctx);
 //            {
@@ -147,7 +160,65 @@ else {
 
         /* Shows dialog */
         create_dialog_dlg0.Show; // this does the mapping; it's here because some things can be done only after mapping
-        populate_tree_fs();
+
+        populate_tree_fs(); // populates PrKDF, PuKDF (and dropdown key pair id),
+
+        /* assuming there is 1 aooDF only */
+        TreeTypeFS.nodeType* appdf = fs.preOrderRange(fs.begin(), fs.end()).locate!"a[6]==b"(PKCS15_FILE_TYPE.PKCS15_APPDF);
+//      assert(appdf);
+
+        /* initialze the publisher/observer system for GenerateKeyPair_RSA_tab */
+        sizeNewRSAModulusBits   = new Pub_noCB2!_sizeNewRSAModulusBits  (r_sizeNewRSAModulusBits,   AA["matrixRsaAttributes"]); // 1
+        storeAsCRTRSAprivate    = new Pub_noCB2!_storeAsCRTRSAprivate   (r_storeAsCRTRSAprivate,    AA["matrixRsaAttributes"]); // 2
+        usageRSAprivateKeyACOS  = new Pub_noCB2!_usageRSAprivateKeyACOS (r_usageRSAprivateKeyACOS,  AA["matrixRsaAttributes"]); //3
+        usageRSAprivateKeyPrKDF = new Pub_noCB2!_usageRSAprivateKeyPrKDF(r_usageRSAprivateKeyPrKDF, AA["matrixRsaAttributes"]); //16
+        usageRSApublicKeyPuKDF  = new Pub_noCB2!_usageRSApublicKeyPuKDF (r_usageRSApublicKeyPuKDF,  AA["matrixRsaAttributes"]); //17
+        keyPairLabel            = new Pub_noCB2!(_keyPairLabel,string)  (r_keyPairLabel,            AA["matrixRsaAttributes"]);
+        keyPairModifiable       = new Pub_noCB2!_keyPairModifiable      (r_keyPairModifiable,       AA["matrixRsaAttributes"]);
+        authIdRSAprivateFile    = new Pub_noCB2!_authIdRSAprivateFile   (r_authIdRSAprivateFile,    AA["matrixRsaAttributes"], true);
+
+        valuePublicExponent   = new PubA16!_valuePublicExponent     (r_valuePublicExponent,   AA["matrixRsaAttributes"]); // 14
+
+        keyPairId             = new Pub_noCB2!_keyPairId            (r_keyPairId,             AA["matrixRsaAttributes"], true); // 5
+        fidRSADir             = new Pub_noCB2!_fidRSADir            (r_fidRSADir,             AA["matrixRsaAttributes"], true); // 6
+        fidRSAprivate         = new PubA2!_fidRSAprivate            (r_fidRSAprivate, AA["matrixRsaAttributes"]); // 7
+        fidRSApublic          = new PubA2!_fidRSApublic             (r_fidRSApublic, AA["matrixRsaAttributes"]); // 8
+//r_keyPairLabel, // 4
+//r_keyPairId, // 5
+        sizeNewRSAprivateFile = new Obs_sizeNewRSAprivateFile       (r_sizeNewRSAprivateFile, AA["matrixRsaAttributes"]); // 9
+        sizeNewRSApublicFile  = new Obs_sizeNewRSApublicFile        (r_sizeNewRSApublicFile,  AA["matrixRsaAttributes"]); // 10
+        statusInput           = new Obs_statusInput                 (r_statusInput,           AA["matrixRsaAttributes"]); // 15
+        size_change_calcPrKDF = new Obs_size_change_calcPrKDF       (r_size_change_calcPrKDF, AA["matrixRsaAttributes"]);
+
+//// dependencies
+        fidRSAprivate        .connect(&sizeNewRSAprivateFile.watch); // just for show (sizeCurrentRSAprivateFile) reason
+        sizeNewRSAModulusBits.connect(&sizeNewRSAprivateFile.watch);
+        storeAsCRTRSAprivate .connect(&sizeNewRSAprivateFile.watch);
+
+        fidRSApublic         .connect(&sizeNewRSApublicFile.watch);  // just for show (sizeCurrentRSApublicFile) reason
+        sizeNewRSAModulusBits.connect(&sizeNewRSApublicFile.watch);
+
+        keyPairId            .connect(&size_change_calcPrKDF.watch);
+        keyPairLabel         .connect(&size_change_calcPrKDF.watch);
+        authIdRSAprivateFile .connect(&size_change_calcPrKDF.watch);
+        keyPairModifiable    .connect(&size_change_calcPrKDF.watch);
+
+        fidRSADir            .connect(&statusInput.watch);
+        fidRSAprivate        .connect(&statusInput.watch);
+        fidRSApublic         .connect(&statusInput.watch);
+
+//// values to start with
+        fidRSADir            .set(appdf is null? 0 : ub22integral(appdf.data[2..4]), true);
+/*
+        keyPairId            .set(3, true);
+        fidRSAprivate        .set([cast(int) strtol("41F1", null, 16), 0], true);
+        fidRSApublic         .set([cast(int) strtol("4133", null, 16), 0], true);
+        sizeNewRSAModulusBits.set(4096, true);
+*/
+        storeAsCRTRSAprivate. set(true, true);
+        usageRSAprivateKeyACOS.set(6,   true); // this is only for acos-generation
+        ubyte[16]  pe = [0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1];
+        valuePublicExponent  .set(pe,   true);
 /+
         import std.range : chunks;
         ubyte[6] certPath = [0x3F, 0x00, 0x41, 0x00, 0x41, 0x20];
@@ -158,8 +229,8 @@ else {
 //        rc = sc_verify(card, SC_AC.SC_AC_CHV, 0x81, pin.ptr, pin.length, &tries_left);
         assert(rc==0);//  return EXIT_FAILURE;
 
-	    rc = uploadHexfile(card, "/path/to/cert.hex", 0, 1664, 0);
-//        assert(rc==0);//  return EXIT_FAILURE;
+        rc = uploadHexfile(card, "/path/to/cert.hex", 0, 1664, 0);
+//        assert(rc==1664 /*lenWritten*/);//  return EXIT_FAILURE;
 +/
     } // connect to card
     AA["fs_text_asn1"].SetAttributeVALUE("");
@@ -232,6 +303,99 @@ Also, You should know this about Pins:
    which pops up when a private RSA key shall be used for signing or decrypting, effectively giving control from case to case.
    This is a warmly recommended feature (though not enabled by default currently; diable that only temporarily for pkcs11-tool --test).
   `);
+
+    AA["cst_text"].SetString("APPEND", `
+Some remarks:
+The tool works with 1 slot currently only, which is the first one found with a token present ! (There may be more slots with tokens present;
+ the first one usually has Slot id : 0; later, there will be a selection for other present tokens)
+
+The version of PKCS#15 / ISO 7816-15 supported by opensc versions 17/18 is PKCS#15 v1.1 / ISO 7816-15:2004
+
+Relating to tab 'filesystem':
+Toggle: Perform 'Read operation' automatically, if applicable and doesn't require authorization (except SM related):
+This means: The read operation will be done automatically if not disallowed by file access permission and if
+- No pin verification nor key authentication is required by file access condition, except
+  if the file access condition is 'key to be authenticated' and that key is authenticated (automatically) already
+  (like it may be configured for SM-protected files if the external authentication key is the key referred to here and
+   external authentication was successful; SM-protected file operations invoke external authentication automatically), then do read automatically.
+
+The tool aims at shielding the possibly complex access conditions of files (and commands) from the user and just ask for the required permission(s).
+In order to check that, 2 file headers get printed, the enclosing DF's header and the header of the selected file/DF.
+`);
+
+    AA["gkpRSA_text"].SetString("APPEND", `
+This page is dedicated to 'manipulating/handling' anything about RSA key pair content and/or files, as well as EF(PrKDF) and EF(PuKDF) content.
+The basic requirement merely is, that the files PrKDF and PuKDF do exist and are known to opensc (by respective entries in EF(ODF)). PrKDF and PuKDF files may be empty though.
+
+PKCS#15 tells, what EF(PrKDF) and EF(PuKDF) are for: They contain essential information about existing private/public RSA key files as a kind of directory type.
+Any operation done on this page will likely have to update these files to be up to date.
+ACOS stores a RSA key pair as 2 distinct files within the card's filesystem: A RSA public key file (for modulus N and public exponent e + 5 administrative bytes) and
+a RSA private key file (for modulus N and private exponent d + 5 administrative bytes; there is an option to store instead of d the components according to Chinese Remainder Theorem CRT).
+Also note the reason, why there is 'Private key usage ACOS' and 'Private key usage PrKDF' and how they are different. The only combinations that make sense, are there:
+Private key usage:                           ACOS            PrKDF
+Intention: sign (SHA1/SHA256)                sign            sign (,signRecover,nonRepudiation)
+Intention: sign (SHA512)                     decrypt,sign    sign (,signRecover,nonRepudiation)
+Intention: decrypt,sign (not recommended)    decrypt,sign    decrypt,sign (...)
+Intention: decrypt                           decrypt         decrypt (,unwrap)
+
+The primary choice among 3 alternatives is, what to do (choosable within the following radio buttons)
+A - Don't change anything stored in the RSA key pair files, thus modifiable is only: "Key pair label", "Key pair id", "authId", within reasonable limits "Private key usage PrKDF" and "Public key usage PuKDF", "Key pair is modifiable?"
+B - Do remove a RSA key pair (delete files and adapt EF(PrKDF) and EF(PuKDF).
+C - The RSA key pair files do exist already and get reused: Do regenerate the RSA key pair.
+D - The RSA key pair files don't exist: Do create new RSA key pair files sized as required and generate the RSA key pair. The file ids are not freely choosable but dictated by the acos5_64.profile file.
+
+Choices C and B allow to change everything (for B there is the limit what fits into the existing files, possibly limiting modulus bits and/or the CRT choice).
+Depending on the primary choice, the following table 'RSA key pair generation attributes' will have varying fields blocked as read-only. The table works Excel-like, i.e. recalculating depending fields and status.
+In order to keep the code simple, not all 'impossible' options (e.g. from Drop-Down choices selectable) get blocked rigth away, but all entries constantly get checked afterwards whether they are appropriate for the selected primary choice operation, signaling the overall status by color.
+E.g. for choice D, a red status may occur, if EF(PrKDF) and/or EF(PuKDF) aren't sized sufficiently to hold new content to be added, or for choice C, if the required storage size of private/public key files is larger then available.
+
+Wrong usage of opensc tools or bug(s) in opensc may lead to 'exploding' EF(PuKDF) file size in that undesirably the modulus gets stored within EF(PuKDF). That may be repaired with the A choice
+
+
+
+The files themselves (create/delete) are handled in tab filesystem.
+
+Useful commands for the command line:
+$ pkcs15-tool --list-keys
+
+RSA key pair generation can be done in several ways:
+(a) By opensc tools (or by PKCS#11 functions C_CreateObject files and C_GenerateKeyPair and update EF(PrKDF) and EF(PuKDF) manually).
+    This method lacks full control of acos key pair generation parameters (like CRT style yes/no, sign_only/decrypt_only/sign_and_decrypt.
+    The driver handles these possible decisions for this method by hard-coded defaults (CRT yes, sign_and_decrypt).
+    pkcs15-init --generate-key rsa/3072 --auth-id 01 --id 46 -vvvv
+
+(b) By this tool with full control of acos key pair generation parameters, and I believe, the algorithm is superior with better user feed back.
+    Also, a private key guaranteed to be able to sign or decrypt only, can be generated with method (b) only. This is an additional safety level over declaring in PrKDF/PuKDF only, what the keys are going to be used for: A private key acos-generated e.g. for signing only, can't by design be used for anything else than signing, no matter what PrKDF states (possibly differently; though that should match of course).
+
+The simplest use of this facility is to just replace an existing key pair, i.e. nothing changes from what goes into existing PrKDF/PuKDF entry (also no size-required change), except changing CRT yes/no (as long as it still fits within size limit) and/or changing private/public key usage is allowed:
+Enter all 'RSA key pair generation attributes' required (except Key pair label which will not change from existing). They will be checked and used for generation of new key pair in existing files.
+There is a checkbox for that intent, but this is not allowed if a certificate refers to this key as the cert would be rendered useless then (thus first delete the cert)
+
+Reminder: The acos command for signing is rather limited in that it does accept only SHA1 and SHA256 hashes. It detects the digest algo from input hash length, generates the digestInfo, ASN.1 encodes and applies the padding selected (PKCS#1 or ISO) and finally signs. Any other hash to be signed (e.g. SHA512 used by Thunderbird) or different padding scheme will rely on driver code which must use acos command 'decrypt' (raw RSA exponentiation) in order to sign. I.e. the key for that must be generated with setting 'private key usage ACOS sign+decrypt !
+In order to perform this workaround, the key must be generated as sign+decrypt (dual functionality is not recommended, but there is no way out here). In that case (You want a fully capable key for signing only), don't declare to PrKDF, that the key actually is capable to decrypt as well and opensc will use it for signing only. Merely the driver will switch to try 'decrypt' (there is no way to retrieve whether the key actually is capable of and will allow that) for signing if required, and it will do so in a safe way: Only DigestInfo content for a couple of digest algorithms with valid PKCS#1 padding will be allowed to be signed this way.
+
+The following table works akin Excel does, i.e. deoending on input values, others are calculated based on hidden formulas.
+E.g. 'Key pair id' is the input value having the longest chain of recalculation (and also is a special field capable to overwrite other 'input' values: It reads PrKDF and PuKDF for the matching id, resulting in file ids of private and public keys overwritten - and then updating everything depending on that  almost all other fields to 'current' values (all except file id directory and CRT, which is non-retrievable),
+The general principle is: The value entered is taken as fixed, all others may change, even if those seem to be (otherwise are) input values only: E.g. Key pair id' also sets RSAModulusBits to the value of the respective key pair referenced, i.e. the order of inputs is significant !
+This page assumes, that the directory for the new/existing RSA key pair does exist already, otherwise first create it in tab 'filesystem'
+
+Note on using the RSA keys for signing:
+The driver won't sign everything, but only what is valid according to RSASSA-PKCS1-v1_5, where digestAlgorithm may be SHA1 or SHA256.
+As the padding will be done by the tools like pkcs11-tool, the following command will work (pin is 12345678 ascii here, the key with id 04 used):
+cat data | pkcs11-tool --id 04 -s -p 12345678 -m RSA-PKCS --module /usr/lib/opensc-pkcs11.so > data.sig
+if the data file contains exactly:
+30 21 30 09 06 05 2b 0e 03 02 1a 05 00 04 14               + 20 arbitrary bytes  or
+30 31 30 0d 06 09 60 86 48 01 65 03 04 02 01 05 00 04 20   + 32 arbitrary bytes
+
+which is the ASN.1 DER-encoding of
+      DigestInfo ::= SEQUENCE {
+          digestAlgorithm DigestAlgorithm,
+          digest OCTET STRING
+      }
+
+If the key to be used for signing was generated using 'Private key usage ACOS'='decrypt, sign', a lot more digestAlgorithm are allowed, and data like this is allowed:
+30 51 30 0d 06 09 60 86 48 01 65 03 04 02 03 05 00 04 40   + 64 arbitrary bytes
+`);
 
 //version(all) {
     {
@@ -340,9 +504,9 @@ Also, You should know this about Pins:
 //} // version(all)
 
     AA["dlg0"].Update;
-//    AA["tabCtrl"].SetInteger("VALUEPOS", 1); // why does this crash?
+//    AA["tabCtrl"].SetInteger("VALUEPOS", 1); // why does this (setting the tab od) crash?
     GC.collect();
-    /* start iteration */
+    /* start event loop */
     IupMainLoop();
 
     IupClose();

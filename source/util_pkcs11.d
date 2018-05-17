@@ -35,30 +35,35 @@ CK_ULONG        slotCount;
 
 void pkcs11_check_return_value(CK_RV rv, string message)
 {
-	if (rv != CKR_OK) {
-		writefln("Error at %s: %s", message, rv);
-		stdout.flush();
-//		exit(EXIT_FAILURE);
-	}
+    if (rv != CKR_OK) {
+        writefln("Error at %s: %s", message, rv);
+        stdout.flush();
+//        exit(EXIT_FAILURE);
+    }
 }
 
 /* returns the first "satisfying" CK_SLOT_ID */
 CK_SLOT_ID pkcs11_get_slot()
 {
-	CK_RV           rv;
-//	CK_SLOT_ID[10]  slotIds;// = malloc(CK_SLOT_ID.sizeof * slotCount);
-//	CK_SLOT_ID* slotIds = malloc(CK_SLOT_ID.sizeof * slotCount);
-	slotCount = slotIds.length;
+    CK_RV           rv;
+//    CK_SLOT_ID[10]  slotIds;// = malloc(CK_SLOT_ID.sizeof * slotCount);
+//    CK_SLOT_ID* slotIds = malloc(CK_SLOT_ID.sizeof * slotCount);
+//    slotCount = slotIds.length;
 
-	pkcs11_check_return_value(rv= C_GetSlotList(CK_TRUE, slotIds.ptr, &slotCount), "get slot list");
+    // size query
+    pkcs11_check_return_value(rv= C_GetSlotList(CK_TRUE, null, &slotCount), "get slot list");
+    if (slotCount == 0  ||  slotCount > slotIds.length) {
+        stderr.writeln("Error; could not find any slots or more than 10 slots with a token present found (dev: adjust array size)");
+//        stderr.writeln("Error; could not find any slots (or too many slots)");
+        exit(EXIT_FAILURE);
+    }
 
-	if (slotCount < 1 || slotCount > slotIds.length) {
-		stderr.writeln("Error; could not find any slots( or too many slots)");
-		exit(EXIT_FAILURE);
-	}
+    pkcs11_check_return_value(rv= C_GetSlotList(CK_TRUE, slotIds.ptr, &slotCount), "get slot list");
+    if (rv != CKR_OK)
+        exit(EXIT_FAILURE);
 
-	CK_SLOT_ID  slotId = slotIds[0];
-//	free(slotIds);
-	writefln("slot count: %s", slotCount);
-	return slotId;
+    CK_SLOT_ID  slotId = slotIds[0];
+//    free(slotIds);
+    writefln("slot count: %s", slotCount);
+    return slotId;
 }

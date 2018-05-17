@@ -1,7 +1,7 @@
 # acos5_64_gui
 An Administration tool (and more) for ACS ACOS5-64 (v2: Smart Card/CryptoMate64 or v3: Smart Card/CryptoMate Nano in mode Non-FIPS/64K), based on driver acos5_64
 
-The acos5_64 driver/SM binary included is bound to a specific opensc version and depends on specific shared object(s) (phobos and druntime; for DMD, they are combined into one: libphobos2.so) of a D compiler (currently DMD Beta 2.080.0 (-beta.1) only: https://dlang.org/download.html).<br>
+The Linux acos5_64 driver/SM binary libacos5_64.so included is bound to a specific opensc version and depends on specific shared object(s) (phobos and druntime; for DMD, they are combined into one: libphobos2.so) of a D compiler (currently DMD 2.080.0 an LDC 1.9.0: https://dlang.org/download.html).<br>
 Other "systemDependencies" are listed in dub.json.<br>
 dub.json has no provision where to find the driver libacos5_64.so, thus it's expected to be found in the standard library search path (it will be dynamically loaded just by it's filename "libacos5_64.so"; opensc.conf patched must be adapted accordingly),
 
@@ -14,6 +14,10 @@ Features planned/about to be implemented:
 - [ ] View (, manipulate) the opensc configuration file opensc.conf.<br>
 - [ ] View (, manipulate) /usr/share/opensc/acos5_64.profile.<br>
 - [x] View (, manipulate) the filesystem in a tree- and other views (with some obvious restrictions, e.g. resizing files is impossible with this card type).<br>
+- [ ] RSA keys/PrKDF/PuKDF handling.<br>
+- [ ] Sym keys/SKDF handling.<br>
+- [ ] Pin/AOD handling.<br>
+- [ ] Certificate/CDF handling.<br>
 - [ ] Dump card contents (encrypted) for backup storage. Somehow integrate placeholders for files that will never be dumped like PINs, secret keys, RSA private keys (anything that is or should be: Read_Never).<br>
 - [ ] Thus have an import facility for non-dumpable files.<br>
 - [ ] Initialize card.<br>
@@ -23,7 +27,7 @@ Features planned/about to be implemented:
 - [ ] <br>
 - [ ] Last but not least: Fill the gap of ACOS5-64 card/token specific features/settings that currently are not covered/being possible to set by opensc tools.<br>
 - [ ] Centralized access to instructions, howtos and useful links, help in general.<br>
-- [ ] Access to an extensive filesystem sanity check (PKCS#15 compliance, recommended access rights etc.). There is a kind of pre-stage already by analysing/ASN.1-decoding PKCS#15 relevant files<br>
+- [ ] Access to an extensive filesystem sanity check (PKCS#15 compliance, recommended access rights etc.). There is a kind of pre-stage already by analyzing/ASN.1-decoding PKCS#15 relevant files<br>
 - [ ] Perhaps integrate some opensc-debug.log analysis; zeroize opensc-debug.log.<br>
 - [ ] Perhaps integrate gscriptor functionality (send any APDU(s) to card/token).<br>
 
