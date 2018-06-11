@@ -37,7 +37,7 @@ pragma(inline, true)
 ubyte bitswap ( ubyte x ) pure nothrow @nogc @safe
 {
 	static import core.bitop;
-	return core.bitop.bitswap(x) >> 24;
+	return core.bitop.bitswap(cast(uint)x) >>> 24;
 }
 
 ubyte[] /* <-OctetStringBigEndian*/ integral2ub(uint storage_bytes)(size_t integral) // pure nothrow /*@nogc*/ @safe
@@ -87,6 +87,19 @@ ulong ub82integral(scope const ubyte[] ubeight) pure nothrow @nogc @safe { // fo
 	return  result;
 }
 
+/* arr represents an integer with least significant bits stored at the end/back of arr */
+ulong bits_used(ubyte[] arr) @nogc nothrow pure @safe
+{
+    import std.algorithm.searching : any, countUntil;
+    import std.math : ilogb;
+
+    if (!any(arr))
+        return 0;
+    ulong pos = countUntil!"a>0"(arr);
+    return  1+ilogb(arr[pos]) + 8*(arr.length-pos-1);
+}
+
+
 
 import std.stdio : writeln;
 
@@ -109,6 +122,8 @@ unittest {
 	assert(ub22integral(ub2) == 0x4103);
 	ubyte[4] ub4 = [0x3F, 0x00, 0x41, 0x00];
 	assert(ub82integral(ub4) == 0x3F004100);
+	ubyte[] ub8 = [0,0,0,0,0, 1, 0, 1];
+	assert(bits_used(ub8)==17);
 }
 
 pure nothrow /*@nogc*/ @safe
