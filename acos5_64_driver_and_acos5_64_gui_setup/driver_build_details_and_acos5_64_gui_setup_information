@@ -1,0 +1,184 @@
+file: driver_build_details_and_important_setup_information
+
+driver libacos5_64.so
+=====================
+
+The driver-package(s) available here were built on an Ubuntu Bionic Beaver system (18.04), i.e. they have dependencies typical for
+that distro, notably openssl 1.1.0:
+
+acos5-64-bionic_amd64-dmd_2_80_0-opensc_0_17.deb
+
+1 D-Compiler suite is supported currently, DMD 2.080.0 (dependencies on shared phobos and druntime).
+  (Debian packaged LDC (1.8.0) just lacks std.range.slide, which comes with LDC-1.9.0; hopefully, the LDC project will once start
+  debian packaging for amd64 as well).
+1 OpenSC version is supported currently, 0.17.0  (dependencies on shared libopensc.so.5).
+
+More packages will follow, once a suitable LDC package is available and packaging opensc_0_18 was done.
+
+While the libacos5_64.so included in .deb is meant to be used on any Linux 64 bit system, packaging it as .deb is an easy 1-click
+install for Debian/Ubuntu users and just an easy way for me to convey several infos in a compact way:
+1. Where the libacos5_64.so has to be placed in the system: Basically the only requirement is that it is placed within a standard
+   library search path for .so in a x86_64 system. The opensc.conf and acos5_64_gui will rely on finding the library without
+   providing a path !
+2. Where to place opensc.conf and it's content, suitable for acos5_64
+3. Coming soon:  Where to place acos5_64.profile and it's content, suitable for acos5_64
+4. The target architecture, dependency on other software and more is easily expressible, as shown in the control file
+
+
+For Debian-based systems, one of the .deb is all You need referring to the driver (apart from "keyset" explained in the end).
+They assume http://d-apt.sourceforge.net/ to be the source for DMD's shared phobos and druntime.
+opensc_0_17 is available from Debian for Ubuntu Bionic (effectively 2 pack., opensc and opensc-pkcs11 make up a release version).
+opensc_0_18 will soon be available from https://github.com/carblue/opensc, packaged from compiled sources, also split into 2 .deb
+like in the 0.17 version)
+
+The driver packages replace /etc/opensc/opensc.conf with a file suitable for acos5_64.
+BE AWARE, that this new opensc.conf switches on logging, and does switch off all internal drivers except acos5_64 for reasons
+mentioned in opensc.conf.
+YOU MAY WANT to change opensc.conf to Your needs, at least switching off logging again if everything works as expected. In the
+beginning, it's recommended to have the logging feature enabled for troubleshooting.
+The original opensc.conf from OpenSC, generated on Ubuntu Bionic Beaver from configure invocation
+$ ./configure --prefix=/usr --sysconfdir=/etc/opensc --libdir=/usr/lib/x86_64-linux-gnu
+is there as file opensc.conf.orig17 or opensc.conf.orig18
+
+
+For other Linux distros, these commands will extract relevant .deb contents to tmp/,
+e.g. of acos5-64-bionic_amd64-dmd_2_80_0-opensc_0_17.deb
+$ mkdir tmp && cd tmp
+$ ar p ../acos5-64-bionic_amd64-dmd_2_80_0-opensc_0_17.deb control.tar.xz | tar -xJ
+$ ar p ../acos5-64-bionic_amd64-dmd_2_80_0-opensc_0_17.deb data.tar.xz | tar -xJ
+
+In this case, overwrite /etc/opensc/opensc.conf only if the existing (original) /etc/opensc/opensc.conf and the file
+opensc.conf.orig17 match exactly, otherwise perform the required changes manually or even better use diff and patch.
+
+
+Key sizes for Secure Messaging (3DES) will be 24 byte=192 bit, thus the
+keyset_..._02_enc  and keyset_..._02_mac with 24 byte keys will be used.
+The Graph. User Interface application/popup 'Consent for signing' is (basically) enabled.
+
+
+$ ldd libacos5_64.so  (from acos5-64-bionic_amd64-dmd_2_80_0-opensc_0_17.deb)
+        linux-vdso.so.1 (0x00007ffd8ebe3000)
+        libcrypto.so.1.1 => /usr/lib/x86_64-linux-gnu/libcrypto.so.1.1 (0x00007f83a4cdf000)
+        libopensc.so.5 => /usr/lib/x86_64-linux-gnu/libopensc.so.5 (0x00007f83a4914000)
+        libphobos2.so.0.80 => /usr/lib/x86_64-linux-gnu/libphobos2.so.0.80 (0x00007f83a414e000)
+        libpthread.so.0 => /lib/x86_64-linux-gnu/libpthread.so.0 (0x00007f83a3f2f000)
+        libgcc_s.so.1 => /lib/x86_64-linux-gnu/libgcc_s.so.1 (0x00007f83a3d17000)
+        libc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x00007f83a3926000)
+        /lib64/ld-linux-x86-64.so.2 (0x00007f83a53a2000)
+        libdl.so.2 => /lib/x86_64-linux-gnu/libdl.so.2 (0x00007f83a3722000)
+        libz.so.1 => /lib/x86_64-linux-gnu/libz.so.1 (0x00007f83a3505000)
+        libm.so.6 => /lib/x86_64-linux-gnu/libm.so.6 (0x00007f83a3167000)
+        librt.so.1 => /lib/x86_64-linux-gnu/librt.so.1 (0x00007f83a2f5f000)
+
+-------------------------------------------------------------------------------------------------------------
+
+
+
+setup information for acos5_gui
+===============================
+
+Basic requirements are the DUB package manager and the DMD D compiler from  https://dlang.org/download.html
+or http://d-apt.sourceforge.net/
+
+IUP
+===
+Soon a Debian package will be available from https://github.com/carblue/iup, a (re_)packaging of iup-3.25
+
+Alternatively:
+Starting point for the binary downloads is e.g.  http://webserver2.tecgraf.puc-rio.br/iup/en/download.html
+This will point to some  sourceforge.net site. The kernel-matching-one of iup-???_64_lib.tar.gz in folder
+Linux Libraries is what You want (for Bionic Beaver kernel 4.15, the files for kernel 4.4 do work as well).
+There is a suitable script file 'install' inside.
+The installation of IUP and CD is required, IM is optional.
+The precompiled binaries downloaded/installed depend on a bunch of other installations
+(assumed regularly available on Your system already; requirements as in IUP/CD documentaion).
+Those prerequisites are mentioned e.g. for IUP at  http://webserver2.tecgraf.puc-rio.br/iup/en/guide.html#start
+
+In order to test, whether all dependencies of IUP and CD are in place, fetch my iup D binding manually:
+dub fetch iup
+
+cd into the downloaded package directory where the folder 'examples' resides and run:
+cd examples/C && chmod +x tree.d && ./tree.d
+
+If that doesn't launch a window showing a simple tree structure, then something is missing in IUP/CD installation.
+The dynamic layout of graph. elements like text box size depends on the GTK-Font size (the GUI design was based on Noto Sans 10).
+Don't select greater fonts, otherwise the application window migth exceed the screen size.
+
+OpenSC
+======
+It's recommended to read at least the README.md of dependency package/D-binding 'opensc' because of the tight dependency
+on the specific opensc binary on Your system that will be used !!
+Required is one of
+libopensc.so.5 in opensc version 0.17.0
+libopensc.so.6 in opensc version 0.18.0
+
+Depending on the binary opensc version used,
+change dub.json to "libs-posix": [":libopensc.so.5"] or "libs-posix": [":libopensc.so.6"]
+
+Also https://github.com/carblue/opensc/blob/master/info/options is a recommended read !
+
+IT'S ABSOLUTELY REQUIRED, THAT THE D BINDING (opensc package's version identifiers) MATCHES EXACTLY HOW THE libopensc.so
+BINARY WAS BUILT !!!
+
+opensc is available in many distributions, though maybe not versions 0.17.0 or 0.18.0
+If You need to build that, it's easy following https://github.com/OpenSC/OpenSC/wiki/Compiling-and-Installing-on-Unix-flavors.
+Do what's described as 'Typical Installation' but optionally/recommended replace the install step by: sudo checkinstall
+Debian packaging differs by applying $ ./configure --prefix=/usr --sysconfdir=/etc/opensc --libdir=/usr/lib/x86_64-linux-gnu
+and also Debian packaging cares for p11-kit configuration files for OpenSC's PKCS#11 module, such that it's ready to be used once
+p11-kit is installed. The 'Typical Installation' described doesn't care for p11-kit configuration files.
+
+Requirements are a libopensc.so.? and opensc-pkcs11.so installed/available afterwards !
+I assume, You now have an opensc version 0.18.0 binary installation (otherwise a 0.17.0 binary, which requires ommitting
+OPENSC_VERSION_LATEST from the bindings dub.json). Following the 'Typical Installation' will #define
+ENABLE_SM, ENABLE_OPENSSL  and NOT #define SIMCLIST_WITH_THREADS, SIMCLIST_DUMPRESTORE in the binary build.
+
+The driver/SM libacos5_64.so binaries available here depend on a specific version of opensc && compiler/phobos && openssl 1.1.0 !
+
+(Update: The patch method was replaced by providing the changed opensc.conf ! The problem with patching is, that there is no one
+single opensc.conf. configure will modify a template of opensc.conf depending on the kind of system, invokation parameters).
+Apply the accompanied etc_opensc_opensc_conf.patch on the original (what get's initially installed by OpenSC) opensc.conf
+for Linux as of the respective version,
+assumingly located in /etc/opensc/opensc.conf, by:
+patch -b /etc/opensc/opensc.conf etc_opensc_opensc_conf.patch
+
+That does the essential configuration, such that the driver 'acos5_64' implemented by libacos5_64.so will be loaded as an external
+driver and an external SM module (same binary used for driver and SecureMessaging module).
+The problem with the false positive recognition of ATR of Card/CryptoMate64 in acos5 internal driver is dealt with by excluding
+all internal drivers except acos5_64, default:
+There may be better ways to workaround that problem.
+
+Review the settings done by etc_opensc_opensc_conf.patch, escpecially 3 points require special attention, partially manual editing:
+1. Where the binary libacos5_64.so is located: The easiest (least to specify) way, is to place it in a directory
+   that is part of the system's library search path, e.g. /usr/local/lib/libacos5_64.so
+   Don't forget a  sudo ldconfig  then. (Update: System's library search path is the default now in .deb packages provided !)
+2. If You want/Your card/token uses Secure Messaging, then 2 correct keyset_* must exist:
+   keyset_..._02_enc (which corresponds to record #2 with key reference 0x82 on card) and keyset_..._02_mac  (which corresponds to
+   record #1 with key reference 0x81 on card), all are 24 byte keys according to SESSIONKEYSIZE24 set.
+   keyset* and corresponding key on card must be the same, i.e. You are using 2 recommendedly different, 24 byte keys, that both
+   opensc.conf and the card know about:
+   These keys are used, one for Internal Authentication, the other for External Authentication, which are initial steps in
+   establishing a 'secure channel' for Secure Messaging.
+   OpenSC software (namely the acos5_64 SM module) will evaluate the entries for keyset in opensc.conf and check them for equality
+   against the keys on card.
+
+   Put Key operations aren't yet provided by acos5_64_gui, but nevertheless, You have to lookup the "Symmetric Key Record Format"
+   in the ACOS5-64 reference manual anyway: There are decisions to make about Retry(Error) / Usage Counter as well.
+Here are example commands (within the quotes) to use (e.g. from gscriptor, but better eliminate spaces used here for readability):
+hexString!"00 A4 00 00 02  4100"         <= command 00A40000024100  will select file id 0x4100, app dir in this case
+hexString!"00 A4 00 00 02  4102"         <= command 00A40000024102  will select file id 0x4102, the symetric key file
+The next 2 commands: Each writes a 24 byte key (the bytes between 14 and the trailing 00's to record 1 or 2 of selected file 4102,
+together with the algorithm to be used with that key (3DES ede), the key reference 0x81 or 0x82, if it's a key for External Auth.
+or Internal Auth., which Retry(Error) Counter or Usage Counter do apply
+hexString!"00 DC 01 04 25  81 01 FF   14 F1E0D0C1B0A18908 07164504130201F1 89FEB3C837451694 000000000000000000" // KeyTerminal; no Retry(Error) Counter for key ! External Auth.
+hexString!"00 DC 02 04 25  82 02 FFFF 14 F101021304851607 0849A1B0C1D0E0F1 4589B316FE9437C8 0000000000000000"   // KeyCard;     no        Usage Counter for key ! Internal Auth.
+hexString!"00 44 00 00 02  4102"         <= without activation, the symetric key file is unusable !
+
+   In order to be safe, care for odd parity bytes of the 24 byte keys, thus e.g. hex 03 with 2 bits set is not a valid byte within
+   a key.  I don't remember the circumstances, but I remember, the 'odd parity thing' once fell on my feet, probably it was openssl
+   rejecting a key because of that contempt.
+
+3. The driver is compiled with ENABLE_ACOS5_64_UI set, which means, the driver basically is prepared to launch a pinentry program
+   and respect Your decision taken:
+   The launch will take place when a RSA private key shall be used for operation 'Sign' or 'Decrypt'. There is actually no pin asked
+   for here; it's all about Your consent to use the private key now or reject that.
+   popup_user_consent_app =;  must be edited to actually enable that feature, and of course that program must be callable;

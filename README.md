@@ -1,9 +1,17 @@
 # acos5_64_gui
-An Administration tool (and more) for ACS ACOS5-64 (v2: Smart Card/CryptoMate64 or v3: Smart Card/CryptoMate Nano in mode Non-FIPS/64K), based on driver acos5_64
+An Administration tool (and more) for ACS ACOS5-64 (v2: Smart Card/CryptoMate64 or v3: Smart Card/CryptoMate Nano in mode Non-FIPS/64K), based on driver acos5_64 (called by opensc).
 
-The Linux acos5_64 driver/SM binary libacos5_64.so included is bound to a specific opensc version and depends on specific shared object(s) (phobos and druntime; for DMD, they are combined into one: libphobos2.so) of a D compiler (currently DMD 2.080.0 an LDC 1.9.0: https://dlang.org/download.html).<br>
+The Linux acos5_64 driver/SM binary libacos5_64.so included is bound to a specific opensc version and depends on specific shared object(s) phobos and druntime of a D compiler suite (currently supported is DMD 2.080.0: https://dlang.org/download.html).<br>
 Other "systemDependencies" are listed in dub.json.<br>
-dub.json has no provision where to find the driver libacos5_64.so, thus it's expected to be found in the standard library search path (it will be dynamically loaded just by it's filename "libacos5_64.so"; opensc.conf patched must be adapted accordingly),
+
+OpenSC supports a subset of PKCS#15 v1.1 + CommonKeyAttributes.algReference from ISO 7816-15.
+The support by this tool is reflected in file PKCS15.asn, which is OpenSC's support stripped down for:
+  IC card case<br>
+  capabilities of ACOS5-64<br>
+  supported by libtasn1<br>
+IMPORTANT: Make sure, that Your PKCS#15 files only use what is covered by included ASN.1 module file PKCS15.asn. In case of doubt, check with tool asn1Decoding from package libtasn1-bin.
+Checkable types are e.g. PKCS15.DIRRecord (EF.DIR 2F00), PKCS15.PrivateRSAKeyObject (for entries in EF.PrKDF (not for the whole file if there is more than 1 entry)), PKCS15.PublicRSAKeyObject (for entries in EF.PuKDF) etc.:<br>
+E.g.: asn1Decoding  PKCS15.asn  file_with_hex_content_of_2F00  PKCS15.DIRRecord
 
 This is [WIP] work in progress
 

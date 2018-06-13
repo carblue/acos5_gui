@@ -29,19 +29,22 @@ TODO check about countermeasures like locking etc. provided by PKCS#11
 module acos5_64_gui;
 
 
-//import core.stdc.stdlib : strtol;
 import core.memory : GC;
 import core.runtime : Runtime;
 import core.stdc.config : c_long, c_ulong;
-import core.stdc.stdlib : EXIT_SUCCESS, EXIT_FAILURE, exit, getenv; //, div_t, div, malloc, free;
+//import core.stdc.string : strlen;
+import core.stdc.stdlib : EXIT_SUCCESS, EXIT_FAILURE, exit, getenv; //, div_t, div, malloc, free, strtol;
 import core.stdc.locale : setlocale, LC_ALL;
 //import core.stdc.stdio : printf;
 import std.stdio : write, writeln, writefln, stdout;
 //import std.typecons;
-import std.string : fromStringz, toStringz, representation;
+//import std.string : fromStringz, toStringz, representation;
 import std.algorithm.searching;
 import std.algorithm.comparison;
 import std.conv : to;
+import std.format : format;
+import std.exception : assumeWontThrow;//(expr, msg, file, line)
+
 //import std.uni;
 //import std.concurrency;
 //import core.thread;
@@ -77,28 +80,32 @@ import pkcs11;
 
 import util_general;
 import gui : create_dialog_dlg0;
-import util_opensc : lh, card, util_connect_card, populate_tree_fs, TreeTypeFS, fs, PKCS15_FILE_TYPE; //, acos5_64_short_select, uploadHexfile
+import util_opensc : lh, card, populate_tree_fs, PKCS15_FILE_TYPE, util_connect_card, connect_card, PKCS15, errorDescription,
+    fs, itTypeFS, iter_begin, appdf, prkdf, pukdf;
+ //, acos5_64_short_select, uploadHexfile
+    /*, PRKDF, PUKDF, PUKDF_TRUSTED, SKDF, CDF, CDF_TRUSTED, CDF_USEFUL, DODF, AODF*/
 import util_pkcs11 : pkcs11_check_return_value, pkcs11_get_slot;
 import generateKeyPair_RSA;
 
+import libtasn1;// : asn1_parser2tree, asn1_delete_structure, ASN1_SUCCESS;
+import tasn1_pkcs15 : tasn1_pkcs15_tab;
 
+/+
 void dummy_function(sc_context* ctx) /*@safe*/ {
     writeln("This is going to be printed from @safe code: ", *ctx);
 }
 
+
 string blankPaddingTrimmed(ubyte[] buf) {
 return "";
 }
++/
 
 //version(unittest) {}
 //else
 int main(string[] args) {
 
 version(I18N) {
-    /* import std.demangle : demangle;  Error when compiling with dmd and -dip1000, originating in iup_plusD.d, import std.string : toStringz, fromStringz, empty;
-    Warnung: undefinierter Verweis auf »_D3std6string__T10stripRightTAyaZQrFNaNiNfNkQpZQs«
-    Warnung: undefinierter Verweis auf »_D3std6string__T10stripRightTAyaZQrFNaNiNfNkQpZQs«
-    writeln(demangle("_D3std6string__T10stripRightTAyaZQrFNaNiNfNkQpZQs")); // "pure @nogc @safe immutable(char)[] std.string.stripRight!(immutable(char)[]).stripRight(return immutable(char)[])" */
     /* Setting the i18n environment */
     setlocale (LC_ALL, "");
     cast(void) bindtextdomain ("acos5_64_gui", getenv("PWD"));
@@ -106,119 +113,31 @@ version(I18N) {
     /*printf("bind_textdomain_codeset: %s\n",*/cast(void) bind_textdomain_codeset("acos5_64_gui", "UTF-8");//);
 }
 
-    /* connect to card  and release all resources (opensc/driver when leaving the following scope */
-    {
-        string debug_file = "/tmp/opensc-debug.log";
+    IupOpenD();
+    IupControlsOpen(); // without this, no Matrix etc. will be visible
+    version(Windows)  IupSetGlobal("UTF8MODE", IUP_YES);
 
-        int rc; // used for any return code except Cryptoki return codes, see next decl
-        sc_context*         ctx;
-        sc_context_param_t  ctx_param = { 0, "acos5_64_gui " };
-        if ((rc= sc_context_create(&ctx, &ctx_param)) != SC_SUCCESS)
-            return EXIT_FAILURE;
-        if (ctx is null)
-            return EXIT_FAILURE;
-//        writeln(*ctx);
-//(() /*@safe*/ { dummy_function(ctx);})();
+    /* Shows dialog */
+    create_dialog_dlg0.Show; // this does the mapping; it's here because some things can be done only after mapping
 
-        ctx.flags |= SC_CTX_FLAG_ENABLE_DEFAULT_DRIVER;
-        ctx.debug_ = SC_LOG_DEBUG_NORMAL/*verbose*/;
-        sc_ctx_log_to_file(ctx, toStringz(debug_file));
-        if (sc_set_card_driver(ctx, "acos5_64"))
-            return EXIT_FAILURE;
+    int parse_result;
+    if (1)
+        parse_result = asn1_array2tree (tasn1_pkcs15_tab, &PKCS15, errorDescription);
+    else
+        parse_result = asn1_parser2tree ("/path/to/PKCS15.asn", &PKCS15, errorDescription);
 
-        rc = util_connect_card(ctx, &card, null/*opt_reader*/, 0/*opt_wait*/, 1 /*do_lock*/, SC_LOG_DEBUG_NORMAL/*verbose*/);
-        mixin (log!(__FUNCTION__, " error of util_connect_card: %d", "rc"));
-//        writeln("PASSED: util_connect_card");
-        scope(exit) {
-            if (card) {
-                if (! Runtime.unloadLibrary(lh))
-                    exit(1);
-version(Windows) {}
-else {
-    version(unittest) {}
-    else {
-                if (! Runtime.terminate())
-                    exit(1);
+    if (parse_result != ASN1_SUCCESS) {
+        writeln(errorDescription);
+        exit(EXIT_FAILURE);
     }
-}
-
-                sc_unlock(card);
-                sc_disconnect_card(card);
-            }
-            if (ctx)
-                sc_release_context(ctx);
-//            {
-//                auto f = File(debug_file, "w"); // open for writing, i.e. Create an empty file for output operations. If a file with the same name already exists, its contents are discarded and the file is treated as a new empty file.
-//            }
-        } // scope(exit)
-        if (rc || !card)
-            return EXIT_FAILURE;
-
-        IupOpenD();
-        IupControlsOpen(); // without this, no Matrix etc. will be visible
-        version(Windows)  IupSetGlobal("UTF8MODE", "YES");
-
-        /* Shows dialog */
-        create_dialog_dlg0.Show; // this does the mapping; it's here because some things can be done only after mapping
-
+/+  once create the array/vector  /* C VECTOR CREATION */
+    char[ASN1_MAX_ERROR_DESCRIPTION_SIZE] error_desc;
+    parse_result = asn1_parser2array ("PKCS15.asn".ptr,
+                                      "tasn1_pkcs15.c".ptr,
+                                      "tasn1_pkcs15_tab".ptr, error_desc.ptr);
++/
+    enum string commands = `
         populate_tree_fs(); // populates PrKDF, PuKDF (and dropdown key pair id),
-
-        /* assuming there is 1 aooDF only */
-        TreeTypeFS.nodeType* appdf = fs.preOrderRange(fs.begin(), fs.end()).locate!"a[6]==b"(PKCS15_FILE_TYPE.PKCS15_APPDF);
-//      assert(appdf);
-
-        /* initialze the publisher/observer system for GenerateKeyPair_RSA_tab */
-        sizeNewRSAModulusBits   = new Pub_noCB2!_sizeNewRSAModulusBits  (r_sizeNewRSAModulusBits,   AA["matrixRsaAttributes"]); // 1
-        storeAsCRTRSAprivate    = new Pub_noCB2!_storeAsCRTRSAprivate   (r_storeAsCRTRSAprivate,    AA["matrixRsaAttributes"]); // 2
-        usageRSAprivateKeyACOS  = new Pub_noCB2!_usageRSAprivateKeyACOS (r_usageRSAprivateKeyACOS,  AA["matrixRsaAttributes"]); //3
-        usageRSAprivateKeyPrKDF = new Pub_noCB2!_usageRSAprivateKeyPrKDF(r_usageRSAprivateKeyPrKDF, AA["matrixRsaAttributes"]); //16
-        usageRSApublicKeyPuKDF  = new Pub_noCB2!_usageRSApublicKeyPuKDF (r_usageRSApublicKeyPuKDF,  AA["matrixRsaAttributes"]); //17
-        keyPairLabel            = new Pub_noCB2!(_keyPairLabel,string)  (r_keyPairLabel,            AA["matrixRsaAttributes"]);
-        keyPairModifiable       = new Pub_noCB2!_keyPairModifiable      (r_keyPairModifiable,       AA["matrixRsaAttributes"]);
-        authIdRSAprivateFile    = new Pub_noCB2!_authIdRSAprivateFile   (r_authIdRSAprivateFile,    AA["matrixRsaAttributes"], true);
-
-        valuePublicExponent   = new PubA16!_valuePublicExponent     (r_valuePublicExponent,   AA["matrixRsaAttributes"]); // 14
-
-        keyPairId             = new Pub_noCB2!_keyPairId            (r_keyPairId,             AA["matrixRsaAttributes"], true); // 5
-        fidRSADir             = new Pub_noCB2!_fidRSADir            (r_fidRSADir,             AA["matrixRsaAttributes"], true); // 6
-        fidRSAprivate         = new PubA2!_fidRSAprivate            (r_fidRSAprivate, AA["matrixRsaAttributes"]); // 7
-        fidRSApublic          = new PubA2!_fidRSApublic             (r_fidRSApublic, AA["matrixRsaAttributes"]); // 8
-//r_keyPairLabel, // 4
-//r_keyPairId, // 5
-        sizeNewRSAprivateFile = new Obs_sizeNewRSAprivateFile       (r_sizeNewRSAprivateFile, AA["matrixRsaAttributes"]); // 9
-        sizeNewRSApublicFile  = new Obs_sizeNewRSApublicFile        (r_sizeNewRSApublicFile,  AA["matrixRsaAttributes"]); // 10
-        statusInput           = new Obs_statusInput                 (r_statusInput,           AA["matrixRsaAttributes"]); // 15
-        size_change_calcPrKDF = new Obs_size_change_calcPrKDF       (r_size_change_calcPrKDF, AA["matrixRsaAttributes"]);
-
-//// dependencies
-        fidRSAprivate        .connect(&sizeNewRSAprivateFile.watch); // just for show (sizeCurrentRSAprivateFile) reason
-        sizeNewRSAModulusBits.connect(&sizeNewRSAprivateFile.watch);
-        storeAsCRTRSAprivate .connect(&sizeNewRSAprivateFile.watch);
-
-        fidRSApublic         .connect(&sizeNewRSApublicFile.watch);  // just for show (sizeCurrentRSApublicFile) reason
-        sizeNewRSAModulusBits.connect(&sizeNewRSApublicFile.watch);
-
-        keyPairId            .connect(&size_change_calcPrKDF.watch);
-        keyPairLabel         .connect(&size_change_calcPrKDF.watch);
-        authIdRSAprivateFile .connect(&size_change_calcPrKDF.watch);
-        keyPairModifiable    .connect(&size_change_calcPrKDF.watch);
-
-        fidRSADir            .connect(&statusInput.watch);
-        fidRSAprivate        .connect(&statusInput.watch);
-        fidRSApublic         .connect(&statusInput.watch);
-
-//// values to start with
-        fidRSADir            .set(appdf is null? 0 : ub22integral(appdf.data[2..4]), true);
-/*
-        keyPairId            .set(3, true);
-        fidRSAprivate        .set([cast(int) strtol("41F1", null, 16), 0], true);
-        fidRSApublic         .set([cast(int) strtol("4133", null, 16), 0], true);
-        sizeNewRSAModulusBits.set(4096, true);
-*/
-        storeAsCRTRSAprivate. set(true, true);
-        usageRSAprivateKeyACOS.set(6,   true); // this is only for acos-generation
-        ubyte[16]  pe = [0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1];
-        valuePublicExponent  .set(pe,   true);
 /+
         import std.range : chunks;
         ubyte[6] certPath = [0x3F, 0x00, 0x41, 0x00, 0x41, 0x20];
@@ -232,13 +151,96 @@ else {
         rc = uploadHexfile(card, "/path/to/cert.hex", 0, 1664, 0);
 //        assert(rc==1664 /*lenWritten*/);//  return EXIT_FAILURE;
 +/
-    } // connect to card
+`;
+    mixin (connect_card!(commands, "EXIT_FAILURE", "3", "exit(1);"));
+/*
+    writeln("PRKDF.length:         ", PRKDF.length);
+    writeln("PUKDF.length:         ", PUKDF.length);
+    writeln("PUKDF_TRUSTED.length: ", PUKDF_TRUSTED.length);
+
+    writeln("SKDF.length:          ", SKDF.length);
+    writeln("CDF.length:           ", CDF.length);
+    writeln("CDF_TRUSTED.length:   ", CDF_TRUSTED.length);
+    writeln("CDF_USEFUL.length:    ", CDF_USEFUL.length);
+    writeln("DODF.length:          ", DODF.length);
+    writeln("AODF.length:          ", AODF.length);
+*/
+    iter_begin = new itTypeFS(appdf);
+    prkdf = fs.preOrderRange(iter_begin, fs.end()).locate!"a[6]==b"(PKCS15_FILE_TYPE.PKCS15_PRKDF);
+    pukdf = fs.preOrderRange(iter_begin, fs.end()).locate!"a[6]==b"(PKCS15_FILE_TYPE.PKCS15_PUKDF);
+
+    /* initialze the publisher/observer system for GenerateKeyPair_RSA_tab */
+    valuePublicExponent     = new PubA16!_valuePublicExponent (r_valuePublicExponent,     AA["matrixRsaAttributes"]);
+    keyPairLabel            = new Pub!(_keyPairLabel,string)  (r_keyPairLabel,            AA["matrixRsaAttributes"]);
+    sizeNewRSAModulusBits   = new Pub!_sizeNewRSAModulusBits  (r_sizeNewRSAModulusBits,   AA["matrixRsaAttributes"]);
+    storeAsCRTRSAprivate    = new Pub!_storeAsCRTRSAprivate   (r_storeAsCRTRSAprivate,    AA["matrixRsaAttributes"]);
+    usageRSAprivateKeyACOS  = new Pub!_usageRSAprivateKeyACOS (r_usageRSAprivateKeyACOS,  AA["matrixRsaAttributes"]);
+    usageRSAprivateKeyPrKDF = new Pub!_usageRSAprivateKeyPrKDF(r_usageRSAprivateKeyPrKDF, AA["matrixRsaAttributes"]);
+    keyPairModifiable       = new Pub!_keyPairModifiable      (r_keyPairModifiable,       AA["matrixRsaAttributes"]);
+    authIdRSAprivateFile    = new Pub!_authIdRSAprivateFile   (r_authIdRSAprivateFile,    AA["matrixRsaAttributes"], true);
+    keyPairId               = new Pub!_keyPairId              (r_keyPairId,               AA["matrixRsaAttributes"], true);
+    fidRSADir               = new Pub!_fidRSADir              (r_fidRSADir,               AA["matrixRsaAttributes"], true);
+    fidRSAprivate           = new PubA2!_fidRSAprivate        (r_fidRSAprivate,           AA["matrixRsaAttributes"]);
+    fidRSApublic            = new PubA2!_fidRSApublic         (r_fidRSApublic,            AA["matrixRsaAttributes"]);
+
+    usageRSApublicKeyPuKDF  = new Obs_usageRSApublicKeyPuKDF  (r_usageRSApublicKeyPuKDF,  AA["matrixRsaAttributes"]);
+    sizeNewRSAprivateFile   = new Obs_sizeNewRSAprivateFile   (r_sizeNewRSAprivateFile,   AA["matrixRsaAttributes"]);
+    sizeNewRSApublicFile    = new Obs_sizeNewRSApublicFile    (r_sizeNewRSApublicFile,    AA["matrixRsaAttributes"]);
+    statusInput             = new Obs_statusInput             (r_statusInput,             AA["matrixRsaAttributes"]);
+    change_calcPrKDF        = new Obs_change_calcPrKDF        (r_change_calcPrKDF,        AA["matrixRsaAttributes"]);
+    change_calcPuKDF        = new Obs_change_calcPuKDF        (r_change_calcPuKDF,        AA["matrixRsaAttributes"]);
+//// dependencies
+    fidRSAprivate          .connect(&sizeNewRSAprivateFile.watch); // just for show (sizeCurrentRSAprivateFile) reason
+    sizeNewRSAModulusBits  .connect(&sizeNewRSAprivateFile.watch);
+    storeAsCRTRSAprivate   .connect(&sizeNewRSAprivateFile.watch);
+
+    fidRSApublic           .connect(&sizeNewRSApublicFile.watch);  // just for show (sizeCurrentRSApublicFile) reason
+    sizeNewRSAModulusBits  .connect(&sizeNewRSApublicFile.watch);
+
+    usageRSAprivateKeyPrKDF.connect(&usageRSApublicKeyPuKDF.watch);
+
+    keyPairId              .connect(&change_calcPrKDF.watch); // if no keyPairId is selected, this MUST be the only one accessible
+    keyPairLabel           .connect(&change_calcPrKDF.watch);
+    authIdRSAprivateFile   .connect(&change_calcPrKDF.watch);
+    keyPairModifiable      .connect(&change_calcPrKDF.watch);
+    sizeNewRSAModulusBits  .connect(&change_calcPrKDF.watch);
+    usageRSAprivateKeyPrKDF.connect(&change_calcPrKDF.watch);
+//  fidRSAprivate          .connect(&change_calcPrKDF.watch);
+
+    keyPairId              .connect(&change_calcPuKDF.watch); // if no keyPairId is selected, this MUST be the only one accessible
+    keyPairLabel           .connect(&change_calcPuKDF.watch);
+//  authIdRSApublicFile    .connect(&change_calcPuKDF.watch);
+    keyPairModifiable      .connect(&change_calcPuKDF.watch);
+    sizeNewRSAModulusBits  .connect(&change_calcPuKDF.watch);
+    usageRSApublicKeyPuKDF .connect(&change_calcPuKDF.watch);
+//  fidRSApublic           .connect(&change_calcPuKDF.watch);
+
+    fidRSADir              .connect(&statusInput.watch);
+    fidRSAprivate          .connect(&statusInput.watch);
+    fidRSApublic           .connect(&statusInput.watch);
+
+//// values to start with
+    fidRSADir             .set(appdf is null? 0 : ub22integral(appdf.data[2..4]), true);
+    storeAsCRTRSAprivate  .set(true, true);
+    usageRSAprivateKeyACOS.set(4,   true); // this is only for acos-generation
+/*
+    fidRSAprivate        .set([cast(int) strtol("41F1", null, 16), 0], true);
+    fidRSApublic         .set([cast(int) strtol("4133", null, 16), 0], true);
+*/
+
+    with (AA["matrixRsaAttributes"]) {
+        SetStringId2("", r_AC_Create_Delete_RSADir, 1, appdf is null? "unknown / unknown" : format!"%02X"(appdf.data[25])  ~" / "~format!"%02X"(appdf.data[24]));
+        SetStringId2("", r_AC_Update_PrKDF,         1, prkdf is null? "unknown" : format!"%02X"(prkdf.data[25]));
+        SetStringId2("", r_AC_Update_PuKDF,         1, pukdf is null? "unknown" : format!"%02X"(pukdf.data[25]));
+    }
+    toggle_RSA_cb(AA["toggle_RSA_PrKDF_PuKDF_change"].GetHandle(), 1);
+
     AA["fs_text_asn1"].SetAttributeVALUE("");
     AA["fs_text"].SetAttributeVALUE("");
-    AA["fs_text"].SetString("APPEND", " ");
-    AA["fs_text"].SetString("APPEND", "The translation feature is used currently for the button text Exit only.\n");
-    AA["fs_text"].SetString("APPEND", "It translates to Beenden in german\n");
-    AA["fs_text"].SetString("APPEND", `
+    AA["fs_text"].SetString(IUP_APPEND, " ");
+    AA["fs_text"].SetString(IUP_APPEND, "The translation feature is used currently for the button text Exit only.\n");
+    AA["fs_text"].SetString(IUP_APPEND, "It translates to Beenden in german\n");
+    AA["fs_text"].SetString(IUP_APPEND, `
 A remark upfront: While ACOS supports SFI (Short File Identifier), it's used neither by opensc, nor by the driver or this app. Only regular FID (File Identifier) 2 Bytes long are used !
 Also, pathes are used only as absolute pathes, thus beginning at root FID 0x3F00. A path may consist of max 8 FID components (opensc limitation), but it's recommended to use only max 5 FID components,
 an acos limitation: Access control information of files/directories in deeper levels of the file system hierarchy don't get stored ! Thus You would go unprotected there.
@@ -304,7 +306,7 @@ Also, You should know this about Pins:
    This is a warmly recommended feature (though not enabled by default currently; diable that only temporarily for pkcs11-tool --test).
   `);
 
-    AA["cst_text"].SetString("APPEND", `
+    AA["cst_text"].SetString(IUP_APPEND, `
 Some remarks:
 The tool works with 1 slot currently only, which is the first one found with a token present ! (There may be more slots with tokens present;
  the first one usually has Slot id : 0; later, there will be a selection for other present tokens)
@@ -321,9 +323,12 @@ This means: The read operation will be done automatically if not disallowed by f
 
 The tool aims at shielding the possibly complex access conditions of files (and commands) from the user and just ask for the required permission(s).
 In order to check that, 2 file headers get printed, the enclosing DF's header and the header of the selected file/DF.
+
+PUKDF doesn't declare any public  RSA key  as private !
+PrKDF does    declare all private RSA keys as private and thus also declare an authId!
 `);
 
-    AA["gkpRSA_text"].SetString("APPEND", `
+    AA["gkpRSA_text"].SetString(IUP_APPEND, `
 This page is dedicated to 'manipulating/handling' anything about RSA key pair content and/or files, as well as EF(PrKDF) and EF(PuKDF) content.
 The basic requirement merely is, that the files PrKDF and PuKDF do exist and are known to opensc (by respective entries in EF(ODF)). PrKDF and PuKDF files may be empty though.
 
@@ -338,7 +343,7 @@ Intention: sign (SHA512)                     decrypt,sign    sign (,signRecover,
 Intention: decrypt,sign (not recommended)    decrypt,sign    decrypt,sign (...)
 Intention: decrypt                           decrypt         decrypt (,unwrap)
 
-The primary choice among 3 alternatives is, what to do (choosable within the following radio buttons)
+The primary choice among 4 alternatives is, what to do (choosable within the following radio buttons)
 A - Don't change anything stored in the RSA key pair files, thus modifiable is only: "Key pair label", "Key pair id", "authId", within reasonable limits "Private key usage PrKDF" and "Public key usage PuKDF", "Key pair is modifiable?"
 B - Do remove a RSA key pair (delete files and adapt EF(PrKDF) and EF(PuKDF).
 C - The RSA key pair files do exist already and get reused: Do regenerate the RSA key pair.
@@ -395,10 +400,32 @@ which is the ASN.1 DER-encoding of
 
 If the key to be used for signing was generated using 'Private key usage ACOS'='decrypt, sign', a lot more digestAlgorithm are allowed, and data like this is allowed:
 30 51 30 0d 06 09 60 86 48 01 65 03 04 02 03 05 00 04 40   + 64 arbitrary bytes
-`);
 
-//version(all) {
-    {
+ACOS allows specifying a 16 byte public exponent prime, but opensc is limited to max 4 bytes, the lower value of opensc is relevant.
+`);
+/*
+    AA["sanity_overview_text"].SetString(IUP_APPEND, `
+These sanity checks are intended to be run with ACOS5-64 cards/tokens operating the first time with the acos5_64 driver (and this tool) and are run automatically, if dub.json has dlang version identifier SANITYCHECK defined:
+My experience was with ACS client kit software for CryptoMate64, the worst software I ever was forced to buy in order to make use of the token at all, beyond that, constrained to the Windows OS. Don't know if things improved and which options are available nowadays for driver and tool.
+Thus it's likely, that the card/token is setup incomplete or wrong or violating requirements of opensc or how the driver libacos5_64.so operates or incompatible with PKCS#15.
+
+The checks may be grouped into these categories:
+  Basic, MF, operation mode of the card
+  File system (do files required by acos exist, are the settings consistent and appropriate (e.g. recommended access rigths))
+  PKCS#15 checks (opensc get's to know - about what is on the token and what it's for - only by additional PKCS#15 files. If contents are wrong or pointing to nowhere, then opensc won't e.g. know about existing RSA keys and what they shall be used for, possibly won't know any pin etc. Thus it's vital that these PKCS#15 files are permanently sane.
+    as many operations do change some PKCS#15 file content, it's worth to do the sanity check once in a while (opensc is not absolutely free of bugs in this regard))
+  Limits. Ordinary file systems allow e.g. a deep hierarchy of nesting files, e.g on Linux /level2/level3.../level99/file_in_level99. opensc constrains this to max. file_in_level7, i.e. max 8x2byte path-components may be stored like e.g. max 3F004200430044004500460047004799.
+    The acos limit is even shorter if You emphasize file access rigths: Acos doesn't store access rigths beyond levelx, Thus everything there is completely unprotected and should be avoided for a crypto-token
+    Many limitations are imposed by the complexity of PKCS#15. When ASN.1-decoding such content, opensc does an "easy" job by just cherry-picking some interesting content
+
+    There is another limitation from the driver: Do use unique file ids only! Why that? Just suppose You have 2 files named "1234" on Your token and now You do a select 1234. Which one will be selected? It depends (on where the internal current selection pointer is pointing to).
+    Now suppose one of those got deleted but deletion got forgoten and You try to select the deleted 1234 right from a position where it would be selected first. Now do the select 1234. What is the answer expected? Probably 'File not found', but in reality most likely the other existing file 1234 will be selected !
+    It's vital for the driver to always know, what exactly is the currently selected file.
+    But ACS wanted to be smart and implemented some additional places to search for in case of 'File not found', which opened the door of ambiguity.
+    Also, I once managed to have 2 files named "1234" within the same directory, impossible acc. to the ref. manual but doable and plain wrong; thus there must be some bug in acos while trying to prevent that.
+`);
+*/
+    { // scope for scope(exit)  PKCS11.unload();
         // this one-liner enables operating with the module specified
         PKCS11.load("opensc-pkcs11.so");
         scope(exit)  PKCS11.unload();
@@ -500,15 +527,51 @@ If the key to be used for signing was generated using 'Private key usage ACOS'='
                                               tokenInfo.firmwareVersion.major.to!string~"."~tokenInfo.firmwareVersion.minor.to!string);
     //    pos = clamp(countUntil(tokenInfo.utcTime[], [ubyte(32),ubyte(32)]), 0,16);
         AA["slot_token"].SetStringId2("", 41,  1, cast(string)tokenInfo.utcTime.ptr[0..16]);
-    }
-//} // version(all)
+    } //  // scope for scope(exit)  PKCS11.unload();
 
     AA["dlg0"].Update;
-//    AA["tabCtrl"].SetInteger("VALUEPOS", 1); // why does this (setting the tab od) crash?
+    AA["tabCtrl"].SetInteger("VALUEPOS", 1); // filesystem
+
     GC.collect();
     /* start event loop */
     IupMainLoop();
 
+    /* Clear the "PKCS15" structures */
+    asn1_delete_structure (&PKCS15);
+
     IupClose();
     return EXIT_SUCCESS;
 }
+/+
+1
+ Must be specified when object is created with C_CreateObject.
+2
+ Must not be specified when object is created with C_CreateObject.
+3
+ Must be specified when object is generated with C_GenerateKey or
+C_GenerateKeyPair.
+4
+ Must not be specified when object is generated with C_GenerateKey or
+C_GenerateKeyPair.
+5
+ Must be specified when object is unwrapped with C_UnwrapKey.
+6
+ Must not be specified when object is unwrapped with C_UnwrapKey.
+7
+ Cannot be revealed if object has its CKA_SENSITIVE attribute set to CK_TRUE or
+its CKA_EXTRACTABLE attribute set to CK_FALSE.
+8
+ May be modified after object is created with a C_SetAttributeValue call, or in the
+process of copying object with a C_CopyObject call. However, it is possible that a
+particular token may not permit modification of the attribute during the course of a
+C_CopyObject call.
+9
+ Default value is token-specific, and may depend on the values of other attributes.
+10
+ Can only be set to CK_TRUE by the SO user.
+11
+ Attribute cannot be changed once set to CK_TRUE. It becomes a read only attribute.
+12
+ Attribute cannot be changed once set to CK_FALSE. It becomes a read only
+attribute.
++/

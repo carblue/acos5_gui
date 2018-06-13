@@ -559,9 +559,9 @@ DataType ::= CHOICE {
 }
 
 AuthenticationType ::= CHOICE {
-    pin                 AuthenticationObjectPin,      -- pin AuthenticationObject { PinAttributes },
+    pinAuthObj          AuthenticationObjectPin,      -- pin AuthenticationObject { PinAttributes },
 --    ...,
-    biometricTemplate   [0] AuthenticationObjectBiometric -- AuthenticationObject {BiometricAttributes},
+    biometricAuthObj    [0] AuthenticationObjectBiometric -- AuthenticationObject {BiometricAttributes},
 --    authKey  [1] AuthenticationObject {AuthKeyAttributes},
 --    external [2] AuthenticationObject {ExternalAuthObjectAttributes}
 }
@@ -755,7 +755,31 @@ Extension  ::=  SEQUENCE  {
      extnValue   OCTET STRING
 }
 
+ -- artificially for libtasn1, just to have a value of type ...
+CertificateChoice ::= CHOICE {
+    certificate	 Certificate
+}
 
+DIRRecordChoice ::= CHOICE {
+    dirRecord	 DIRRecord
+}
 
+--odfRecord  PKCS15Objects
+
+TokenInfoChoice ::= CHOICE {
+    tokenInfo	 TokenInfo
+}
+
+PKCS15ObjectsChoice ::= CHOICE {
+    pkcs15Objects	 PKCS15Objects
+}
+
+SecretKeyTypeChoice ::= CHOICE {
+    secretKey	 SecretKeyType
+}
+
+AuthenticationTypeChoice ::= CHOICE {
+    authObj	 AuthenticationType
+}
 
 END

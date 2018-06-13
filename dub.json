@@ -6,31 +6,54 @@
 	"authors": ["Carsten Blüggel"],
 	"homepage": "https://github.com/carblue/acos5_64_gui",
 	"dependencies" : {
-		"iup": "~>0.0.10",
-		"opensc": "==0.15.16",
+		"iup": "~>3.25.0-beta.1",
+		"opensc": "~>0.18.0-beta.3",
 		"tree_k_ary": "~>0.0.3",
-		"asn1": "~>2.2.0",
+		"tasn1:wrapper": "~>0.0.3",
 		"pkcs11": "~>2.40.0-alpha.3"
 	},
 	"subConfigurations": {
-		"opensc": "deimos",
+		"opensc": "toString",
 		"pkcs11": "derelict"
 	},
-	"systemDependencies": "IUP-Portable User Interface shared libraries installed, opensc installation v.0.17.0, libacos5_64.so (binary from this package's opensc_0.*/ +libphobos2.so.0.80 from a DMD installation) located in a common .so look-up path, opensc.conf configured appropriately; (not yet required: for gettext the exports available from libintl.so or ?)",
+	"systemDependencies": "IUP-Portable User Interface shared libraries installed, opensc installation v.0.17.0, libacos5_64.so (binary from this package's opensc_0.17.0 / +libphobos2.so.0.79 from a DMD installation) located in a common .so look-up path, opensc.conf configured appropriately; (not yet required: for gettext the exports available from libintl.so or GLib)",
 	"sourceFiles-windows-x86-dmd": [
 		"C:/D/dmd2/windows/lib/ole32.lib",
 		"oleaut32.lib",
 		"uuid.lib"
 	],
 	"targetName": "acos5_64_gui",
-	"targetType": "executable",
-	"excludedSourceFiles": [],
+    "mainSourceFile" : "source/acos5_64_gui.d",
 	"xxxbuildRequirements" : ["disallowDeprecations"],
 
-	"dflags-posix-dmd": ["-mcpu=native", "-defaultlib=libphobos2.so"],
-	"lflags-posix-dmd" : ["--no-undefined", "--as-needed"],
+	"dflags-posix-dmd": ["-mcpu=native",  "-defaultlib=libphobos2.so"],
+	"xdflagsx-posix-ldc": ["-mcpu=haswell", "-defaultlib=phobos2-ldc-shared,druntime-ldc-shared"],
+	"xdflagsx-posix-gdc": ["-shared-libphobos", "-Wunknown-pragmas", "-vtls", "-vcg-ast", "-defaultlib=libphobos2.so"],
+
+	"lflags-posix" : ["--no-undefined", "--as-needed"],
+	"xlflagsx-posix-x86_64-ldc": ["-rpath=$HOME/Downloads/dlang/ldc2-1.9.0-linux-x86_64/lib"],
 	"libs-posix": ["iupimglib"],
-	"lflags-windows-x86-fixme": ["/SUBSYSTEM:WINDOWS:6.00"],
-	"postGenerateCommands-windows" : ["strip -s acos5_64_gui.exe"],
-	"versions": []
+	"lflags-windows-x86-fixme": ["/SUBSYSTEM:WINDOWS:6.00"   , ":opensc-pkcs11.so", "acos5_64"],
+	"postBuildCommands-windows" : ["strip -s acos5_64_gui.exe"],
+	"versions": ["Have_acos5_64", "I18N"],
+	"configurations": [
+		{
+			"name": "application",
+	        "targetType": "executable",
+            "excludedSourceFiles": [],
+			"dflags": []
+		},
+		{
+			"name": "travis",
+	        "targetType": "executable",
+            "excludedSourceFiles": [],
+			"dflags": [],
+			"buildRequirements": ["disallowDeprecations"]
+		},
+		{
+			"name": "unittest",
+			"targetType": "library",
+			"dflags": []
+		}
+	]
 }
