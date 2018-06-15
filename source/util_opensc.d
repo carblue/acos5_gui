@@ -130,33 +130,8 @@ enum PKCS15_FILE_TYPE : ubyte {
     PKCS15_NONE           = 0xFF, // should not happen to extract a path for this
 }
 //mixin FreeEnumMembers!PKCS15_FILE_TYPE;
-/+
-string[] PKCS15_FILE_TYPE_NAME = [
-    "EF(PrKDF)",      // 0
-    "EF(PuKDF)",
-    "EF(PuKD_TRUSTED)",
-    "EF(SKDF)",
-    "EF(CDF)",
-    "EF(CDF_TRUSTED)",
-    "EF(CDF_USEFUL)",
-    "EF(DODF)",
-    "EF(AODF)",
 
-    "EF(RSA_PUB)",   // 9
-
-    "EF(DIR)",
-    "EF(ODF)",
-    "EF(TokenInfo)",
-    "EF(UnusedSpace)",
-    "DF.CIA",        // 14
-    "EF(Cert)",      // 15
-    "EF(RSA_PRIV)",  // 16
-    "EF(SecretKey)", // 17
-    "EF(Pin)",       // 18
-    "EF(Data)",      // 19
-];
-+/
-string[5][] PKCS15_FILE_TYPE_STRUCTURE = [
+string[5][] pkcs15_names = [
     [ "EF(PrKDF)",        "PKCS15.PrivateKeyType",     "privateKeys.path.path",         "PKCS15.PrivateKeyType", "privateRSAKey"],    // 0
     [ "EF(PuKDF)",        "PKCS15.PublicKeyType",      "publicKeys.path.path",          "PKCS15.PublicKeyType",  "publicRSAKey"],
     [ "EF(PuKD_TRUSTED)", "PKCS15.PublicKeyType",      "trustedPublicKeys.path.path",   "PKCS15.PublicKeyType", ""],
@@ -180,19 +155,7 @@ string[5][] PKCS15_FILE_TYPE_STRUCTURE = [
     [ "EF(Pin)",          "",                          "",                              "", ""],        // 18
     [ "EF(Data)",         "",                    "opaqueDO.opaque.value.indirect.path.path",  "", ""],       // 19
 ];
-/+
-string[] pathName = [
-    "privateKeys.path.path",         // 0
-    "publicKeys.path.path",          // 1
-    "trustedPublicKeys.path.path",   // 2
-    "secretKeys.path.path",          // 3
-    "certificates.path.path",        // 4
-    "trustedCertificates.path.path", // 5
-    "usefulCertificates.path.path",  // 6
-    "dataObjects.path.path",         // 7
-    "authObjects.path.path",         // 8
-];
-+/
+
 struct PKCS15Path_FileType {
     ubyte[]           path;
     PKCS15_FILE_TYPE  pkcs15FileType;
@@ -261,6 +224,49 @@ ft_uploadHexfile              uploadHexfile;
 //ft_cry_mse_7_4_2_1_22_set     cry_mse_7_4_2_1_22_set;
 ft_cry_____7_4_4___46_generate_keypair_RSA  cry_____7_4_4___46_generate_keypair_RSA;
 
+
+    /* add space after name:, type: and value:
+       pretty-print BIT STRING
+    */
+    string someScanner(int mode, const(char)[] line)
+    {
+        import core.stdc.stdlib : strtoull;
+        import core.bitop : bitswap;
+        import std.string : indexOf;
+        import std.math : pow;
+
+        string res;
+        try {
+            ptrdiff_t pos = indexOf(line, "name:");
+            if (pos == -1)
+                return  line.idup;
+            res = assumeUnique(line[0..pos+5]) ~ " " ~ assumeUnique(line[pos+5..$]);
+            if (mode>ASN1_PRINT_NAME) {
+                pos = indexOf(res, "type:");
+                if (pos != -1)
+                  res = res[0..pos+5] ~ " " ~ res[pos+5..$];
+            }
+            if (mode>ASN1_PRINT_NAME_TYPE) {
+                pos = indexOf(res, "value");
+                if (pos != -1) {
+                    import std.regex;
+                    auto valueRegcolon     = regex(r"  value(?:\(\d+\)){0,1}:");
+                    auto valueRegBITSTRING = regex(r".*value(?:\((\d+)\)){1}: ([0-9A-Fa-f]{2,16}){1}.*");
+                    res = replaceFirst(res, valueRegcolon, "$& ");
+                    auto m = matchFirst(res, valueRegBITSTRING);
+                    if (!m.empty && to!int(m[1])<=64 && m[2].length<=16) {
+                        ulong tmp = bitswap( strtoull(m[2].toStringz,null,16) << 8*(8-m[2].length/2));
+                        res ~= "  ->  ";
+                        foreach (i; 0..to!int(m[1]))
+                            res ~= (tmp & pow(2,i))? "1" : "0";
+                    }
+                }
+            }
+            return  res;
+        }
+        catch (Exception e) { /* todo: handle exception */ }
+        return  line.idup;
+    }
 
 Tuple!(ushort, ubyte, ubyte) decompose(EFDB fdb, /*ub2*/uba size_or_MRL_NOR) nothrow {
     assert(size_or_MRL_NOR.length==2);
@@ -610,7 +616,7 @@ int enum_dir(int depth, sitTypeFS pos_parent, ref PKCS15Path_FileType[] collecto
 //writeln("##### markedFileType==11, title: ", title);
 //if (markedFileType==PKCS15_FILE_TYPE.PKCS15_TOKENINFO)
 //writeln("##### markedFileType==12, title: ", title);
-            SetStringId (IUP_TITLE, depth+1, title~"    "~PKCS15_FILE_TYPE_STRUCTURE[markedFileType][0]);
+            SetStringId (IUP_TITLE, depth+1, title~"    "~pkcs15_names[markedFileType][0]);
         }
     }
 
@@ -755,7 +761,7 @@ int post_process(/*sitTypeFS pos_parent,*/ ref PKCS15Path_FileType[] collector) 
                     SetAttributeId(IUP_IMAGE, nodeID, expectedFileType<=PKCS15_AODF || expectedFileType.among(PKCS15_ODF, PKCS15_TOKENINFO, PKCS15_UNUSED) ? IUP_IMGPAPER : IUP_IMGBLANK);
                     if (expectedFileType==detectedFileType) {
                         string title = GetStringId (IUP_TITLE, nodeID);
-                        SetStringId (IUP_TITLE, nodeID, title~"    "~PKCS15_FILE_TYPE_STRUCTURE[expectedFileType][0]);
+                        SetStringId (IUP_TITLE, nodeID, title~"    "~pkcs15_names[expectedFileType][0]);
                     }
                 }
             }
@@ -790,7 +796,7 @@ writefln("### expectedFileType(%s), detectedFileType(%s)", expectedFileType, det
                     SetAttributeId(IUP_IMAGE, nodeID, expectedFileType<=PKCS15_AODF || expectedFileType.among(PKCS15_ODF, PKCS15_TOKENINFO, PKCS15_UNUSED) ? IUP_IMGPAPER : IUP_IMGBLANK);
                     if (expectedFileType==detectedFileType || nodeFS.data[0]==EFDB.RSA_Key_EF) {
                         string title = GetStringId (IUP_TITLE, nodeID);
-                        SetStringId (IUP_TITLE, nodeID, title~"    "~PKCS15_FILE_TYPE_STRUCTURE[expectedFileType][0]);
+                        SetStringId (IUP_TITLE, nodeID, title~"    "~pkcs15_names[expectedFileType][0]);
                     }
                 }
             }
@@ -844,23 +850,6 @@ int populate_tree_fs()
     return rv;
 }
 
-/* TODO There probably is a function in libtasn1 that can supersede this: In general, just delegate such specialized tasks to the dedicated library*/
-ulong decodedLengthOctets(ubyte[] buf, size_t pos) nothrow {
-/*
-Start reading buf at specified location pos, indicating the startpos of Length octets
-Length octets. There are two forms: short (for lengths between 0 and 127), and long definite (for lengths between 0 and 2^1008 -1).
-    Short form. One octet. Bit 8 has value "0" and bits 7-1 give the length.
-    Long form. Two to 127 octets. Bit 8 of first octet has value "1" and bits 7-1 give the number of additional length octets. Second and following octets give the length, base 256, most significant digit first.
-offsetTable ~= min(cast(ushort) (offsetTable[$-1]+ decodedLengthOctets(buf, offsetTable[$-1]+1) ), size); // buf[ offsetTable[$-1] +1 ]  // 30 82 06 7C
-*/
-    assert(pos<buf.length);
-    if ((buf[pos] & 0x80)==0)
-        return buf[pos] +2;
-    ubyte followBytes = buf[pos] & 0x0F;
-    assert(followBytes<=8);
-    assert(pos+followBytes<buf.length);
-    return  ub82integral(buf[1+pos..1+pos+followBytes]) +followBytes+2;
-}
 
 void readFile_wrapped(ubyte[] info, tnTypePtr pn, const ubyte expectedFileType, ref ubyte detectedFileType, bool doExtract, ref PKCS15Path_FileType[] collector) {
     assert(info[1]);
@@ -926,8 +915,11 @@ void readFile(tnTypePtr pn, ub2 fid, EFDB fdb, ushort size, ubyte mrl, ubyte nor
                 h.SetString("APPEND",  assumeWontThrow(format!"%(%02X %)"(chunk)));
             }
 
+            int xLen;
             while (offsetTable[$-1] < size  &&  buf[offsetTable[$-1]] != 0)
-                offsetTable ~= min(cast(uint) (offsetTable[$-1]+ decodedLengthOctets(buf, offsetTable[$-1]+1) ), size);
+                offsetTable ~= min( cast(uint) (offsetTable[$-1]+1+ asn1_get_length_der(buf[offsetTable[$-1]+1..$],xLen)+xLen), size );
+//              offsetTable ~= min(cast(uint) ( offsetTable[$-1]+ decodedLengthOctets(buf, offsetTable[$-1]+1) ), size);
+
             if (offsetTable.length<2)
                 offsetTable ~= cast(uint)buf.length;
 //assumeWontThrow(writefln("offsetTable[0]: %s, offsetTable[$-1]: %s", offsetTable[0], offsetTable[$-1]));
@@ -988,123 +980,73 @@ void readFile(tnTypePtr pn, ub2 fid, EFDB fdb, ushort size, ubyte mrl, ubyte nor
     string[] outStructure;
 
     with (PKCS15_FILE_TYPE)
+    if (expectedFileType.among(PKCS15_DIR, PKCS15_ODF, PKCS15_TOKENINFO,
+            PKCS15_PRKDF, PKCS15_PUKDF, PKCS15_PUKDF_TRUSTED,  PKCS15_SKDF, PKCS15_CDF, PKCS15_CDF_TRUSTED, PKCS15_CDF_USEFUL, PKCS15_DODF, PKCS15_AODF,
+            PKCS15_Cert, PKCS15_RSAPublicKey))
     foreach (sw; offsetTable.slide(2)) { // sw: SlideWindow
-        if (expectedFileType.among(PKCS15_DIR, PKCS15_ODF, PKCS15_TOKENINFO,
-                PKCS15_PRKDF, PKCS15_PUKDF, PKCS15_PUKDF_TRUSTED,  PKCS15_SKDF, PKCS15_CDF, PKCS15_CDF_TRUSTED, PKCS15_CDF_USEFUL, PKCS15_DODF, PKCS15_AODF,
-                PKCS15_Cert, PKCS15_RSAPublicKey)) {
-            asn1_node  structure;
+        asn1_node  structure;
+        asn1_result = asn1_create_element(PKCS15, pkcs15_names[expectedFileType][doExtract? 1 : 3], &structure);
+        scope(exit)
+            asn1_delete_structure(&structure);
+        if (asn1_result != ASN1_SUCCESS) {
+            assumeWontThrow(writeln("### Structure creation: ", asn1_strerror2(asn1_result)));
+            continue;
+        }
+        asn1_result = asn1_der_decoding(&structure, fdb==EFDB.RSA_Key_EF? response[0..responselen] : buf[sw[0]..sw[1]], errorDescription);
+        if (asn1_result != ASN1_SUCCESS) {
+            assumeWontThrow(writeln("### asn1Decoding: ", errorDescription));
+            continue;
+        }
+        PKCS15fileType = expectedFileType;
+        ubyte[16]  str;
+        int        outLen;
 
-            asn1_result = asn1_create_element(PKCS15, PKCS15_FILE_TYPE_STRUCTURE[expectedFileType][doExtract? 1 : 3], &structure);
-            scope(exit)
-                asn1_delete_structure(&structure);
-            if (asn1_result != ASN1_SUCCESS) {
-                assumeWontThrow(writeln("### Structure creation: ", asn1_strerror2(asn1_result)));
-                continue;
-            }
-            asn1_result = asn1_der_decoding(&structure, fdb==EFDB.RSA_Key_EF? response[0..responselen] : buf[sw[0]..sw[1]], errorDescription);
-            if (asn1_result != ASN1_SUCCESS) {
-                assumeWontThrow(writeln("### asn1Decoding: ", errorDescription));
-                continue;
-            }
-            PKCS15fileType = expectedFileType;
-            ubyte[16]  str;
-            int        outLen;
+        switch (expectedFileType) {
+            case PKCS15_DIR:
+                if (doExtract) {
+                    if ((asn1_result= asn1_read_value(structure, pkcs15_names[expectedFileType][2], str, outLen)) != ASN1_SUCCESS)
+                        goto looptail;
+                    pkcs15Extracted ~= PKCS15Path_FileType(str[0..outLen].dup, PKCS15_APPDF);
+                }
+                break;
 
-            switch (expectedFileType) {
-                case PKCS15_Cert, PKCS15_RSAPublicKey:
-                    version(Posix)
-                        asn1_visit_structure (outStructure, structure, PKCS15_FILE_TYPE_STRUCTURE[expectedFileType][4], ASN1_PRINT_NAME_TYPE_VALUE);
-                    break;
-
-                case PKCS15_DIR:
-                    if (doExtract) {
-                        asn1_result = asn1_read_value(structure, PKCS15_FILE_TYPE_STRUCTURE[expectedFileType][2], str, outLen);
-                        if (asn1_result != ASN1_SUCCESS) {
-                            assumeWontThrow(writeln("### asn1_read_value: ", asn1_strerror2(asn1_result)));
-                            continue;
+            case PKCS15_ODF:
+                if (doExtract)
+                    foreach (PKCS15_FILE_TYPE i; PKCS15_PRKDF..PKCS15_RSAPublicKey /*==PKCS15_AODF+1*/)
+                        if (asn1_read_value(structure, pkcs15_names[i][2], str, outLen) == ASN1_SUCCESS) {
+                            pkcs15Extracted ~= PKCS15Path_FileType(str[0..outLen].dup, i);
+                            break;
                         }
-                        pkcs15Extracted ~= PKCS15Path_FileType(str[0..outLen].dup, PKCS15_APPDF);
-                    }
-                    else {
-                        version(Posix)
-                            asn1_visit_structure (outStructure, structure, PKCS15_FILE_TYPE_STRUCTURE[expectedFileType][4], ASN1_PRINT_NAME_TYPE_VALUE);
-                    }
-                    break;
+                break;
 
-                case PKCS15_ODF:
-                    if (doExtract) {
-                        foreach (PKCS15_FILE_TYPE i; PKCS15_PRKDF..PKCS15_RSAPublicKey /*PKCS15_AODF+1*/)
-                            if (asn1_read_value(structure, PKCS15_FILE_TYPE_STRUCTURE[i][2], str, outLen) == ASN1_SUCCESS) {
-                                pkcs15Extracted ~= PKCS15Path_FileType(str[0..outLen].dup, i);
-                                break;
-                            }
-                    }
-                    else {
-                        version(Posix)
-                            asn1_visit_structure (outStructure, structure, PKCS15_FILE_TYPE_STRUCTURE[expectedFileType][4], ASN1_PRINT_NAME_TYPE_VALUE);
-                    }
-                    break;
+            case PKCS15_PRKDF:
+                if (doExtract) {
+                    PRKDF ~= PKCS15_ObjectTyp(sw[0], sw[1], buf[sw[0]..sw[1]], null, asn1_dup_node(structure, ""), null);
+                    if ((asn1_result= asn1_read_value(structure, pkcs15_names[PKCS15_RSAPrivateKey][2], str, outLen)) != ASN1_SUCCESS)
+                        goto looptail;
+                    pkcs15Extracted ~= PKCS15Path_FileType(str[0..outLen].dup, PKCS15_RSAPrivateKey);
+                }
+                break;
 
-                case PKCS15_TOKENINFO:
-                    if (doExtract) {}
-                    else {
-                        version(Posix)
-                            asn1_visit_structure (outStructure, structure, PKCS15_FILE_TYPE_STRUCTURE[expectedFileType][4], ASN1_PRINT_NAME_TYPE_VALUE);
+            case PKCS15_PUKDF, PKCS15_PUKDF_TRUSTED:
+                if (doExtract) {
+                    switch (expectedFileType) {
+                        case PKCS15_PUKDF:
+                            PUKDF         ~= PKCS15_ObjectTyp(sw[0], sw[1], buf[sw[0]..sw[1]], null, asn1_dup_node(structure, ""), null);
+                            break;
+                        case PKCS15_PUKDF_TRUSTED:
+                            PUKDF_TRUSTED ~= PKCS15_ObjectTyp(sw[0], sw[1], buf[sw[0]..sw[1]], null, asn1_dup_node(structure, ""), null);
+                            break;
+                        default: assert(0);
                     }
-                    break;
+                    if ((asn1_result= asn1_read_value(structure, pkcs15_names[PKCS15_RSAPublicKey][2], str, outLen)) != ASN1_SUCCESS)
+                        goto looptail;
+                    pkcs15Extracted ~= PKCS15Path_FileType(str[0..outLen].dup, PKCS15_RSAPublicKey);
+                }
+                break;
 
-                case PKCS15_PRKDF:
-                    if (doExtract) {
-                        PRKDF ~= PKCS15_ObjectTyp(sw[0], sw[1], buf[sw[0]..sw[1]], null, asn1_dup_node(structure, ""), null);
-                        asn1_result = asn1_read_value(structure, PKCS15_FILE_TYPE_STRUCTURE[PKCS15_RSAPrivateKey][2], str, outLen);
-                        if (asn1_result == ASN1_ELEMENT_NOT_FOUND) {
-                            assumeWontThrow(writeln("### asn1_read_value: ", asn1_strerror2(asn1_result)));
-                            continue;
-                        }
-                        pkcs15Extracted ~= PKCS15Path_FileType(str[0..outLen].dup, PKCS15_RSAPrivateKey);
-                    }
-                    else {
-                        version(Posix)
-                            asn1_visit_structure (outStructure, structure, PKCS15_FILE_TYPE_STRUCTURE[expectedFileType][4], ASN1_PRINT_NAME_TYPE_VALUE);
-                    }
-                    break;
-
-                case PKCS15_PUKDF, PKCS15_PUKDF_TRUSTED:
-                    if (doExtract) {
-                        switch (expectedFileType) {
-                            case PKCS15_PUKDF:
-                                PUKDF         ~= PKCS15_ObjectTyp(sw[0], sw[1], buf[sw[0]..sw[1]], null, asn1_dup_node(structure, ""), null);
-                                break;
-                            case PKCS15_PUKDF_TRUSTED:
-                                PUKDF_TRUSTED ~= PKCS15_ObjectTyp(sw[0], sw[1], buf[sw[0]..sw[1]], null, asn1_dup_node(structure, ""), null);
-                                break;
-                            default: assert(0);
-                        }
-                        asn1_result = asn1_read_value(structure, PKCS15_FILE_TYPE_STRUCTURE[PKCS15_RSAPublicKey][2], str, outLen);
-                        if (asn1_result == ASN1_ELEMENT_NOT_FOUND) {
-                            assumeWontThrow(writeln("### asn1_read_value: ", asn1_strerror2(asn1_result)));
-                            continue;
-                        }
-                        pkcs15Extracted ~= PKCS15Path_FileType(str[0..outLen].dup, PKCS15_RSAPublicKey);
-                    }
-                    else {
-                        version(Posix)
-                            asn1_visit_structure (outStructure, structure, PKCS15_FILE_TYPE_STRUCTURE[expectedFileType][4], ASN1_PRINT_NAME_TYPE_VALUE);
-                    }
-                    break;
-
-                case PKCS15_SKDF:
-//                    asn1_result = asn1_read_value(structure, "des3Key.genericSecretKeyAttribute.value.indirect.path.path", str, outLen);
-                    if (doExtract)
-                        SKDF  ~= PKCS15_ObjectTyp(sw[0], sw[1], buf[sw[0]..sw[1]], null, asn1_dup_node(structure, ""), null);
-                    else {
-                        version(Posix)
-                            asn1_visit_structure (outStructure, structure, PKCS15_FILE_TYPE_STRUCTURE[expectedFileType][4], ASN1_PRINT_NAME_TYPE_VALUE);
-                    }
-                    break;
-
-                case PKCS15_CDF, PKCS15_CDF_TRUSTED, PKCS15_CDF_USEFUL:
-                    if (doExtract) {
+            case PKCS15_CDF, PKCS15_CDF_TRUSTED, PKCS15_CDF_USEFUL:
+                if (doExtract) {
                         switch (expectedFileType) {
                             case PKCS15_CDF:
                                 CDF         ~= PKCS15_ObjectTyp(sw[0], sw[1], buf[sw[0]..sw[1]], null, asn1_dup_node(structure, ""), null);
@@ -1118,52 +1060,47 @@ void readFile(tnTypePtr pn, ub2 fid, EFDB fdb, ushort size, ubyte mrl, ubyte nor
 
                             default: assert(0);
                         }
-                        asn1_result = asn1_read_value(structure, PKCS15_FILE_TYPE_STRUCTURE[PKCS15_Cert][2], str, outLen);
-                        if (asn1_result == ASN1_ELEMENT_NOT_FOUND) {
-                            assumeWontThrow(writeln("### asn1_read_value: ", asn1_strerror2(asn1_result)));
-                            continue;
-                        }
+                        if ((asn1_result= asn1_read_value(structure, pkcs15_names[PKCS15_Cert][2], str, outLen)) != ASN1_SUCCESS)
+                            goto looptail;
                         pkcs15Extracted ~= PKCS15Path_FileType(str[0..outLen].dup, PKCS15_Cert);
-                    }
-                    else {
-                        version(Posix)
-                            asn1_visit_structure (outStructure, structure, PKCS15_FILE_TYPE_STRUCTURE[expectedFileType][4], ASN1_PRINT_NAME_TYPE_VALUE);
-                    }
-                    break;
+                }
+                break;
 
-                case PKCS15_DODF:
-                    if (doExtract) {
-                        DODF  ~= PKCS15_ObjectTyp(sw[0], sw[1], buf[sw[0]..sw[1]], null, asn1_dup_node(structure, ""), null);
-                        asn1_result = asn1_read_value(structure, "opaqueDO.opaque.value.indirect.path.path", str, outLen);
-                        if (asn1_result == ASN1_ELEMENT_NOT_FOUND) {
-                            assumeWontThrow(writeln("### asn1_read_value: ", asn1_strerror2(asn1_result)));
-                            continue;
-                        }
-                        pkcs15Extracted ~= PKCS15Path_FileType(str[0..outLen].dup, PKCS15_Cert);
-                    }
-                    else {
-                        version(Posix)
-                            asn1_visit_structure (outStructure, structure, PKCS15_FILE_TYPE_STRUCTURE[expectedFileType][4], ASN1_PRINT_NAME_TYPE_VALUE);
-                    }
-                    break;
+            case PKCS15_DODF:
+                if (doExtract) {
+                    DODF  ~= PKCS15_ObjectTyp(sw[0], sw[1], buf[sw[0]..sw[1]], null, asn1_dup_node(structure, ""), null);
+                    if ((asn1_result= asn1_read_value(structure, pkcs15_names[PKCS15_Data][2], str, outLen)) != ASN1_SUCCESS)
+                        goto looptail;
+                    pkcs15Extracted ~= PKCS15Path_FileType(str[0..outLen].dup, PKCS15_Data);
+                }
+                break;
 
-                case PKCS15_AODF:
-                    if (doExtract)
-                        AODF  ~= PKCS15_ObjectTyp(sw[0], sw[1], buf[sw[0]..sw[1]], null, asn1_dup_node(structure, ""), null);
-                    else {
-                        version(Posix) {
-                            asn1_visit_structure (outStructure, structure, PKCS15_FILE_TYPE_STRUCTURE[expectedFileType][4], ASN1_PRINT_NAME_TYPE_VALUE);
-                        }
-                    }
-                    break;
+            case PKCS15_SKDF:
+                if (doExtract) // all keys of an app are in a well-known file (records)
+                    SKDF  ~= PKCS15_ObjectTyp(sw[0], sw[1], buf[sw[0]..sw[1]], null, asn1_dup_node(structure, ""), null);
+                break;
 
-                default:  assert(0);
-            } // switch (expectedFileType)
-        } //  if (expectedFileType.among(PKCS15_PRKDF,
+            case PKCS15_AODF:
+                if (doExtract) // all pins of an app are in a well-known file (records)
+                    AODF  ~= PKCS15_ObjectTyp(sw[0], sw[1], buf[sw[0]..sw[1]], null, asn1_dup_node(structure, ""), null);
+                break;
+
+            case PKCS15_Cert, PKCS15_RSAPublicKey, PKCS15_TOKENINFO:
+                break;
+
+            default:  assert(0);
+        } // switch (expectedFileType)
+
+        version(Posix)
+        if (!doExtract)
+            asn1_visit_structure (outStructure, structure, pkcs15_names[expectedFileType][4], ASN1_PRINT_NAME_TYPE_VALUE, &someScanner);
 
         AA["fs_text_asn1"].SetString("APPEND", " ");
         foreach (line; outStructure)
             AA["fs_text_asn1"].SetString("APPEND", line);
+        continue;
+looptail: // jump target, if asn1_read_value failed, saving some code duplication
+        assumeWontThrow(writeln("### asn1_read_value: ", asn1_strerror2(asn1_result)));
     } // foreach (sw; offsetTable.slide(2)) {
 } // readFile
 
