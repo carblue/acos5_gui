@@ -170,6 +170,7 @@ version(I18N) {
     pukdf = fs.preOrderRange(iter_begin, fs.end()).locate!"a[6]==b"(PKCS15_FILE_TYPE.PKCS15_PUKDF);
 
     /* initialze the publisher/observer system for GenerateKeyPair_RSA_tab */
+    // some variables are declared as publisher though they don't need to be, currently just for consistency, but that's not the most efficient way
     valuePublicExponent     = new PubA16!_valuePublicExponent (r_valuePublicExponent,     AA["matrixRsaAttributes"]);
     keyPairLabel            = new Pub!(_keyPairLabel,string)  (r_keyPairLabel,            AA["matrixRsaAttributes"]);
     sizeNewRSAModulusBits   = new Pub!_sizeNewRSAModulusBits  (r_sizeNewRSAModulusBits,   AA["matrixRsaAttributes"]);
@@ -182,6 +183,9 @@ version(I18N) {
     fidRSADir               = new Pub!_fidRSADir              (r_fidRSADir,               AA["matrixRsaAttributes"], true);
     fidRSAprivate           = new PubA2!_fidRSAprivate        (r_fidRSAprivate,           AA["matrixRsaAttributes"]);
     fidRSApublic            = new PubA2!_fidRSApublic         (r_fidRSApublic,            AA["matrixRsaAttributes"]);
+    AC_Update_PrKDF_PuKDF           = new Pub!(_AC_Update_PrKDF_PuKDF,ubyte[2])           (r_AC_Update_PrKDF_PuKDF,           AA["matrixRsaAttributes"]);
+    AC_Update_Delete_RSAprivateFile = new Pub!(_AC_Update_Delete_RSAprivateFile,ubyte[2]) (r_AC_Update_Delete_RSAprivateFile, AA["matrixRsaAttributes"]);
+    AC_Update_Delete_RSApublicFile  = new Pub!(_AC_Update_Delete_RSApublicFile, ubyte[2]) (r_AC_Update_Delete_RSApublicFile,  AA["matrixRsaAttributes"]);
 
     usageRSApublicKeyPuKDF  = new Obs_usageRSApublicKeyPuKDF  (r_usageRSApublicKeyPuKDF,  AA["matrixRsaAttributes"]);
     sizeNewRSAprivateFile   = new Obs_sizeNewRSAprivateFile   (r_sizeNewRSAprivateFile,   AA["matrixRsaAttributes"]);
@@ -223,6 +227,8 @@ version(I18N) {
     fidRSADir             .set(appdf is null? 0 : ub22integral(appdf.data[2..4]), true);
     storeAsCRTRSAprivate  .set(true, true);
     usageRSAprivateKeyACOS.set(4,   true); // this is only for acos-generation
+    AC_Update_PrKDF_PuKDF .set([prkdf is null? 0xFF : prkdf.data[25], pukdf is null? 0xFF : pukdf.data[25]], true);
+
 /*
     fidRSAprivate        .set([cast(int) strtol("41F1", null, 16), 0], true);
     fidRSApublic         .set([cast(int) strtol("4133", null, 16), 0], true);
@@ -230,8 +236,6 @@ version(I18N) {
 
     with (AA["matrixRsaAttributes"]) {
         SetStringId2("", r_AC_Create_Delete_RSADir, 1, appdf is null? "unknown / unknown" : format!"%02X"(appdf.data[25])  ~" / "~format!"%02X"(appdf.data[24]));
-        SetStringId2("", r_AC_Update_PrKDF,         1, prkdf is null? "unknown" : format!"%02X"(prkdf.data[25]));
-        SetStringId2("", r_AC_Update_PuKDF,         1, pukdf is null? "unknown" : format!"%02X"(pukdf.data[25]));
     }
     toggle_RSA_cb(AA["toggle_RSA_PrKDF_PuKDF_change"].GetHandle(), 1);
 

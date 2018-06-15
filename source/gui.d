@@ -261,8 +261,8 @@ private Vbox create_GenerateKeyPair_RSA_tab() {
     child_array_toggles ~= toggle1;
 //    auto toggle2 = new Toggle("toggle_RSA_key_pair_delete", __("RSA key pair: Delete key pair files (select by key pair id)"));
 //    child_array_toggles ~= toggle2;
-//    auto toggle3 = new Toggle("toggle_RSA_key_pair_generate", __("RSA key pair: Regenerate RSA key pair content in existing files (select by key pair id)"));
-//    child_array_toggles ~= toggle3;
+    auto toggle3 = new Toggle("toggle_RSA_key_pair_generate", __("RSA key pair: Regenerate RSA key pair content in existing files (select by key pair id)"));
+    child_array_toggles ~= toggle3;
 //    auto toggle4 = new Toggle("toggle_RSA_key_pair_create_and_generate", __("RSA key pair: Create new RSA key pair files and generate RSA key pair content"));
 //    child_array_toggles ~= toggle4;
 
@@ -354,8 +354,7 @@ So the existence of this callback defines the matrix operation mode.
         SetAttributeId2("",  r_keyPairModifiable,       0,   __("Key pair is modifiable?"));
         SetAttributeId2("",  r_keyPairModifiable,       2,   __("PrKDF, PuKDF"));
 
-        SetAttributeId2("",  r_AC_Update_PrKDF,         0,   __("Access Control condition for Update: PrKDF (SCB hex shown; 0x00 means unrestricted)"));
-        SetAttributeId2("",  r_AC_Update_PuKDF,         0,   __("Access Control condition for Update: PuKDF"));
+        SetAttributeId2("",  r_AC_Update_PrKDF_PuKDF,   0,   __("Access Control condition for Update: PrKDF / PuKDF (SCB hex shown; 0x00 means unrestricted)"));
         SetAttributeId2("",  r_AC_Update_Delete_RSAprivateFile,0,   __("Access Control condition for Update / Delete: Private key file"));
         SetAttributeId2("",  r_AC_Update_Delete_RSApublicFile, 0,   __("Access Control condition for Update / Delete: Public key file"));
         SetAttributeId2("",  r_AC_Create_Delete_RSADir,        0,   __("Access Control condition for Create / Delete: Enclosing DF"));
