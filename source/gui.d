@@ -374,6 +374,11 @@ So the existence of this callback defines the matrix operation mode.
     btn_RSA.SetAttribute(IUP_TIP, __("The action performed depends on the radio button setting"));
     Control[] child_array3;
     child_array3 ~= btn_RSA;
+/*
+    auto btn_RSA_checkPRKDF_PUKDF = new Button("btn_RSA_checkPRKDF_PUKDF",  __("for debugging only: btn_RSA_checkPRKDF_PUKDF")); // this(string CN, const(char)* title)
+    btn_RSA_checkPRKDF_PUKDF.SetCallback(IUP_ACTION, &btn_RSA_checkPRKDF_PUKDF_cb);
+    child_array3 ~= btn_RSA_checkPRKDF_PUKDF;
+*/
     child_array ~= new Hbox(child_array3, FILL_TYPE.FILL_FRONT_AND_BACK);
 
     auto vbox = new Vbox(child_array/*, FILL_TYPE.FILL_FRONT_AND_BACK_AND_BETWEEN*/);

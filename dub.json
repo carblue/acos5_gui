@@ -9,7 +9,7 @@
 		"iup": "~>3.25.0-beta.1",
 		"opensc": "~>0.18.0-beta.3",
 		"tree_k_ary": "~>0.0.3",
-		"tasn1:wrapper": "~>0.0.4",
+		"tasn1:wrapper": "~>0.0.5",
 		"pkcs11": "~>2.40.0-alpha.3"
 	},
 	"subConfigurations": {

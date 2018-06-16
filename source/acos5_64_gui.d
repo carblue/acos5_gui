@@ -45,17 +45,12 @@ import std.conv : to;
 import std.format : format;
 import std.exception : assumeWontThrow;//(expr, msg, file, line)
 
-//import std.uni;
-//import std.concurrency;
-//import core.thread;
-
 /*
 import deimos.openssl.crypto : CRYPTO_cleanup_all_ex_data;
 import deimos.openssl.conf;
 import deimos.openssl.evp;
 import deimos.openssl.err;
-*/
-/*
+
 import deimos.openssl.rsa;
 import deimos.openssl.sha;
 import deimos.openssl.rand;
@@ -145,11 +140,11 @@ version(I18N) {
             rc= acos5_64_short_select(card, null, fid2, false);
 //        ubyte[8] pin = [0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38];
 //        int tries_left;
-//        rc = sc_verify(card, SC_AC.SC_AC_CHV, 0x81, pin.ptr, pin.length, &tries_left);
-        assert(rc==0);//  return EXIT_FAILURE;
+//        rc= sc_verify(card, SC_AC.SC_AC_CHV, 0x81, pin.ptr, pin.length, &tries_left);
+        assert(rc == SC_SUCCESS); // return EXIT_FAILURE;
 
-        rc = uploadHexfile(card, "/path/to/cert.hex", 0, 1664, 0);
-//        assert(rc==1664 /*lenWritten*/);//  return EXIT_FAILURE;
+        rc= uploadHexfile(card, "/path/to/cert.hex", 0, 1664, 0);
+//        assert(rc==1664 /*lenWritten*/); // return EXIT_FAILURE;
 +/
 `;
     mixin (connect_card!(commands, "EXIT_FAILURE", "3", "exit(1);"));
@@ -203,7 +198,7 @@ version(I18N) {
 
     usageRSAprivateKeyPrKDF.connect(&usageRSApublicKeyPuKDF.watch);
 
-    keyPairId              .connect(&change_calcPrKDF.watch); // if no keyPairId is selected, this MUST be the only one accessible
+    keyPairId              .connect(&change_calcPrKDF.watch); // THIS MUST BE the first entry for change_calcPrKDF ! If no keyPairId is selected, this MUST be the only one accessible
     keyPairLabel           .connect(&change_calcPrKDF.watch);
     authIdRSAprivateFile   .connect(&change_calcPrKDF.watch);
     keyPairModifiable      .connect(&change_calcPrKDF.watch);
@@ -211,7 +206,7 @@ version(I18N) {
     usageRSAprivateKeyPrKDF.connect(&change_calcPrKDF.watch);
 //  fidRSAprivate          .connect(&change_calcPrKDF.watch);
 
-    keyPairId              .connect(&change_calcPuKDF.watch); // if no keyPairId is selected, this MUST be the only one accessible
+    keyPairId              .connect(&change_calcPuKDF.watch); // THIS MUST BE the first entry for change_calcPuKDF ! If no keyPairId is selected, this MUST be the only one accessible
     keyPairLabel           .connect(&change_calcPuKDF.watch);
 //  authIdRSApublicFile    .connect(&change_calcPuKDF.watch);
     keyPairModifiable      .connect(&change_calcPuKDF.watch);
@@ -228,11 +223,6 @@ version(I18N) {
     storeAsCRTRSAprivate  .set(true, true);
     usageRSAprivateKeyACOS.set(4,   true); // this is only for acos-generation
     AC_Update_PrKDF_PuKDF .set([prkdf is null? 0xFF : prkdf.data[25], pukdf is null? 0xFF : pukdf.data[25]], true);
-
-/*
-    fidRSAprivate        .set([cast(int) strtol("41F1", null, 16), 0], true);
-    fidRSApublic         .set([cast(int) strtol("4133", null, 16), 0], true);
-*/
 
     with (AA["matrixRsaAttributes"]) {
         SetStringId2("", r_AC_Create_Delete_RSADir, 1, appdf is null? "unknown / unknown" : format!"%02X"(appdf.data[25])  ~" / "~format!"%02X"(appdf.data[24]));

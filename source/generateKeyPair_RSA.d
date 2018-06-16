@@ -1,5 +1,5 @@
 /*
-private V3:
+privateV3:
 3033300F0C064341726F6F74030206C0040101300E0401010303062040010101020101A110300E300804063F00410041F102020C00 303430100C074341696E746572030206C0040101300E0401020303062040010101020102A110300E300804063F00410041F202020D00
 3033300F0C064341726F6F74030206C0040101300E04010103030620400101FF020101A110300E300804063F00410041F102020C00
 
@@ -45,6 +45,7 @@ PASS: MF header has an associated SecurityEnvironmentFile (0003) declared and th
 
 module generateKeyPair_RSA;
 
+import core.memory : GC;
 import core.runtime : Runtime;
 import core.stdc.stdlib : strtol, strtoull, exit;
 import std.signals;
@@ -57,6 +58,8 @@ import std.range.primitives : empty, front;
 import std.array : array;
 import std.algorithm.comparison : among, clamp, equal, min, max;
 import std.algorithm.searching : canFind, countUntil, all, any, find;
+//import std.algorithm.iteration : uniq;
+//import std.algorithm.sorting : sort;
 import std.typecons : Tuple, tuple;
 //import std.ascii : isHexDigit;
 import std.string : /*chomp, */  toStringz, fromStringz;
@@ -74,7 +77,7 @@ import libintl : _, __;
 import util_general;// : ub22integral;
 import acos5_64_shared;
 
-import util_opensc : lh, card, acos5_64_short_select, readFile, decompose, PKCS15Path_FileType,
+import util_opensc : lh, card, acos5_64_short_select, readFile, decompose, PKCS15Path_FileType, pkcs15_names,
     PKCS15_FILE_TYPE, fs, sitTypeFS, PRKDF, PUKDF, AODF, cry_____7_4_4___46_generate_keypair_RSA,
     util_connect_card, connect_card, PKCS15_ObjectTyp, errorDescription, PKCS15, iter_begin, appdf, prkdf, pukdf, tnTypePtr;
 
@@ -82,17 +85,20 @@ import util_opensc : lh, card, acos5_64_short_select, readFile, decompose, PKCS1
 import libtasn1;
 
 
-int getIdentifier(const ref PKCS15_ObjectTyp ot, string nodeName, bool new_=false) nothrow {
+int getIdentifier(const ref PKCS15_ObjectTyp ot, string nodeName, bool new_=true) nothrow {
     /* Identifier ::= OCTET STRING (SIZE (0..255)) */
     ubyte[2]  str;
     int outLen;
-    if (asn1_read_value(new_? ot.structure_new : ot.structure, nodeName, str, outLen) != ASN1_SUCCESS)
+    int asn1_result;
+    if ((asn1_result= asn1_read_value(new_? ot.structure_new : ot.structure, nodeName, str, outLen)) != ASN1_SUCCESS) {
+        assumeWontThrow(writefln("### asn1_read_value %s: %s", nodeName, asn1_strerror2(asn1_result)));
         return -1;
+    }
     assert(outLen==1);
     return str[0];
 }
 /+
-long getLong(const ref PKCS15_ObjectTyp ot, string nodeName, bool new_=false) nothrow {
+long getLong(const ref PKCS15_ObjectTyp ot, string nodeName, bool new_=true) nothrow {
     ubyte[8]  str;
     int len = str.length;
     if (asn1_read_value(new_? ot.structure_new : ot.structure, nodeName.toStringz, &str[0], &len) != ASN1_SUCCESS)
@@ -100,7 +106,7 @@ long getLong(const ref PKCS15_ObjectTyp ot, string nodeName, bool new_=false) no
     assert(len<=8 && str[0]<0x80);
     return ub82integral(str);
 }
-ulong getUlong(const ref PKCS15_ObjectTyp ot, string nodeName, bool new_=false) nothrow {
+ulong getUlong(const ref PKCS15_ObjectTyp ot, string nodeName, bool new_=true) nothrow {
     ubyte[8]  str;
     int len = str.length;
     if (asn1_read_value(new_? ot.structure_new : ot.structure, nodeName.toStringz, &str[0], &len) != ASN1_SUCCESS)
@@ -260,6 +266,9 @@ assumeWontThrow(writefln(T.stringof~" object was set to value %s", _value));
                     _h1.SetStringId2 ("", _lin, _col, _hexRep? format!"%X"(_value) : _value.to!string);
             }
             emit(T.stringof, _value);
+            /* this is critical for _keyPairId:
+             * First change_calcPrKDF.watch and change_calcPuKDF.watch must run: They create/dup structure to structure_new
+             * only then: set_more_for_keyPairId */
             static if (is (T == _keyPairId))
                 set_more_for_keyPairId(_value);
         }
@@ -564,8 +573,8 @@ class Obs_change_calcPrKDF {
         _h = control;
     }
 
-    @property PKCS15_ObjectTyp  pkcs15_ObjectTyp() @nogc nothrow /*pure*/ @safe { return _PrKDFentry; }
-    @property const(int)        get()        const @nogc nothrow /*pure*/ @safe { return _value; }
+    @property ref PKCS15_ObjectTyp  pkcs15_ObjectTyp() @nogc nothrow /*pure*/ @safe { return _PrKDFentry; }
+    @property     const(int)        get()        const @nogc nothrow /*pure*/ @safe { return _value; }
 
     void watch(string msg, int v) {
         import core.bitop : bitswap;
@@ -574,10 +583,11 @@ class Obs_change_calcPrKDF {
         switch (msg) {
             case "_keyPairId":
                 {
-                    auto haystackPriv= find!((a,b) => getIdentifier(a, "privateRSAKey.commonKeyAttributes.iD") == b)(PRKDF, v);
+                    auto haystackPriv= find!((a,b) => getIdentifier(a, "privateRSAKey.commonKeyAttributes.iD", false) == b)(PRKDF, v);
                     assert(!haystackPriv.empty);
                     _PrKDFentry = haystackPriv.front;
-
+                    assert(_PrKDFentry.structure_new is null); // newer get's set in PRKDF
+                    assert(_PrKDFentry.der_new is null);       // newer get's set in PRKDF
                     _PrKDFentry.structure_new = asn1_dup_node(_PrKDFentry.structure, "");
 
 ////                    assumeWontThrow(writefln("_old_encodedData of PrKDFentry: %(%02X %)", _PrKDFentry.der));
@@ -586,74 +596,49 @@ class Obs_change_calcPrKDF {
 
             case "_authIdRSAprivateFile":
                 ubyte[1] authId = cast(ubyte)v; // optional
+/*
                 // remove, if authId==0, write if authId!=0
-
-
-/+
-    len = 1;
-    asn1_result = asn1_read_value(_PrKDFentry.structure_new, "privateRSAKey.commonObjectAttributes.authId".ptr, &authId, &len);
-    if (asn1_result == ASN1_ELEMENT_NOT_FOUND) {
-
-//                    case PKCS15_DIR:   asn1_result = asn1_create_element(PKCS15, toStringz("PKCS15.DIRRecord"), &structure); break;
-  asn1_node value;
-
-                  asn1_result =
-    asn1_create_element (PKCS15, "privateRSAKey.commonObjectAttributes.authId".ptr,
-			 &value);
-  result = asn1_write_value (value, "".ptr, "printableString".ptr, 1);
-  result = asn1_write_value (value, "printableString".ptr, "gov".ptr, 3);
-  *der_len = max_len;
-  result = asn1_der_coding (value, "", der, der_len, errorDescription);
-  asn1_delete_structure (&value);
-  result =
-    asn1_write_value (cert1,
-		      "tbsCertificate.issuer.rdnSequence.?LAST.?LAST.value".ptr,
-		      der, *der_len);
-
-    }
-    else
-       assert(len==1);
-+/
-//                if (authId==0)
-//                    asn1_result = asn1_write_value(_PrKDFentry.structure_new, "privateRSAKey.commonObjectAttributes.authId".ptr, null, 0);
-//                else
-                    asn1_result = asn1_write_value(_PrKDFentry.structure_new, "privateRSAKey.commonObjectAttributes.authId", authId);
+                if (authId==0)
+                    asn1_write_value(_PrKDFentry.structure_new, "privateRSAKey.commonObjectAttributes.authId".ptr, null, 0);
+                else
+*/
+                asn1_write_value(_PrKDFentry.structure_new, "privateRSAKey.commonObjectAttributes.authId", authId.ptr, 1);
 
                 ubyte[1] flags; // optional
                 asn1_result = asn1_read_value(_PrKDFentry.structure_new, "privateRSAKey.commonObjectAttributes.flags", flags, outLen);
-                if (asn1_result == ASN1_ELEMENT_NOT_FOUND)
-                    assumeWontThrow(writeln("### asn1_read_value: ", asn1_strerror2(asn1_result)));
-                else
-                    assert(outLen==2); // bits
+                if (asn1_result != ASN1_SUCCESS) {
+                    assumeWontThrow(writeln("### asn1_read_value privateRSAKey.commonObjectAttributes.flags: ", asn1_strerror2(asn1_result)));
+                    break;
+                }
+                assert(outLen==2); // bits
                 flags[0] = util_general.bitswap(flags[0]);
 
-////                _PrKDFentry.commonObjectAttributes.flags = (_PrKDFentry.commonObjectAttributes.flags&~1) | (v!=0);
                 ubyte[1] tmp = util_general.bitswap( cast(ubyte) ((flags[0]&0xFE) | (v!=0)) );
-                asn1_result = asn1_write_value(_PrKDFentry.structure_new, "privateRSAKey.commonObjectAttributes.flags", tmp, 2); // 2 bits
+                asn1_write_value(_PrKDFentry.structure_new, "privateRSAKey.commonObjectAttributes.flags", tmp.ptr, 2); // 2 bits
                 break;
 
             case "_keyPairModifiable":
                 ubyte[1] flags; // optional
                 asn1_result = asn1_read_value(_PrKDFentry.structure_new, "privateRSAKey.commonObjectAttributes.flags", flags, outLen);
-                if (asn1_result == ASN1_ELEMENT_NOT_FOUND)
-                    assumeWontThrow(writeln("### asn1_read_value: ", asn1_strerror2(asn1_result)));
-                else
-                    assert(outLen==2); // bits
+                if (asn1_result != ASN1_SUCCESS) {
+                    assumeWontThrow(writeln("### asn1_read_value privateRSAKey.commonObjectAttributes.flags: ", asn1_strerror2(asn1_result)));
+                    break;
+                }
+                assert(outLen==2); // bits
                 flags[0] = util_general.bitswap(flags[0]);
 
-////                _PrKDFentry.commonObjectAttributes.flags = (_PrKDFentry.commonObjectAttributes.flags&~2) | (v!=0)*2;
                 ubyte[1] tmp = util_general.bitswap( cast(ubyte) ((flags[0]&0xFD) | (v!=0)*2) );
-                asn1_result = asn1_write_value(_PrKDFentry.structure_new, "privateRSAKey.commonObjectAttributes.flags", tmp, 2); // 2 bits
+                asn1_write_value(_PrKDFentry.structure_new, "privateRSAKey.commonObjectAttributes.flags", tmp.ptr, 2); // 2 bits
                 break;
 
             case "_sizeNewRSAModulusBits":
                 ubyte[] tmp = integral2ub!2(v);
-                asn1_result = asn1_write_value(_PrKDFentry.structure_new, "privateRSAKey.privateRSAKeyAttributes.modulusLength", tmp);
+                asn1_write_value(_PrKDFentry.structure_new, "privateRSAKey.privateRSAKeyAttributes.modulusLength", tmp.ptr, cast(int)tmp.length);
                 break;
 
             case "_usageRSAprivateKeyPrKDF":
                 ubyte[] tmp = integral2ub!4(bitswap(v));
-                asn1_result = asn1_write_value(_PrKDFentry.structure_new, "privateRSAKey.commonKeyAttributes.usage", tmp, 10); // 10 bits
+                asn1_write_value(_PrKDFentry.structure_new, "privateRSAKey.commonKeyAttributes.usage", tmp.ptr, 10); // 10 bits
                 break;
 
             default:
@@ -664,9 +649,15 @@ class Obs_change_calcPrKDF {
     }
 
     void watch(string msg, string v) {
+        int asn1_result;
         switch (msg) {
             case "_keyPairLabel":
-                int asn1_result = asn1_write_value(_PrKDFentry.structure_new, "privateRSAKey.commonObjectAttributes.label", v);
+                char[] label = v.dup ~ '\0';
+                GC.addRoot(cast(void*)label.ptr);
+                GC.setAttr(cast(void*)label.ptr, GC.BlkAttr.NO_MOVE);
+                asn1_result = asn1_write_value(_PrKDFentry.structure_new, "privateRSAKey.commonObjectAttributes.label", label.ptr, 0);
+                if (asn1_result != ASN1_SUCCESS)
+                    assumeWontThrow(writeln("### asn1_write_value privateRSAKey.commonObjectAttributes.label: ", asn1_strerror2(asn1_result)));
                 break;
 
             default:
@@ -684,7 +675,7 @@ class Obs_change_calcPrKDF {
         int asn1_result = asn1_der_coding(_PrKDFentry.structure_new, "", _PrKDFentry.der_new, outDerLen, errorDescription);
         if (asn1_result != ASN1_SUCCESS)
         {
-            printf ("\n### _PrKDFentry.der_new encoding creation: ERROR\n");
+            printf ("\n### _PrKDFentry.der_new encoding creation: ERROR  with Obs_change_calcPrKDF\n");
 //                    assumeWontThrow(writeln("### asn1Coding: ", errorDescription));
             return;
         }
@@ -693,7 +684,6 @@ class Obs_change_calcPrKDF {
         _value = cast(int)(_PrKDFentry.der_new.length - _PrKDFentry.der.length);
 //        emit("_change_calcPrKDF", _value);
 assumeWontThrow(writefln(typeof(this).stringof~" object was set"));
-//assumeWontThrow(writefln(typeof(this).stringof~" object was set to _fidRSAprivate(%04X), _fidSizeRSAprivate(%s), _value(%s)", _fidRSAprivate, _fidSizeRSAprivate, _value));
 ////assumeWontThrow(writefln("_new_encodedData of PrKDFentry: %(%02X %)", _PrKDFentry.der_new));
         if (_h !is null) {
             _h.SetIntegerId2/*SetStringId2*/ ("", _lin, _col, _value/*.to!string*/); //  ~" / "~ _value.to!string
@@ -721,8 +711,8 @@ class Obs_change_calcPuKDF {
 
 //    @property const(ubyte[]) old_encodedData() const @nogc nothrow /*pure*/ @safe { return _PuKDFentry.der; }
 //    @property const(ubyte[]) new_encodedData() const @nogc nothrow /*pure*/ @safe { return _PuKDFentry.der_new; }
-    @property PKCS15_ObjectTyp  pkcs15_ObjectTyp() @nogc nothrow /*pure*/ @safe { return _PuKDFentry; }
-    @property const(int)        get()        const @nogc nothrow /*pure*/ @safe { return _value; }
+    @property ref PKCS15_ObjectTyp  pkcs15_ObjectTyp() @nogc nothrow /*pure*/ @safe { return _PuKDFentry; }
+    @property     const(int)        get()        const @nogc nothrow /*pure*/ @safe { return _value; }
 
     void watch(string msg, int v) {
         import core.bitop : bitswap;
@@ -731,10 +721,11 @@ class Obs_change_calcPuKDF {
         switch (msg) {
             case "_keyPairId":
                 {
-                    auto haystackPubl= find!((a,b) => getIdentifier(a, "publicRSAKey.commonKeyAttributes.iD") == b)(PUKDF, v);
+                    auto haystackPubl= find!((a,b) => getIdentifier(a, "publicRSAKey.commonKeyAttributes.iD", false) == b)(PUKDF, v);
                     assert(!haystackPubl.empty);
                     _PuKDFentry = haystackPubl.front;
-
+                    assert(_PuKDFentry.structure_new is null); // newer get's set in PUKDF
+                    assert(_PuKDFentry.der_new is null);       // newer get's set in PUKDF
                     _PuKDFentry.structure_new = asn1_dup_node(_PuKDFentry.structure, "");
 
 ////                    assumeWontThrow(writefln("_old_encodedData of PuKDFentry: %(%02X %)", _PuKDFentry.der));
@@ -748,25 +739,26 @@ class Obs_change_calcPuKDF {
             case "_keyPairModifiable":
                 ubyte[1] flags; // optional
                 asn1_result = asn1_read_value(_PuKDFentry.structure_new, "publicRSAKey.commonObjectAttributes.flags", flags, outLen);
-                if (asn1_result == ASN1_ELEMENT_NOT_FOUND)
-                    assumeWontThrow(writeln("### asn1_read_value: ", asn1_strerror2(asn1_result)));
-                else
-                    assert(outLen==2); // bits
+                if (asn1_result != ASN1_SUCCESS) {
+                    assumeWontThrow(writeln("### asn1_read_value publicRSAKey.commonObjectAttributes.flags: ", asn1_strerror2(asn1_result)));
+                    break;
+                }
+                assert(outLen==2); // bits
                 flags[0] = util_general.bitswap(flags[0]);
 
 ////                _PuKDFentry.commonObjectAttributes.flags = (_PuKDFentry.commonObjectAttributes.flags&~2) | (v!=0)*2;
                 ubyte[1] tmp = util_general.bitswap( cast(ubyte) ((flags[0]&0xFD) | (v!=0)*2) );
-                asn1_result = asn1_write_value(_PuKDFentry.structure_new, "publicRSAKey.commonObjectAttributes.flags", tmp, 2); // 2 bits
+                asn1_write_value(_PuKDFentry.structure_new, "publicRSAKey.commonObjectAttributes.flags", tmp.ptr, 2); // 2 bits
                 break;
 
             case "_sizeNewRSAModulusBits":
                 ubyte[] tmp = integral2ub!2(v);
-                asn1_result = asn1_write_value(_PuKDFentry.structure_new, "publicRSAKey.publicRSAKeyAttributes.modulusLength", tmp);
+                asn1_write_value(_PuKDFentry.structure_new, "publicRSAKey.publicRSAKeyAttributes.modulusLength", tmp.ptr, cast(int)tmp.length);
                 break;
 
             case "_usageRSApublicKeyPuKDF":
                 ubyte[] tmp = integral2ub!4(bitswap(v));
-                asn1_result = asn1_write_value(_PuKDFentry.structure_new, "publicRSAKey.commonKeyAttributes.usage", tmp, 10); // 10 bits
+                asn1_write_value(_PuKDFentry.structure_new, "publicRSAKey.commonKeyAttributes.usage", tmp.ptr, 10); // 10 bits
                 break;
 
             default:
@@ -777,9 +769,15 @@ class Obs_change_calcPuKDF {
     }
 
     void watch(string msg, string v) {
+        int asn1_result;
         switch (msg) {
             case "_keyPairLabel":
-                int asn1_result = asn1_write_value(_PuKDFentry.structure_new, "publicRSAKey.commonObjectAttributes.label", v);
+                char[] label = v.dup ~ '\0';
+                GC.addRoot(cast(void*)label.ptr);
+                GC.setAttr(cast(void*)label.ptr, GC.BlkAttr.NO_MOVE);
+                asn1_result = asn1_write_value(_PuKDFentry.structure_new, "publicRSAKey.commonObjectAttributes.label", label.ptr, 0);
+                if (asn1_result != ASN1_SUCCESS)
+                    assumeWontThrow(writeln("### asn1_write_value publicRSAKey.commonObjectAttributes.label: ", asn1_strerror2(asn1_result)));
                 break;
 
             default:
@@ -797,7 +795,7 @@ class Obs_change_calcPuKDF {
         int asn1_result = asn1_der_coding(_PuKDFentry.structure_new, "", _PuKDFentry.der_new, outDerLen, errorDescription);
         if (asn1_result != ASN1_SUCCESS)
         {
-            printf ("\n### _PuKDFentry.der_new encoding creation: ERROR\n");
+            printf ("\n### _PuKDFentry.der_new encoding creation: ERROR  with Obs_change_calcPuKDF\n");
 //                    assumeWontThrow(writeln("### asn1Coding: ", errorDescription));
             return;
         }
@@ -806,7 +804,6 @@ class Obs_change_calcPuKDF {
         _value = cast(int)(_PuKDFentry.der_new.length - _PuKDFentry.der.length);
 //        emit("_change_calcPuKDF", _value);
 assumeWontThrow(writefln(typeof(this).stringof~" object was set"));
-//assumeWontThrow(writefln(typeof(this).stringof~" object was set to _fidRSAprivate(%04X), _fidSizeRSAprivate(%s), _value(%s)", _fidRSAprivate, _fidSizeRSAprivate, _value));
 ////assumeWontThrow(writefln("_new_encodedData of PuKDFentry: %(%02X %)", _PuKDFentry.der_new));
         if (_h !is null) {
             _h.SetIntegerId2/*SetStringId2*/ ("", _lin, _col, _value/*.to!string*/); //  ~" / "~ _value.to!string
@@ -1019,68 +1016,72 @@ int set_more_for_keyPairId(int keyPairId) nothrow
     int  asn1_result;
     int  outLen;
 
-    auto haystackPriv= find!((a,b) => getIdentifier(a, "privateRSAKey.commonKeyAttributes.iD") == b)(PRKDF, keyPairId);
+    assert(keyPairId > 0);
+    auto haystackPriv= find!((a,b) => getIdentifier(a, "privateRSAKey.commonKeyAttributes.iD", false) == b)(PRKDF, keyPairId);
     assert(!haystackPriv.empty);
-    PKCS15_ObjectTyp  PrKDFentry = haystackPriv.front; // by reference?
+    PKCS15_ObjectTyp  PrKDFentry = haystackPriv.front; // by reference
 
-    auto haystackPubl= find!((a,b) => getIdentifier(a, "publicRSAKey.commonKeyAttributes.iD") == b)(PUKDF, keyPairId);
+    auto haystackPubl= find!((a,b) => getIdentifier(a, "publicRSAKey.commonKeyAttributes.iD", false) == b)(PUKDF, keyPairId);
     assert(!haystackPubl.empty);
     PKCS15_ObjectTyp  PuKDFentry = haystackPubl.front;
 
     ubyte[1] flags; // optional
     asn1_result = asn1_read_value(PrKDFentry.structure, "privateRSAKey.commonObjectAttributes.flags", flags, outLen);
-    if (asn1_result == ASN1_ELEMENT_NOT_FOUND)
-        assumeWontThrow(writeln("### asn1_read_value: ", asn1_strerror2(asn1_result)));
-    else
+    if (asn1_result != ASN1_SUCCESS)
+        assumeWontThrow(writeln("### asn1_read_value privateRSAKey.commonObjectAttributes.flags: ", asn1_strerror2(asn1_result)));
+    else {
         assert(outLen==2); // bits
-    flags[0] = util_general.bitswap(flags[0]);
+        flags[0] = util_general.bitswap(flags[0]);
 
-    keyPairModifiable.set((flags[0]&2)/2, true);
+        keyPairModifiable.set((flags[0]&2)/2, true);
 
-    if (!keyPairModifiable.get &&  (/+ AA["toggle_RSA_key_pair_delete"].GetIntegerVALUE() || +/
-                                    AA["toggle_RSA_key_pair_generate"].GetIntegerVALUE() ) ) {
-        IupMessage("Feedback upon setting keyPairId",
+        if (!keyPairModifiable.get &&  (/+ AA["toggle_RSA_key_pair_delete"].GetIntegerVALUE() || +/
+                                        AA["toggle_RSA_key_pair_generate"].GetIntegerVALUE() ) ) {
+            IupMessage("Feedback upon setting keyPairId",
 "The PrKDF entry for the selected keyPairId disallows modifying the RSA private key !\nThe toggle will be changed to toggle_RSA_PrKDF_PuKDF_change toggled");
-        AA["toggle_RSA_PrKDF_PuKDF_change"].SetIntegerVALUE(1);
+            AA["toggle_RSA_PrKDF_PuKDF_change"].SetIntegerVALUE(1);
+        }
     }
-
     ubyte[1] authId; // optional
     asn1_result = asn1_read_value(PrKDFentry.structure, "privateRSAKey.commonObjectAttributes.authId", authId, outLen);
-    if (asn1_result == ASN1_ELEMENT_NOT_FOUND) {
-        assumeWontThrow(writeln("### asn1_read_value: ", asn1_strerror2(asn1_result)));
+    if (asn1_result != ASN1_SUCCESS) {
+        assumeWontThrow(writeln("### asn1_read_value privateRSAKey.commonObjectAttributes.authId: ", asn1_strerror2(asn1_result)));
     }
     else {
-       assert(outLen==1);
-       if (authId[0])
-          assert(flags[0]&1);
+        assert(outLen==1);
+        if (authId[0])
+            assert(flags[0]&1); // may run into a problem if asn1_read_value for flags failed
+        authIdRSAprivateFile.set(authId[0], true);
     }
 
-    authIdRSAprivateFile.set(authId[0], true);
 
     { // make label inaccessible when leaving the scope
         char[] label = new char[65]; // optional
+        label[0..65] = '\0';
         asn1_result = asn1_read_value(PrKDFentry.structure, "privateRSAKey.commonObjectAttributes.label", label, outLen);
-        if (asn1_result == ASN1_ELEMENT_NOT_FOUND) {
-            assumeWontThrow(writeln("### asn1_read_value: ", asn1_strerror2(asn1_result)));
+        if (asn1_result != ASN1_SUCCESS) {
+            assumeWontThrow(writeln("### asn1_read_value privateRSAKey.commonObjectAttributes.label: ", asn1_strerror2(asn1_result)));
         }
-
-        keyPairLabel.set(assumeUnique(label[0..outLen]), true);
+        else
+            keyPairLabel.set(assumeUnique(label[0..outLen]), true);
     }
 
     ubyte[2] keyUsageFlags; // non-optional
     asn1_result = asn1_read_value(PrKDFentry.structure, "privateRSAKey.commonKeyAttributes.usage", keyUsageFlags, outLen);
-    if (asn1_result == ASN1_ELEMENT_NOT_FOUND)
-        assumeWontThrow(writeln("### asn1_read_value: ", asn1_strerror2(asn1_result)));
-    assert(outLen==10); // bits
+    if (asn1_result != ASN1_SUCCESS)
+        assumeWontThrow(writeln("### asn1_read_value privateRSAKey.commonKeyAttributes.usage: ", asn1_strerror2(asn1_result)));
+    else {
+        assert(outLen==10); // bits
 //assumeWontThrow(writefln("keyUsageFlags: %(%02X %)", keyUsageFlags));
-    usageRSAprivateKeyPrKDF.set( bitswap(ub22integral(keyUsageFlags)<<16), true);
+        usageRSAprivateKeyPrKDF.set( bitswap(ub22integral(keyUsageFlags)<<16), true);
+    }
 
 //        with (PrKDFentry.privateRSAKeyAttributes) {
 
     ubyte[2] modulusLength; // non-optional
     asn1_result = asn1_read_value(PrKDFentry.structure, "privateRSAKey.privateRSAKeyAttributes.modulusLength", modulusLength, outLen);
     if (asn1_result == ASN1_ELEMENT_NOT_FOUND)
-        assumeWontThrow(writeln("### asn1_read_value: ", asn1_strerror2(asn1_result)));
+        assumeWontThrow(writeln("### asn1_read_value privateRSAKey.privateRSAKeyAttributes.modulusLength: ", asn1_strerror2(asn1_result)));
     assert(outLen==2);
 //assumeWontThrow(writefln("modulusLength: %(%02X %)", modulusLength));
     sizeNewRSAModulusBits.set(ub22integral(modulusLength), true);
@@ -1088,7 +1089,7 @@ int set_more_for_keyPairId(int keyPairId) nothrow
     ubyte[16]  str;
     asn1_result = asn1_read_value(PrKDFentry.structure, "privateRSAKey.privateRSAKeyAttributes.value.indirect.path.path", str, outLen);
     if (asn1_result == ASN1_ELEMENT_NOT_FOUND) {
-        assumeWontThrow(writeln("### asn1_read_value: ", asn1_strerror2(asn1_result)));
+        assumeWontThrow(writeln("### asn1_read_value privateRSAKey.privateRSAKeyAttributes.value.indirect.path.path: ", asn1_strerror2(asn1_result)));
         exit(1);
     }
     assert(outLen>=2);
@@ -1110,7 +1111,7 @@ int set_more_for_keyPairId(int keyPairId) nothrow
 
     asn1_result = asn1_read_value(PuKDFentry.structure, "publicRSAKey.publicRSAKeyAttributes.value.indirect.path.path", str, outLen);
     if (asn1_result == ASN1_ELEMENT_NOT_FOUND) {
-        assumeWontThrow(writeln("### asn1_read_value: ", asn1_strerror2(asn1_result)));
+        assumeWontThrow(writeln("### asn1_read_value publicRSAKey.publicRSAKeyAttributes.value.indirect.path.path: ", asn1_strerror2(asn1_result)));
         exit(1);
     }
     assert(outLen>=2);
@@ -1244,7 +1245,7 @@ int matrixRsaAttributes_drop_cb(Ihandle* self, Ihandle* drop, int lin, int col) 
             if (hR.GetStringVALUE()!="toggle_RSA_key_pair_create_and_generate") {
                 int i = 1;
                 foreach (const ref elem; PRKDF) {
-                    if ((rv= getIdentifier(elem, "privateRSAKey.commonKeyAttributes.iD")) < 0)
+                    if ((rv= getIdentifier(elem, "privateRSAKey.commonKeyAttributes.iD", false)) < 0)
                         continue;
                     SetIntegerId("", i++, rv);
                 }
@@ -1259,9 +1260,9 @@ int matrixRsaAttributes_drop_cb(Ihandle* self, Ihandle* drop, int lin, int col) 
                 int i = 1;
 ////                SetIntegerId("", i++, 0);
                 foreach (const ref elem; AODF) {
-                    asn1_result = asn1_read_value(elem.structure, "pinAuthObj.commonAuthenticationObjectAttributes.authId", str, outLen);
+                    asn1_result = asn1_read_value(elem.structure_new, "pinAuthObj.commonAuthenticationObjectAttributes.authId", str, outLen);
                     if (asn1_result == ASN1_ELEMENT_NOT_FOUND) {
-                        if (asn1_read_value(elem.structure, "biometricAuthObj.commonAuthenticationObjectAttributes.authId", str, outLen) != ASN1_SUCCESS)
+                        if (asn1_read_value(elem.structure_new, "biometricAuthObj.commonAuthenticationObjectAttributes.authId", str, outLen) != ASN1_SUCCESS)
                             continue;
                     }
                     else if (asn1_result != ASN1_SUCCESS)
@@ -1576,29 +1577,80 @@ int toggle_RSA_cb(Ihandle* ih, int state)
 }
 
 const char[] btn_RSA_cb_common1 =`
-            ubyte[] zeroAdd = new ubyte[change_calcPrKDF.get>=0? 0 : abs(change_calcPrKDF.get)];
-            auto haystackPriv = find!((a,b) => getIdentifier(a, "privateRSAKey.commonKeyAttributes.iD") == b)(PRKDF, keyPairId.get);
+            int diff = change_calcPrKDF.get;
+            ubyte[] zeroAdd = new ubyte[ diff>=0? 0 : abs(diff) ];
+            auto haystackPriv = find!((a,b) => getIdentifier(a, "privateRSAKey.commonKeyAttributes.iD", false) == b)(PRKDF, keyPairId.get);
             assert(!haystackPriv.empty);
-            change_calcPrKDF.pkcs15_ObjectTyp.der =  change_calcPrKDF.pkcs15_ObjectTyp.der_new.dup;
-            haystackPriv.front.der                =  change_calcPrKDF.pkcs15_ObjectTyp.der_new.dup;
-            haystackPriv.front.posEnd            +=  change_calcPrKDF.get;
+            // change_calcPrKDF.pkcs15_ObjectTyp shall be identical to resulting haystackPriv.front (except the _new components)!) !
+
+            change_calcPrKDF.pkcs15_ObjectTyp.posEnd +=  diff;
+            if (change_calcPrKDF.pkcs15_ObjectTyp.der_new !is null)
+                haystackPriv.front.der = change_calcPrKDF.pkcs15_ObjectTyp.der =  change_calcPrKDF.pkcs15_ObjectTyp.der_new.dup;
+
+            asn1_node  structurePriv;
+            asn1_delete_structure(&haystackPriv.front.structure);
+            int asn1_result = asn1_create_element(PKCS15, pkcs15_names[PKCS15_FILE_TYPE.PKCS15_PRKDF][3], &structurePriv);
+            if (asn1_result != ASN1_SUCCESS) {
+                assumeWontThrow(writeln("### Structure creation: ", asn1_strerror2(asn1_result)));
+                return IUP_DEFAULT;
+            }
+            asn1_result = asn1_der_decoding(&structurePriv, haystackPriv.front.der, errorDescription);
+            if (asn1_result != ASN1_SUCCESS) {
+                assumeWontThrow(writeln("### asn1Decoding: ", errorDescription));
+                return IUP_DEFAULT;
+            }
+            haystackPriv.front.structure                = structurePriv;
+            change_calcPrKDF.pkcs15_ObjectTyp.structure = structurePriv;
+
             ubyte[] bufPriv;
-            foreach (elem; haystackPriv)
+            foreach (i, ref elem; haystackPriv) {
                 bufPriv ~= elem.der;
+                if (i>0)
+                    elem.posStart += diff;
+                elem.posEnd       += diff;
+            }
             bufPriv ~=  zeroAdd;
             assert(prkdf);
+//assumeWontThrow(writeln("  ### check change_calcPrKDF.pkcs15_ObjectTyp: ", change_calcPrKDF.pkcs15_ObjectTyp));
+//assumeWontThrow(writeln("  ### check haystackPriv:                      ", haystackPriv));
 
-            zeroAdd = new ubyte[change_calcPuKDF.get>=0? 0 : abs(change_calcPuKDF.get)];
-            auto haystackPubl = find!((a,b) => getIdentifier(a, "publicRSAKey.commonKeyAttributes.iD") == b)(PUKDF, keyPairId.get);
+
+            diff = change_calcPuKDF.get;
+            zeroAdd = new ubyte[ diff>=0? 0 : abs(diff) ];
+            auto haystackPubl = find!((a,b) => getIdentifier(a, "publicRSAKey.commonKeyAttributes.iD", false) == b)(PUKDF, keyPairId.get);
             assert(!haystackPubl.empty);
-            change_calcPuKDF.pkcs15_ObjectTyp.der =  change_calcPuKDF.pkcs15_ObjectTyp.der_new.dup;
-            haystackPubl.front.der                =  change_calcPuKDF.pkcs15_ObjectTyp.der_new.dup;
-            haystackPubl.front.posEnd            +=  change_calcPuKDF.get;
+            // change_calcPuKDF.pkcs15_ObjectTyp shall be identical to resulting haystackPubl.front (except the _new components)!) !
+
+            change_calcPuKDF.pkcs15_ObjectTyp.posEnd +=  diff;
+            if (change_calcPuKDF.pkcs15_ObjectTyp.der_new !is null)
+                haystackPubl.front.der = change_calcPuKDF.pkcs15_ObjectTyp.der =  change_calcPuKDF.pkcs15_ObjectTyp.der_new.dup;
+
+            asn1_node  structurePubl;
+            asn1_delete_structure(&haystackPubl.front.structure);
+            asn1_result = asn1_create_element(PKCS15, pkcs15_names[PKCS15_FILE_TYPE.PKCS15_PUKDF][3], &structurePubl);
+            if (asn1_result != ASN1_SUCCESS) {
+                assumeWontThrow(writeln("### Structure creation: ", asn1_strerror2(asn1_result)));
+                return IUP_DEFAULT;
+            }
+            asn1_result = asn1_der_decoding(&structurePubl, haystackPubl.front.der, errorDescription);
+            if (asn1_result != ASN1_SUCCESS) {
+                assumeWontThrow(writeln("### asn1Decoding: ", errorDescription));
+                return IUP_DEFAULT;
+            }
+            haystackPubl.front.structure                = structurePubl;
+            change_calcPuKDF.pkcs15_ObjectTyp.structure = structurePubl;
+
             ubyte[] bufPubl;
-            foreach (elem; haystackPubl)
+            foreach (i, ref elem; haystackPubl) {
                 bufPubl ~= elem.der;
+                if (i>0)
+                    elem.posStart += diff;
+                elem.posEnd       += diff;
+            }
             bufPubl ~=  zeroAdd;
-            assert(pukdf);
+            assert(prkdf);
+//assumeWontThrow(writeln("  ### check change_calcPuKDF.pkcs15_ObjectTyp: ", change_calcPuKDF.pkcs15_ObjectTyp));
+//assumeWontThrow(writeln("  ### check haystackPubl:                      ", haystackPubl));
 `;
 //mixin(btn_RSA_cb_common1);
 
@@ -1634,7 +1686,7 @@ int btn_RSA_cb(Ihandle* ih)
             }
 
             //Does statusInput check, that the bytes to be written to PrKDF and PuKDF are there in "free space"
-//            { // behavior changed: cases seem to introduce a new scope
+//            {} // behavior changed: cases seem to introduce a new scope
             mixin(btn_RSA_cb_common1);
 /+
 int sc_verify(sc_card_t *card, unsigned int type, int ref,
@@ -1686,17 +1738,19 @@ sc_pin_cmd_data  pin_cmd_data = {SC_PIN_CMD.SC_PIN_CMD_VERIFY, SC_PIN_CMD_NEED_P
             }
 +/
 
-            enum string commands1 = `
+            import core.stdc.string : strlen;
+            enum string commands = `
             import std.range : chunks;
+            import core.stdc.string : strlen;
             int rv;
             // check whether auth is required for updating PrKDF and/or PuKDF
             ub2 ac =  AC_Update_PrKDF_PuKDF.get;
             assert(ac[0] == ac[1], "PrKDF and PuKDF shall have the same SCB: Either both always readable or protected by the same pin");
-            assert(ac[0] != 0xFF);
+            assert(ac[0] != 0xFF); // PrKDF and PuKDF MUST BE updatable
             int       tries_left;
-            int       pinLocal = 1;
-            int       pinReference = 1;
-            char[32]  pin = "\0";
+            int       pinLocal = 1;     // the default: to be changed in GetParamDialog
+            int       pinReference = 1; // the default: to be changed in GetParamDialog
+            char[32]  pin = '\0';       // TODO: how to protect against very long pin entries, exceeding 31 ?
             ubyte*    p_pinHex = cast(ubyte*)pin.ptr;
             if (ac[0] != 0) {
                 rv = IupGetParam(toStringz("Pin requested for authorization (SCB "~toHexString!(Order.increasing,LetterCase.upper)([ubyte(ac[0])])~")"),
@@ -1704,7 +1758,8 @@ sc_pin_cmd_data  pin_cmd_data = {SC_PIN_CMD.SC_PIN_CMD_VERIFY, SC_PIN_CMD_NEED_P
                     "&Pin local (User)? If local==No, then it's the Security Officer Pin:%b[No,Yes]\n" ~
                     "&Pin reference (1-31; selects the record# in pin file):%i\n" ~
                     "Pin (minLen: 4, maxLen: 8):%s\n", &pinLocal, &pinLocal, pin.ptr, null);
-                if (rv != 1)
+                size_t  pinLen = strlen(pin.ptr);
+                if (rv != 1 || pinReference<1 || pinReference>31 || pinLen<4 || pinLen>8)
                     return IUP_DEFAULT;
 //                assumeWontThrow(writeln("Value from IupGetParam: ", pin));
 //                assumeWontThrow(writefln("Value from IupGetParam hex: %(%02X %)", p_pinHex[0..8]));
@@ -1725,6 +1780,7 @@ sc_pin_cmd_data  pin_cmd_data = {SC_PIN_CMD.SC_PIN_CMD_VERIFY, SC_PIN_CMD_NEED_P
             foreach (ub2 fid; chunks(pukdf.data[8..8+pukdf.data[1]], 2))
                 rv= acos5_64_short_select(card, null, fid, true);
             assert(rv==0);
+            // not required if opensc pin caching covers that ?
             if (ac[1]) {
                 rv = sc_verify(card, SC_AC.SC_AC_CHV, pinLocal? 0x80 | pinReference : pinReference, p_pinHex, 8, &tries_left);
                 if (rv != SC_SUCCESS)
@@ -1733,17 +1789,14 @@ sc_pin_cmd_data  pin_cmd_data = {SC_PIN_CMD.SC_PIN_CMD_VERIFY, SC_PIN_CMD_NEED_P
             rv = sc_update_binary(card, haystackPubl.front.posStart, bufPubl.ptr, bufPubl.length, 0);
             assert(rv==bufPubl.length);
 `;
-//template connect_card(string commands, string returning="IUP_CONTINUE", string level="0", string returning_no_card_statement="")
-            mixin (connect_card!commands1);
-//            }
+            mixin(connect_card!commands);
             hstat.SetString(IUP_TITLE, "SUCCESS: Change some administrative (PKCS#15) data");
             return IUP_DEFAULT; // case "toggle_RSA_PrKDF_PuKDF_change"
 
         case "toggle_RSA_key_pair_generate":
-//            {
             mixin(btn_RSA_cb_common1);
-            enum string commands2 = `
-            import std.range : chunks;
+            enum string commands = `
+            import std.range : chunks, chain;
             int rv;
             uba  lv_key_len_type_data = [0x02, cast(ubyte)(sizeNewRSAModulusBits.get/128), code(storeAsCRTRSAprivate.get, usageRSAprivateKeyACOS.get)];
             if (any(valuePublicExponent.get[0..8]) || ub82integral(valuePublicExponent.get[8..16])!=0x10001) {
@@ -1751,35 +1804,58 @@ sc_pin_cmd_data  pin_cmd_data = {SC_PIN_CMD.SC_PIN_CMD_VERIFY, SC_PIN_CMD_NEED_P
                 lv_key_len_type_data ~= valuePublicExponent.get;
             }
 
-            // check whether auth is required for updating private key file
-            ub2 ac =  AC_Update_Delete_RSAprivateFile.get;
-            // FIXME  currently, AC of AC_Update_Delete_RSApublicFile is assumed having same value for Update  as AC_Update_Delete_RSAprivateFile
-//            assert(ac[0] == ac[1], "todo PrKDF and PuKDF shall have the same SCB: Either both always readable or protected by the same pin");
-            assert(ac[0] != 0xFF);
-            int       tries_left;
-            int       pinLocal = 1;
-            int       pinReference = 1;
-            char[32]  pin = "\0";
-            ubyte*    p_pinHex = cast(ubyte*)pin.ptr;
-            if (ac[0] != 0) {
-                rv = IupGetParam(toStringz("Pin requested for authorization (SCB "~toHexString!(Order.increasing,LetterCase.upper)([ubyte(ac[0])])~")"),
+//            auto scbs = chain(AC_Update_Delete_RSAprivateFile.get[], AC_Update_Delete_RSApublicFile.get[]).sort.uniq.array;
+            ub2 scbs = [ubyte(AC_Update_Delete_RSAprivateFile.get[0]), ubyte(AC_Update_Delete_RSApublicFile.get[0])];
+
+            // check whether auth is required for updating private key file or public key file
+            assert(scbs[0] != 0xFF); // FIXME to strict
+            assert(scbs[1] != 0xFF); // FIXME to strict
+            int[2]       tries_left;
+            int[2]       pinLocal = 1;
+            int[2]       pinReference = 1;
+            char[32][2]  pin;
+            pin[0] = "\0";
+            pin[1] = "\0";
+            ubyte*[2]    p_pinHex;
+            p_pinHex[0] = cast(ubyte*)(pin[0].ptr);
+            p_pinHex[1] = cast(ubyte*)(pin[1].ptr);
+
+            if (scbs[0] != 0) { // updating private key file needs auth
+                rv = IupGetParam(toStringz("Pin requested for authorization (SCB "~toHexString!(Order.increasing,LetterCase.upper)([ubyte(scbs[0])])~")"),
                     &param_action, null/* void* user_data*/, /*format*/
                     "&Pin local (User)? If local==No, then it's the Security Officer Pin:%b[No,Yes]\n" ~
                     "&Pin reference (1-31; selects the record# in pin file):%i\n" ~
-                    "Pin (minLen: 4, maxLen: 8):%s\n", &pinLocal, &pinLocal, pin.ptr, null);
+                    "Pin (minLen: 4, maxLen: 8):%s\n", &pinLocal[0], &pinReference[0], pin[0].ptr, null);
                 if (rv != 1)
                     return IUP_DEFAULT;
-//                assumeWontThrow(writeln("Value from IupGetParam: ", pin));
-//                assumeWontThrow(writefln("Value from IupGetParam hex: %(%02X %)", p_pinHex[0..8]));
-//                assumeWontThrow(writefln("Return button pressed: %s", rv));
+                assumeWontThrow(writeln("Value from IupGetParam [0]: ", pin[0]));
+                assumeWontThrow(writefln("Value from IupGetParam hex [0]: %(%02X %)", p_pinHex[0][0..8]));
+                assumeWontThrow(writefln("Return button pressed [0]: %s", rv));
+            }
+            if (scbs[1] && scbs[1] != scbs[0]) { // updating public key file needs auth different from the private
+                rv = IupGetParam(toStringz("Pin requested for authorization (SCB "~toHexString!(Order.increasing,LetterCase.upper)([ubyte(scbs[1])])~")"),
+                    &param_action, null/* void* user_data*/, /*format*/
+                    "&Pin local (User)? If local==No, then it's the Security Officer Pin:%b[No,Yes]\n" ~
+                    "&Pin reference (1-31; selects the record# in pin file):%i\n" ~
+                    "Pin (minLen: 4, maxLen: 8):%s\n", &pinLocal[1], &pinReference[1], pin[1].ptr, null);
+                if (rv != 1)
+                    return IUP_DEFAULT;
+                assumeWontThrow(writeln("Value from IupGetParam [1]: ", pin[1]));
+                assumeWontThrow(writefln("Value from IupGetParam hex [1]: %(%02X %)", p_pinHex[1][0..8]));
+                assumeWontThrow(writefln("Return button pressed [1]: %s", rv));
             }
             {
                 ub2 fid = integral2ub!2(fidRSADir.get)[0..2];
                 rv= acos5_64_short_select(card, null, fid, true);
                 assert(rv==0);
             }
-            if (ac[0]) {
-                rv = sc_verify(card, SC_AC.SC_AC_CHV, pinLocal? 0x80 | pinReference : pinReference, p_pinHex, 8, &tries_left);
+            if (scbs[0]) {
+                rv = sc_verify(card, SC_AC.SC_AC_CHV, pinLocal[0]? 0x80 | pinReference[0] : pinReference[0], p_pinHex[0], 8, &tries_left[0]);
+                if (rv != SC_SUCCESS)
+                    return IUP_DEFAULT;
+            }
+            if (scbs[1] && scbs[1] != scbs[0]) {
+                rv = sc_verify(card, SC_AC.SC_AC_CHV, pinLocal[1]? 0x80 | pinReference[1] : pinReference[1], p_pinHex[1], 8, &tries_left[1]);
                 if (rv != SC_SUCCESS)
                     return IUP_DEFAULT;
             }
@@ -1808,11 +1884,18 @@ sc_pin_cmd_data  pin_cmd_data = {SC_PIN_CMD.SC_PIN_CMD_VERIFY, SC_PIN_CMD_NEED_P
                 return IUP_DEFAULT;
             }
 
+            // almost done, except updating PRKDF and PUKDF
+            ub2 ac =  AC_Update_PrKDF_PuKDF.get;
+            assert(ac[0] == ac[1], "PrKDF and PuKDF shall have the same SCB: Either both always readable or protected by the same pin");
+            assert(ac[0] != 0xFF); // PrKDF and PuKDF MUST BE updatable
+            assert(ac[0] == 0 || ac[0].among(scbs[0], scbs[1]));
+            long k = countUntil(scbs[], ac[0]);
+
             foreach (ub2 fid; chunks(prkdf.data[8..8+prkdf.data[1]], 2))
                 rv= acos5_64_short_select(card, null, fid, true);
             assert(rv==0);
             if (ac[0]) {
-                rv = sc_verify(card, SC_AC.SC_AC_CHV, pinLocal? 0x80 | pinReference : pinReference, p_pinHex, 8, &tries_left);
+                rv = sc_verify(card, SC_AC.SC_AC_CHV, pinLocal[k]? 0x80 | pinReference[k] : pinReference[k], p_pinHex[k], 8, &tries_left[k]);
                 if (rv != SC_SUCCESS)
                     return IUP_DEFAULT;
             }
@@ -1823,102 +1906,68 @@ sc_pin_cmd_data  pin_cmd_data = {SC_PIN_CMD.SC_PIN_CMD_VERIFY, SC_PIN_CMD_NEED_P
                 rv= acos5_64_short_select(card, null, fid, true);
             assert(rv==0);
             if (ac[1]) {
-                rv = sc_verify(card, SC_AC.SC_AC_CHV, pinLocal? 0x80 | pinReference : pinReference, p_pinHex, 8, &tries_left);
+                rv = sc_verify(card, SC_AC.SC_AC_CHV, pinLocal[k]? 0x80 | pinReference[k] : pinReference[k], p_pinHex[k], 8, &tries_left[k]);
                 if (rv != SC_SUCCESS)
                     return IUP_DEFAULT;
             }
             rv = sc_update_binary(card, haystackPubl.front.posStart, bufPubl.ptr, bufPubl.length, 0);
             assert(rv==bufPubl.length);
 `;
-            mixin (connect_card!commands2);
-//            }
+            mixin (connect_card!commands);
             hstat.SetString(IUP_TITLE, "SUCCESS: Generate new RSA key pair content");
-            return IUP_DEFAULT; // case "toggle_RSA_PrKDF_PuKDF_change"
+            return IUP_DEFAULT; // case "toggle_RSA_key_pair_generate"
+
         default:
     }
-
-/+
-    enum string commands = `
-        uba  lv_key_len_type_data = [0x02, cast(ubyte)(sizeNewRSAModulusBits.get/128), code(storeAsCRTRSAprivate.get, usageRSAprivateKeyACOS.get)];
-        if (any(valuePublicExponent.get[0..8]) || ub82integral(valuePublicExponent.get[8..16])!=0x10001) {
-            lv_key_len_type_data[0] = 0x12;
-            lv_key_len_type_data ~= valuePublicExponent.get;
-        }
-
-        ub2 fid = integral2ub!2(fidRSADir.get)[0..2];
-        rv= acos5_64_short_select(card, null, fid, true);
-// TODO pin
-        ub8 pin = [0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38];
-        int tries_left;
-        rv= sc_verify(card, SC_AC.SC_AC_CHV, 0x81, pin.ptr, pin.length, &tries_left);
-//00200081083132333435363738
-//002201 B60A800110950180 81024134
-//002201 B60A800110950140 810241F4
-        {
-            sc_security_env  env = { SC_SEC_ENV_FILE_REF_PRESENT, SC_SEC_OPERATION.SC_SEC_OPERATION_GENERATE_RSAPRIVATE };
-            env.file_ref.len = 2;
-            env.file_ref.value[0..2] = integral2ub!2((fidRSAprivate.get)[0])[0..2];
-            if ((rv= sc_set_security_env(card, &env, 0)) < 0) {
-                mixin (log!(__FUNCTION__, "sc_set_security_env failed for SC_SEC_OPERATION_GENERATE_RSAPRIVATE"));
-                return rv;
-            }
-        }
-        {
-            sc_security_env  env = { SC_SEC_ENV_FILE_REF_PRESENT, SC_SEC_OPERATION.SC_SEC_OPERATION_GENERATE_RSAPUBLIC };
-            env.file_ref.len = 2;
-            env.file_ref.value[0..2] = integral2ub!2((fidRSApublic.get)[0])[0..2];
-            if ((rv= sc_set_security_env(card, &env, 0)) < 0) {
-                mixin (log!(__FUNCTION__, "sc_set_security_env failed for SC_SEC_OPERATION_GENERATE_RSAPUBLIC"));
-                return rv;
-            }
-        }
-
-        Handle h = AA["statusbar"];
-        h.SetString(IUP_TITLE, "ONGOING: Generate new RSA key pair content"); // strange, doesn't update
-        h.Redraw(); // strange, doesn't update
-//        import core.thread;
-//        Thread.sleep( dur!("seconds")( 5 ) ); // sleep for 5 seconds
-//        if ((rv= cry_____7_4_4___46_generate_keypair_RSA(card, lv_key_len_type_data)) != SC_SUCCESS) {
-//            assumeWontThrow(writeln("  ### FAILED: Something went wrong with generate_keypair_RSA"));
-//            h.SetString(IUP_TITLE, "FAILURE: Generate new RSA key pair content");
-//            return IUP_DEFAULT;
-//        }
-        h.SetString(IUP_TITLE, "SUCCESS: Generate new RSA key pair content");
-`;
-    mixin (connect_card!commands);
-+/
     return IUP_DEFAULT;
 } // btn_RSA_cb
 
+
 int param_action(Ihandle* param_box, int param_index, void* user_data)
-{
-  printf("param_action(%d, %p)\n", param_index, user_data);
-  switch (param_index)
-  {
-  case IUP_GETPARAM_CLOSE:
-    printf("IupGetParam - Close\n");
-    break;
-  case IUP_GETPARAM_BUTTON1:
-    printf("IupGetParam - Button1 (OK)\n");
-    break;
-  case IUP_GETPARAM_INIT:
+{ // from html/examples/tests/getparam.c
+    printf("param_action(%d, %p)\n", param_index, user_data);
+    switch (param_index)
     {
-      break;
+    case IUP_GETPARAM_MAP:
+        printf("Map\n");
+        break;
+    case IUP_GETPARAM_CLOSE:
+        printf("IupGetParam - Close\n");
+        break;
+    case IUP_GETPARAM_BUTTON1:
+        printf("IupGetParam - Button1 (OK)\n");
+        break;
+    case IUP_GETPARAM_INIT:
+        printf("Init\n");
+        break;
+    case IUP_GETPARAM_BUTTON2:
+        printf("IupGetParam - Button2 (Cancel)\n");
+        break;
+    case IUP_GETPARAM_BUTTON3:
+        printf("IupGetParam - Button3 (Help)\n");
+        break;
+    default:
+        {
+            Ihandle* param = cast(Ihandle*) IupGetAttributeId(param_box, "PARAM", param_index);
+            printf("PARAM%d = %s\n", param_index, IupGetAttribute(param, "VALUE"));
+            break;
+        }
     }
-  case IUP_GETPARAM_BUTTON2:
-    printf("IupGetParam - Button2 (Cancel)\n");
-    break;
-  case IUP_GETPARAM_BUTTON3:
-    printf("IupGetParam - Button3 (Help)\n");
-    break;
-  default:
-    {
-//      Ihandle* param = (Ihandle*)IupGetAttributeId(param_box, "PARAM", param_index);
-//      printf("PARAM%d = %s\n", param_index, IupGetAttribute(param, "VALUE"));
-      break;
-    }
-  }
-  return 1;
+    return 1;
 }
+
+/*
+int btn_RSA_checkPRKDF_PUKDF_cb(Ihandle* ih)
+{
+    assumeWontThrow(writeln);
+    foreach (i, elem; PRKDF)
+        assumeWontThrow(writefln("PRKDF[%s]: %s", i, elem));
+    assumeWontThrow(writeln);
+    foreach (i, elem; PUKDF)
+        assumeWontThrow(writefln("PUKDF[%s]: %s", i, elem));
+    assumeWontThrow(writeln);
+    return IUP_DEFAULT;
+} // btn_RSA_checkPRKDF_PUKDF_cb
+*/
 
 } //extern(C) nothrow

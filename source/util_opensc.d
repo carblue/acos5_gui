@@ -102,7 +102,30 @@ struct PKCS15_ObjectTyp {
     ubyte[]          der_new;
     asn1_node        structure;     // to be used with der
     asn1_node        structure_new; // to be used with der_new
-}
+
+    void toString(scope void delegate(const(char)[]) sink, FormatSpec!char fmt) const
+    {
+        try {
+            sink("\n{\n");
+            foreach (i, ref member; this.tupleof) {
+                string name_member = typeof(this).tupleof[i].stringof;
+                string unqual_type = typeof(member).stringof[6..$-1];
+                sink("  " ~ name_member ~ "  (" ~ unqual_type ~ ") : ");
+
+                if      (name_member=="der")
+                    sink(format("  [%(%02X %)]", der));
+                else if (name_member=="der_new")
+                    sink(format("  [%(%02X %)]", der_new));
+                else
+                    sink.formatValue(member, fmt);
+
+                sink("\n");
+            }
+            sink("}\n");
+        }
+        catch (Exception e) { /* todo: handle exception */ }
+    } // void toString
+} // struct PKCS15_ObjectTyp
 
 enum PKCS15_FILE_TYPE : ubyte {
     PKCS15_PRKDF          = SC_PKCS15_DF.SC_PKCS15_PRKDF,         // = 0,
@@ -700,6 +723,9 @@ int enum_dir(int depth, sitTypeFS pos_parent, ref PKCS15Path_FileType[] collecto
 //assumeWontThrow(writeln("detectedFileType: ", cast(PKCS15_FILE_TYPE)detectedFileType,", collector: ",collector));
                     collector = collector.remove(0);
                     assert(expectedFileType==detectedFileType);
+//if (expectedFileType!=detectedFileType)
+//writefln("### expectedFileType(%s), detectedFileType(%s)", expectedFileType, detectedFileType);
+//assumeWontThrow(writefln("expectedFileType: %s, detectedFileType: %s, collector: ", expectedFileType, cast(PKCS15_FILE_TYPE)detectedFileType, collector));
 //assumeWontThrow(writeln(collector));
                 }
             } // if (!collector.empty && collector[0].path.equal...
@@ -730,11 +756,6 @@ this will do the remaining, based on the information collected in collector,
 assuming, the files collected are children of e.g. 3F004100 as PKCS15_APPDF
 */
 int post_process(/*sitTypeFS pos_parent,*/ ref PKCS15Path_FileType[] collector) {
-    /* assuming there is 1 aooDF only */
-    appdf = fs.preOrderRange(fs.begin(), fs.end()).locate!"a[6]==b"(PKCS15_FILE_TYPE.PKCS15_APPDF);
-    assert(appdf);
-//    TreeTypeFS.nodeType* appdf = fs.preOrderRange(fs.begin(), fs.end()).locate!"a[6]==b"(PKCS15_FILE_TYPE.PKCS15_APPDF);
-//    assert(appdf);
     // unroll/read the DF files
     sitTypeFS parent = new sitTypeFS(appdf);
     with (PKCS15_FILE_TYPE)
@@ -844,6 +865,9 @@ int populate_tree_fs()
     if (doCheckPKCS15)
         collector ~= PKCS15Path_FileType( path2F00, PKCS15_FILE_TYPE.PKCS15_DIR );
     rv = enum_dir(0,  pos_root.dup, collector);
+    /* assuming there is 1 aooDF only */
+    appdf = fs.preOrderRange(fs.begin(), fs.end()).locate!"a[6]==b"(PKCS15_FILE_TYPE.PKCS15_APPDF);
+    assert(appdf);
     if (!collector.empty)
         rv = post_process(/*pos_root.dup,*/ collector);
 
