@@ -122,7 +122,7 @@ void populate_list_op_file_possible(TreeTypeFS.nodeType* pn, ub2 fid, EFDB fdb, 
         ubyte detectedFileType;
         PKCS15Path_FileType[] dummyPkcs15Extracted;
         readFile(pn, fid, fdb, decompose(fdb, size_or_MRL_NOR).expand, expectedFileType, detectedFileType, dummyPkcs15Extracted);
-assumeWontThrow(writefln("expectedFileType: %s, detectedFileType: %s, dummyPkcs15Extracted: ", expectedFileType, cast(PKCS15_FILE_TYPE)detectedFileType, dummyPkcs15Extracted));
+//assumeWontThrow(writefln("expectedFileType: %s, detectedFileType: %s, dummyPkcs15Extracted: ", expectedFileType, cast(PKCS15_FILE_TYPE)detectedFileType, dummyPkcs15Extracted));
     }
 }
 
@@ -135,12 +135,12 @@ int slot_token_dropcheck_cb(Ihandle* self, int lin, int col)
   return IUP_IGNORE; // draw nothing
 }
 
-int selectbranchleaf_cb(Ihandle* ih, int id, int status)
+int selectbranchleaf_cb(Ihandle* /*ih*/, int id, int status)
 { // status==1 (enter);  status==0 (leave the node)
     import std.range : chunks, enumerate, retro;
     import std.format : format;
 
-    printf("selectbranchleaf_cb id(%d), status(%d)\n", id, status);
+////    printf("selectbranchleaf_cb id(%d), status(%d)\n", id, status);
 
     if (status==0 || id==0) {
         AA["fs_text"].SetAttributeVALUE(""); // clear content
@@ -199,7 +199,7 @@ int selectbranchleaf_cb(Ihandle* ih, int id, int status)
 int executeleaf_cb(Ihandle* h, int id)
 {
   auto pn = cast(TreeTypeFS.nodeType*) (cast(iup.iup_plusD.Tree) AA["tree_fs"]).GetUserId(id);
-  printf("executeleaf_cb (%d) %s\n", id, sc_dump_hex(pn.data.ptr, pn.data.length));
+////  printf("executeleaf_cb (%d) %s\n", id, sc_dump_hex(pn.data.ptr, pn.data.length));
 //  assumeWontThrow(writefln("0x [%(%0sX, %)]", pn.data[0..8]));
   return IUP_DEFAULT;
 }
@@ -207,14 +207,14 @@ int executeleaf_cb(Ihandle* h, int id)
 
 int branchopen_cb(Ihandle* h, int id)
 {
-  printf("branchopen_cb (%d)\n", id);
+////  printf("branchopen_cb (%d)\n", id);
   return IUP_DEFAULT;
 }
 
 
 int branchclose_cb(Ihandle* h, int id)
 {
-  printf("branchclose_cb (%d)\n", id);
+////  printf("branchclose_cb (%d)\n", id);
   return IUP_DEFAULT;
 }
 
@@ -236,28 +236,28 @@ int list_op_file_possible_val_changed_cb(Ihandle* ih)
 {
     Handle h = createHandle(ih);
     int val = h.GetIntegerVALUE;
-  printf("list_op_file_possible_val_changed_cb (%p), val(%d)\n", h, val);
+////  printf("list_op_file_possible_val_changed_cb (%p), val(%d)\n", h, val);
   return IUP_DEFAULT;
 }
 
 
 int toggle_op_file_possible_suppress_cb(Ihandle* ih, int state)
 {
-  printf("toggle_op_file_possible_suppress_cb (%d)\n", state);
+////  printf("toggle_op_file_possible_suppress_cb (%d)\n", state);
   return IUP_DEFAULT;
 }
 
 
 int toggle_auto_read_cb(Ihandle* ih, int state)
 {
-  printf("toggle_auto_read_cb (%d)\n", state);
+////  printf("toggle_auto_read_cb (%d)\n", state);
   return IUP_DEFAULT;
 }
 
 
 int toggle_auto_decode_asn1_cb(Ihandle* ih, int state)
 {
-  printf("toggle_auto_decode_asn1_cb (%d)\n", state);
+////  printf("toggle_auto_decode_asn1_cb (%d)\n", state);
   return IUP_DEFAULT;
 }
 

@@ -259,9 +259,9 @@ private Vbox create_GenerateKeyPair_RSA_tab() {
 
     auto toggle1 = new Toggle("toggle_RSA_PrKDF_PuKDF_change", __("PrKDF/PuKDF only: Change some administrative (PKCS#15) data, but no change concerning RSA key pair content (select by key pair id)"));
     child_array_toggles ~= toggle1;
-//    auto toggle2 = new Toggle("toggle_RSA_key_pair_delete", __("RSA key pair: Delete key pair files (select by key pair id)"));
-//    child_array_toggles ~= toggle2;
-    auto toggle3 = new Toggle("toggle_RSA_key_pair_generate", __("RSA key pair: Regenerate RSA key pair content in existing files (select by key pair id)"));
+    auto toggle2 = new Toggle("toggle_RSA_key_pair_delete", __("RSA key pair: Delete key pair files (select by key pair id)"));
+    child_array_toggles ~= toggle2;
+    auto toggle3 = new Toggle("toggle_RSA_key_pair_regenerate", __("RSA key pair: Regenerate RSA key pair content in existing files (select by key pair id)"));
     child_array_toggles ~= toggle3;
 //    auto toggle4 = new Toggle("toggle_RSA_key_pair_create_and_generate", __("RSA key pair: Create new RSA key pair files and generate RSA key pair content"));
 //    child_array_toggles ~= toggle4;
@@ -289,8 +289,8 @@ So the existence of this callback defines the matrix operation mode.
 */
     auto matrix = new Matrix("matrixRsaAttributes");
     with (matrix) {
-        SetInteger(IUP_NUMLIN,         r_AC_Create_Delete_RSADir);
-        SetInteger(IUP_NUMLIN_VISIBLE, r_AC_Create_Delete_RSADir);
+        SetInteger(IUP_NUMLIN,         r_AC_Delete_Create_RSADir);
+        SetInteger(IUP_NUMLIN_VISIBLE, r_AC_Delete_Create_RSADir);
         SetInteger(IUP_NUMCOL,          2);
         SetInteger(IUP_NUMCOL_VISIBLE,  2);
         SetAttribute(IUP_RESIZEMATRIX, IUP_YES);
@@ -348,16 +348,15 @@ So the existence of this callback defines the matrix operation mode.
         SetRGBId2(IUP_BGCOLOR, r_statusInput, 1,  255, 0, 0);
         SetAttributeId2("",  r_usageRSAprivateKeyPrKDF, 0,   __("Private key usage PrKDF (enter as int, 2.. max 558, shown as text)"));
         SetAttributeId2("",  r_usageRSAprivateKeyPrKDF, 2,   __("PrKDF"));
-        SetAttributeId2("",  r_usageRSApublicKeyPuKDF,  0,   __("Public key usage PuKDF (enter as int, 1.. max 209, shown as text)"));
-//      SetAttributeId2("",  r_usageRSApublicKeyPuKDF,  1,   "");
-        SetAttributeId2("",  r_usageRSApublicKeyPuKDF,  2,   __("PuKDF"));
+//        SetAttributeId2("",  r_usageRSApublicKeyPuKDF,  0,   __("Public key usage PuKDF (enter as int, 1.. max 209, shown as text)"));
+//        SetAttributeId2("",  r_usageRSApublicKeyPuKDF,  2,   __("PuKDF"));
         SetAttributeId2("",  r_keyPairModifiable,       0,   __("Key pair is modifiable?"));
         SetAttributeId2("",  r_keyPairModifiable,       2,   __("PrKDF, PuKDF"));
 
         SetAttributeId2("",  r_AC_Update_PrKDF_PuKDF,   0,   __("Access Control condition for Update: PrKDF / PuKDF (SCB hex shown; 0x00 means unrestricted)"));
         SetAttributeId2("",  r_AC_Update_Delete_RSAprivateFile,0,   __("Access Control condition for Update / Delete: Private key file"));
         SetAttributeId2("",  r_AC_Update_Delete_RSApublicFile, 0,   __("Access Control condition for Update / Delete: Public key file"));
-        SetAttributeId2("",  r_AC_Create_Delete_RSADir,        0,   __("Access Control condition for Create / Delete: Enclosing DF"));
+        SetAttributeId2("",  r_AC_Delete_Create_RSADir,        0,   __("Access Control condition for Create / Delete: Enclosing DF"));
         SetAttribute(IUP_TOGGLECENTERED, IUP_YES);
 
         SetCallback(IUP_DROPCHECK_CB,  cast(Icallback)&matrixRsaAttributes_dropcheck_cb);
@@ -374,11 +373,11 @@ So the existence of this callback defines the matrix operation mode.
     btn_RSA.SetAttribute(IUP_TIP, __("The action performed depends on the radio button setting"));
     Control[] child_array3;
     child_array3 ~= btn_RSA;
-/*
+/* * /
     auto btn_RSA_checkPRKDF_PUKDF = new Button("btn_RSA_checkPRKDF_PUKDF",  __("for debugging only: btn_RSA_checkPRKDF_PUKDF")); // this(string CN, const(char)* title)
     btn_RSA_checkPRKDF_PUKDF.SetCallback(IUP_ACTION, &btn_RSA_checkPRKDF_PUKDF_cb);
     child_array3 ~= btn_RSA_checkPRKDF_PUKDF;
-*/
+/ * */
     child_array ~= new Hbox(child_array3, FILL_TYPE.FILL_FRONT_AND_BACK);
 
     auto vbox = new Vbox(child_array/*, FILL_TYPE.FILL_FRONT_AND_BACK_AND_BETWEEN*/);

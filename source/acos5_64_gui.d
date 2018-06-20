@@ -76,7 +76,7 @@ import pkcs11;
 import util_general;
 import gui : create_dialog_dlg0;
 import util_opensc : lh, card, populate_tree_fs, PKCS15_FILE_TYPE, util_connect_card, connect_card, PKCS15, errorDescription,
-    fs, itTypeFS, iter_begin, appdf, prkdf, pukdf;
+    fs, itTypeFS, iter_begin, appdf, prkdf, pukdf, populate_scbs_usr_adm_pin_seid;
  //, acos5_64_short_select, uploadHexfile
     /*, PRKDF, PUKDF, PUKDF_TRUSTED, SKDF, CDF, CDF_TRUSTED, CDF_USEFUL, DODF, AODF*/
 import util_pkcs11 : pkcs11_check_return_value, pkcs11_get_slot;
@@ -133,6 +133,7 @@ version(I18N) {
 +/
     enum string commands = `
         populate_tree_fs(); // populates PrKDF, PuKDF (and dropdown key pair id),
+        populate_scbs_usr_adm_pin_seid();
 /+
         import std.range : chunks;
         ubyte[6] certPath = [0x3F, 0x00, 0x41, 0x00, 0x41, 0x20];
@@ -160,7 +161,6 @@ version(I18N) {
     writeln("DODF.length:          ", DODF.length);
     writeln("AODF.length:          ", AODF.length);
 */
-    iter_begin = new itTypeFS(appdf);
     prkdf = fs.preOrderRange(iter_begin, fs.end()).locate!"a[6]==b"(PKCS15_FILE_TYPE.PKCS15_PRKDF);
     pukdf = fs.preOrderRange(iter_begin, fs.end()).locate!"a[6]==b"(PKCS15_FILE_TYPE.PKCS15_PUKDF);
 
@@ -181,8 +181,9 @@ version(I18N) {
     AC_Update_PrKDF_PuKDF           = new Pub!(_AC_Update_PrKDF_PuKDF,ubyte[2])           (r_AC_Update_PrKDF_PuKDF,           AA["matrixRsaAttributes"]);
     AC_Update_Delete_RSAprivateFile = new Pub!(_AC_Update_Delete_RSAprivateFile,ubyte[2]) (r_AC_Update_Delete_RSAprivateFile, AA["matrixRsaAttributes"]);
     AC_Update_Delete_RSApublicFile  = new Pub!(_AC_Update_Delete_RSApublicFile, ubyte[2]) (r_AC_Update_Delete_RSApublicFile,  AA["matrixRsaAttributes"]);
+    AC_Delete_Create_RSADir         = new Pub!(_AC_Delete_Create_RSADir,        ubyte[2]) (r_AC_Delete_Create_RSADir,         AA["matrixRsaAttributes"]);
 
-    usageRSApublicKeyPuKDF  = new Obs_usageRSApublicKeyPuKDF  (r_usageRSApublicKeyPuKDF,  AA["matrixRsaAttributes"]);
+    usageRSApublicKeyPuKDF  = new Obs_usageRSApublicKeyPuKDF  (/*r_usageRSApublicKeyPuKDF,  AA["matrixRsaAttributes"]*/);
     sizeNewRSAprivateFile   = new Obs_sizeNewRSAprivateFile   (r_sizeNewRSAprivateFile,   AA["matrixRsaAttributes"]);
     sizeNewRSApublicFile    = new Obs_sizeNewRSApublicFile    (r_sizeNewRSApublicFile,    AA["matrixRsaAttributes"]);
     statusInput             = new Obs_statusInput             (r_statusInput,             AA["matrixRsaAttributes"]);
@@ -217,17 +218,15 @@ version(I18N) {
     fidRSADir              .connect(&statusInput.watch);
     fidRSAprivate          .connect(&statusInput.watch);
     fidRSApublic           .connect(&statusInput.watch);
+    valuePublicExponent    .connect(&statusInput.watch);
 
 //// values to start with
-    fidRSADir             .set(appdf is null? 0 : ub22integral(appdf.data[2..4]), true);
-    storeAsCRTRSAprivate  .set(true, true);
-    usageRSAprivateKeyACOS.set(4,   true); // this is only for acos-generation
-    AC_Update_PrKDF_PuKDF .set([prkdf is null? 0xFF : prkdf.data[25], pukdf is null? 0xFF : pukdf.data[25]], true);
-
-    with (AA["matrixRsaAttributes"]) {
-        SetStringId2("", r_AC_Create_Delete_RSADir, 1, appdf is null? "unknown / unknown" : format!"%02X"(appdf.data[25])  ~" / "~format!"%02X"(appdf.data[24]));
-    }
-    toggle_RSA_cb(AA["toggle_RSA_PrKDF_PuKDF_change"].GetHandle(), 1);
+    fidRSADir              .set(appdf is null? 0 : ub22integral(appdf.data[2..4]), true);
+    storeAsCRTRSAprivate   .set(true, true);
+    usageRSAprivateKeyACOS .set(4,   true); // this is only for acos-generation
+    AC_Update_PrKDF_PuKDF  .set([prkdf is null? 0xFF : prkdf.data[25], pukdf is null? 0xFF : pukdf.data[25]], true);
+    AC_Delete_Create_RSADir.set([appdf is null? 0xFF : appdf.data[24], appdf is null? 0xFF : appdf.data[25]], true);
+    toggle_RSA_cb(AA["toggle_RSA_PrKDF_PuKDF_change"].GetHandle, 1);
 
     AA["fs_text_asn1"].SetAttributeVALUE("");
     AA["fs_text"].SetAttributeVALUE("");
@@ -316,7 +315,10 @@ This means: The read operation will be done automatically if not disallowed by f
    external authentication was successful; SM-protected file operations invoke external authentication automatically), then do read automatically.
 
 The tool aims at shielding the possibly complex access conditions of files (and commands) from the user and just ask for the required permission(s).
-In order to check that, 2 file headers get printed, the enclosing DF's header and the header of the selected file/DF.
+But the sophisticated ACOS features of access conditions like "AND" and "OR" operator aren't implemented currently: Just use simple entries in the SE-file for authentication, with 1 pin or 1 key reference only.
+(The nigthmare counterexample would be a file deletion requiring 4 pin verifications; the rule above limits that to max. 2 pins, which is also the max. of opensc).
+In order to be able to check that, 2 file headers (including the SCB bytes) get printed, the enclosing DF's header and the header of the selected file/DF.
+
 
 PUKDF doesn't declare any public  RSA key  as private !
 PrKDF does    declare all private RSA keys as private and thus also declare an authId!
@@ -419,6 +421,11 @@ The checks may be grouped into these categories:
     Also, I once managed to have 2 files named "1234" within the same directory, impossible acc. to the ref. manual but doable and plain wrong; thus there must be some bug in acos while trying to prevent that.
 `);
 */
+    /*
+       One way to access the card/token is via util_connect_card, which uses functions from libopensc.so, but nothing from opensc-pkcs11.so.
+       The other way is through the PKCS#11/Cryptoki interface, used in the following. It uses the specified or preconfigured PKCS#11 module,
+       which may be any one capable to support ACOS5-64, likely opensc-pkcs11.so (or even better if installed: p11-kit-proxy.so)
+    */
     { // scope for scope(exit)  PKCS11.unload();
         // this one-liner enables operating with the module specified
         PKCS11.load("opensc-pkcs11.so");

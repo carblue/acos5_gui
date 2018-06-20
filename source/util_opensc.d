@@ -96,8 +96,8 @@ import util_general;
 
 
 struct PKCS15_ObjectTyp {
-    uint             posStart; // included, offset starting at begin of file, where bytes for ... do start
-    uint             posEnd;   // excluded, offset starting at begin of file, where bytes for ... do end
+    int              posStart; // included, offset starting at begin of file, where bytes for ... do start
+    int              posEnd;   // excluded, offset starting at begin of file, where bytes for ... do end
     ubyte[]          der;
     ubyte[]          der_new;
     asn1_node        structure;     // to be used with der
@@ -198,6 +198,7 @@ version(ENABLE_TOSTRING)
 //             The 8 bytes file information are: {FDB, DCB (replaced by length path), FILE ID, FILE ID, SIZE or MRL, SIZE or NOR, SFI (replaced by enum PKCS15_FILE_TYPE), LCSI};
              it's next 16 bytes are for storing a file path.
              it's last  8 bytes are SAC (as provided by acos5_64_short_select).
+             Note, that the SAC bytes appear in the order of fci_se_info.sac here, that is SCB-Read at index 24, SCB-Update at index 25, SCB-deleteself at index 30, SCB-unused at index 31
              Some bytes of the file information ubyte[8] are replaced though with other content:
         [0]: FDB File Descriptor Byte, see also Reference Manual for values
         [1]: (originally DCB always zero), replaced by the Length of path ubyte[16] actually used (from the beginning, i.e. path[0..Length])
@@ -223,6 +224,9 @@ tnTypePtr   appdf;
 tnTypePtr   prkdf;
 tnTypePtr   pukdf;
 itTypeFS    iter_begin;
+
+ub2 scbs_usr_adm_pin_seid; // SCB in SecurityEnvironmentFile: index 0: user pin; index 1: admin/Security/Officer pin
+ub2 scbs_usr_adm_pin_ref;
 
 asn1_node  PKCS15;
 string errorDescription;
@@ -327,7 +331,7 @@ Tuple!(string, string, string) decompose_str(EFDB fdb, ub2 size_or_MRL_NOR) noth
 
 
 // The 8 bytes are: {FDB, DCB (replaced by length path), FILE ID, FILE ID, SIZE or MRL, SIZE or NOR, SFI, LCSI};
-string file_type(int depth, EFDB fdb, ushort fid, ub2 size_or_MRL_NOR) { // acos5_64.d: enum EFDB : ubyte
+string file_type(int depth, EFDB fdb, ushort fid, ub2 size_or_MRL_NOR) nothrow { // acos5_64.d: enum EFDB : ubyte
 //    string msg = fid==0x2F00? "    DIR" : fid==0x5031? "    ODF" : fid==0x5032? "    TokenInfo" : fid==0x5033? "    UnusedSpace" : "";
     Tuple!(string, string, string) t = decompose_str(fdb, size_or_MRL_NOR);
     with (EFDB)
@@ -346,6 +350,66 @@ string file_type(int depth, EFDB fdb, ushort fid, ub2 size_or_MRL_NOR) { // acos
         case SE_EF:               return "iEF linear-var, size max. "~t[0]~" ("~t[2]~"x"~t[1]~" max.) B    SecEnv of directory";
     }
 }
+
+int populate_scbs_usr_adm_pin_seid() nothrow
+{
+    /* when the fs is availanble, inspect the security environment file for user pin and so pin, i.e.
+       which seid has an Auth Template only, refers to a pin (and not key), and whether local/global pin*/
+    sitTypeFS  pos_parent = new sitTypeFS(appdf);
+    tnTypePtr  sefile;
+    try
+        sefile = fs.siblingRange(fs.begin(pos_parent), fs.end(pos_parent)).locate!"a[0]==b"(EFDB.SE_EF);
+    catch (Exception e) {}
+    assert(sefile);
+    uba   fid = sefile.data[8..8+ sefile.data[1]];
+    ubyte MRL = sefile.data[4];
+    ubyte NOR = sefile.data[5];
+    ubyte[][] rec;
+    rec.length = NOR;
+    int rv;
+
+    foreach (ub2 fid2; chunks(fid, 2))
+        rv= acos5_64_short_select(card, null, fid2, true);
+    assert(rv == SC_SUCCESS);
+    foreach (ubyte rec_idx; 0 .. NOR) {
+        rec[rec_idx] = new ubyte[MRL];
+        rv= sc_read_record(card, rec_idx+1, rec[rec_idx].ptr, MRL, 0 /*flags*/);
+        assert(rv==MRL);
+    }
+
+    foreach (i, const ref elem; rec) {
+        if (elem[0] == 0)
+            continue;
+        assert(equal(elem[0..2], [0x80, 0x01]));
+//      assert(      elem[   2] == i+1);
+        assert(elem.length >= 5);
+        ubyte reference;
+        bool  referenceIsPin;
+        foreach (d,T,L,V; tlv_Range(elem[3..$]))
+            if (d==8 && T==0xA4 && L==0x06)  // this is an entry with exactly 8 bytes payload; this matches the AT requirement: A4 len 83 len83==1 ?? 95 len95==1 ??
+                foreach (d1,T1,L1,V1; tlv_Range(V))  //V==83 01 81 95 01 08
+                    if (d1%3==0) {
+                        if      (T1==0x83 && L1==0x01)
+                            reference = V1[0];
+                        else if (T1==0x95 && L1==0x01)
+                            referenceIsPin = (V1[0]&8) != 0;
+                    }
+
+        if (referenceIsPin && reference) {
+            if (reference&0x80) {
+                scbs_usr_adm_pin_seid[0] = rec[i][2]; // the seid of the local pin
+                scbs_usr_adm_pin_ref [0] = reference&0x7F;
+            }
+            else {
+                scbs_usr_adm_pin_seid[1] = rec[i][2]; // the seid of the global pin
+                scbs_usr_adm_pin_ref [1] = reference;
+            }
+        }
+    }
+
+    return SC_SUCCESS;
+}
+
 
 /* All singing all dancing card connect routine */ // copied from acos5_64.d
 int util_connect_card(sc_context* ctx, scope sc_card** cardp, const(char)* reader_id, int do_wait, int do_lock, int verbose) nothrow @trusted
@@ -612,7 +676,7 @@ else {
 //mixin(connect_card!(someString));
 
 
-int enum_dir(int depth, sitTypeFS pos_parent, ref PKCS15Path_FileType[] collector)
+int enum_dir(int depth, sitTypeFS pos_parent, ref PKCS15Path_FileType[] collector) nothrow
 {
     assert(pos_parent.node);
     assert(pos_parent.node.data.ptr);
@@ -623,14 +687,14 @@ int enum_dir(int depth, sitTypeFS pos_parent, ref PKCS15Path_FileType[] collecto
     ub2     size_or_MRL_NOR = pos_parent.node.data[4..6];
     ubyte   lcsi = pos_parent.node.data[7];
     AA["tree_fs"].SetStringId((fdb & 0x38) == 0x38? IUP_ADDBRANCH : IUP_ADDLEAF,  depth,
-        format!" %04X  %s"(fid, file_type(depth, cast(EFDB)fdb, fid, size_or_MRL_NOR)));
+        assumeWontThrow(format!" %04X  %s"(fid, file_type(depth, cast(EFDB)fdb, fid, size_or_MRL_NOR))));
     int rv = (cast(iup.iup_plusD.Tree) AA["tree_fs"]).SetUserId(depth+1, pos_parent.node);
     assert(rv);
     AA["tree_fs"].SetAttributeId("TOGGLEVALUE", depth+1, lcsi==5? IUP_ON : IUP_OFF);
 
     ubyte markedFileType = pos_parent.node.data[6];
     if (markedFileType<0xFF) {
-//        writefln("This node got PKCS#15-marked: 0x[ %(%02X %) ]", pos_parent.node.data);
+////assumeWontThrow(writefln("This node got PKCS#15-marked: 0x[ %(%02X %) ]", pos_parent.node.data));
         with (AA["tree_fs"])
         if (markedFileType.among(PKCS15_FILE_TYPE.PKCS15_DIR, PKCS15_FILE_TYPE.PKCS15_ODF, PKCS15_FILE_TYPE.PKCS15_TOKENINFO)) {
             SetAttributeId(IUP_IMAGE,       depth+1, IUP_IMGPAPER);
@@ -652,7 +716,7 @@ int enum_dir(int depth, sitTypeFS pos_parent, ref PKCS15Path_FileType[] collecto
         sc_path_set(&path, SC_PATH_TYPE.SC_PATH_TYPE_PATH, pos_parent.node.data.ptr+8, pos_parent_pathLen, 0, -1);
 
         if ((rv= sc_select_file(card, &path, null)) != SC_SUCCESS) {
-            writeln("SELECT FILE failed: ", sc_strerror(rv).fromStringz);
+            assumeWontThrow(writeln("SELECT FILE failed: ", sc_strerror(rv).fromStringz));
             return rv;
         }
 
@@ -660,14 +724,14 @@ int enum_dir(int depth, sitTypeFS pos_parent, ref PKCS15Path_FileType[] collecto
         ubyte    responseLen;
         ubyte[]  response;
         if ((rv= cm_7_3_1_14_get_card_info(card, card_info_type.count_files_under_current_DF, 0, SW1SW2, responseLen, response)) != SC_SUCCESS) {
-            writeln("FAILED: cm_7_3_1_14_get_card_info: count_files_under_current_DF");
+            assumeWontThrow(writeln("FAILED: cm_7_3_1_14_get_card_info: count_files_under_current_DF"));
             return rv;
         }
         assert(responseLen==0);
         foreach (ubyte fno; 0 .. cast(ubyte)SW1SW2) { // x"90 xx" ; XX is count files
             ub32 info; // acos will deliver 8 bytes: [FDB, DCB(always 0), FILE ID, FILE ID, SIZE or MRL, SIZE or NOR, SFI, LCSI]
             if ((rv= cm_7_3_1_14_get_card_info(card, card_info_type.File_Information, fno, SW1SW2, responseLen, response)) != SC_SUCCESS) {
-                writeln("FAILED: cm_7_3_1_14_get_card_info: File_Information");
+                assumeWontThrow(writeln("FAILED: cm_7_3_1_14_get_card_info: File_Information"));
                 return rv;
             }
             assert(responseLen==8);
@@ -731,7 +795,7 @@ int enum_dir(int depth, sitTypeFS pos_parent, ref PKCS15Path_FileType[] collecto
             } // if (!collector.empty && collector[0].path.equal...
             fs.append_child(pos_parent, info);
         }
-
+try
         foreach_reverse (node, unUsed; fs.siblingRange(pos_parent.begin(), pos_parent.end())) {
             assert(node);
             int j = 8+pos_parent_pathLen;
@@ -742,6 +806,7 @@ int enum_dir(int depth, sitTypeFS pos_parent, ref PKCS15Path_FileType[] collecto
             if ((rv= enum_dir(depth + 1, new sitTypeFS(node), collector)) != SC_SUCCESS)
                 return rv;
         }
+catch (Exception e) {}
     }
     return 0;
 } // int enum_dir
@@ -755,9 +820,10 @@ read 2F00 EF.DIR -> mark e.g. 3F004100 as PKCS15_APPDF
 this will do the remaining, based on the information collected in collector,
 assuming, the files collected are children of e.g. 3F004100 as PKCS15_APPDF
 */
-int post_process(/*sitTypeFS pos_parent,*/ ref PKCS15Path_FileType[] collector) {
+int post_process(/*sitTypeFS pos_parent,*/ ref PKCS15Path_FileType[] collector) nothrow {
     // unroll/read the DF files
     sitTypeFS parent = new sitTypeFS(appdf);
+    try
     with (PKCS15_FILE_TYPE)
     foreach (tnTypePtr nodeFS, unUsed; fs.siblingRange(parent.begin(), parent.end())) {
         ubyte len = nodeFS.data[1];
@@ -776,7 +842,7 @@ int post_process(/*sitTypeFS pos_parent,*/ ref PKCS15Path_FileType[] collector) 
             // file xy was expected to have ASN.1 encoded content of PKCS#15 type z0, but the content inspection couldn't verify that (detected was PKCS#15 type z1)
             collector = collector.remove(c_pos);
             if (expectedFileType<0xFF) {
-//                writefln("This node got PKCS#15-marked: 0x[ %(%02X %) ]", nodeFS.data);
+////writefln("This node got PKCS#15-marked: 0x[ %(%02X %) ]", nodeFS.data);
                 with (cast(iup.iup_plusD.Tree) AA["tree_fs"]) {
                     int nodeID = GetId(nodeFS);
                     SetAttributeId(IUP_IMAGE, nodeID, expectedFileType<=PKCS15_AODF || expectedFileType.among(PKCS15_ODF, PKCS15_TOKENINFO, PKCS15_UNUSED) ? IUP_IMGPAPER : IUP_IMGBLANK);
@@ -788,8 +854,10 @@ int post_process(/*sitTypeFS pos_parent,*/ ref PKCS15Path_FileType[] collector) 
             }
         }
     }
+    catch (Exception e) {}
 //assumeWontThrow(writeln(collector));
     // read and mark the collector files; all files referring to others should have been processed already !
+    try
     with (PKCS15_FILE_TYPE)
     foreach (tnTypePtr nodeFS, unUsed; fs.siblingRange(parent.begin(), parent.end())) {
         ubyte len = nodeFS.data[1];
@@ -807,11 +875,11 @@ int post_process(/*sitTypeFS pos_parent,*/ ref PKCS15Path_FileType[] collector) 
 //            assert(expectedFileType==detectedFileType); // TODO think about changing to e.g. throw an exception and inform user what exactly is wrong
             // file xy was expected to have ASN.1 encoded content of PKCS#15 type z0, but the content inspection couldn't verify that (detected was PKCS#15 type z0
 if (expectedFileType!=detectedFileType)
-writefln("### expectedFileType(%s), detectedFileType(%s)", expectedFileType, detectedFileType);
+writefln("### expectedFileType(%s), detectedFileType(%s), path %(%02X %)", expectedFileType, detectedFileType, nodeFS.data[8..8+len]);
             collector = collector.remove(c_pos);
 
             if (expectedFileType<0xFF) {
-//                writefln("This node got PKCS#15-marked: 0x[ %(%02X %) ]", nodeFS.data);
+////writefln("This node got PKCS#15-marked: 0x[ %(%02X %) ]", nodeFS.data);
                 with (cast(iup.iup_plusD.Tree) AA["tree_fs"]) {
                     int nodeID = GetId(nodeFS);
                     SetAttributeId(IUP_IMAGE, nodeID, expectedFileType<=PKCS15_AODF || expectedFileType.among(PKCS15_ODF, PKCS15_TOKENINFO, PKCS15_UNUSED) ? IUP_IMGPAPER : IUP_IMGBLANK);
@@ -823,6 +891,8 @@ writefln("### expectedFileType(%s), detectedFileType(%s)", expectedFileType, det
             }
         }
     }
+    catch (Exception e) {}
+
 //assumeWontThrow(writeln(collector));
     foreach (tnTypePtr nodeFS, unUsed; fs.preOrderRange(fs.begin(), fs.end()) ) {
         try
@@ -845,9 +915,10 @@ writefln("### expectedFileType(%s), detectedFileType(%s)", expectedFileType, det
 
   FIXME: overhaul the processing started by populate_tree_fs: It shouldn't depend on the order of files reported by cm_7_3_1_14_get_card_info(card, card_info_type.File_Information ...
 */
-int populate_tree_fs()
+int populate_tree_fs() nothrow
 {
     int rv, id=1;
+
     with (AA["tree_fs"]) {
         SetAttribute(IUP_TITLE, " file system");  // 0  depends on ADDROOT's default==YES
         SetAttribute("TOGGLEVISIBLE", IUP_NO);
@@ -868,6 +939,7 @@ int populate_tree_fs()
     /* assuming there is 1 aooDF only */
     appdf = fs.preOrderRange(fs.begin(), fs.end()).locate!"a[6]==b"(PKCS15_FILE_TYPE.PKCS15_APPDF);
     assert(appdf);
+    iter_begin = new itTypeFS(appdf);
     if (!collector.empty)
         rv = post_process(/*pos_root.dup,*/ collector);
 
@@ -875,7 +947,7 @@ int populate_tree_fs()
 }
 
 
-void readFile_wrapped(ubyte[] info, tnTypePtr pn, const ubyte expectedFileType, ref ubyte detectedFileType, bool doExtract, ref PKCS15Path_FileType[] collector) {
+void readFile_wrapped(ubyte[] info, tnTypePtr pn, const ubyte expectedFileType, ref ubyte detectedFileType, bool doExtract, ref PKCS15Path_FileType[] collector) nothrow {
     assert(info[1]);
     int rv;
     foreach (ub2 fid2; chunks(info[8..8+info[1]], 2)) {
@@ -1168,3 +1240,62 @@ string RSA_public_openssh_formatted(ub2 fid, scope const ubyte[] rsa_raw_acos5_6
         "\n\nThe fingerprint (MD5) is: "~fingerprintMD5~"\n\nThe fingerprint (SHA256) base64-encoded is: "~fingerprintSHA256;
 }
 
+//code copyed from project acos5_64, module util_general_opensc; minor changes only concerning nothrow
+struct TLV_Range_array { // TLV always built of ubytes
+    const(ubyte)[] arr;
+
+    this(const(ubyte)[] in_arr) nothrow {
+        assert(in_arr.length); // prevents @nogc
+        arr = in_arr;
+    }
+
+    int opApply(int delegate(ubyte T, ubyte L, const(ubyte)[] V) /*nothrow*/ /*@nogc*/ dg) const nothrow {
+        int result; /* continue as long as result==0 */
+        ubyte  T /*Tag*/, L /*Length*/;
+        const(ubyte)[]  V /*Value*/;
+        ptrdiff_t  distance; /*_from_begin, after each TLV-group processed */
+        for (const(ubyte)* p = arr.ptr;
+             p-arr.ptr+2         <= arr.length  &&
+             p-arr.ptr+2+ *(p+1) <= arr.length  &&  *p != 0x00;
+             p += 2+ *(p+1))
+        {
+            T = * p;
+            L = *(p+1);
+            V =   p[2..2+L];
+            distance = p-arr.ptr + 2+L;
+            assert (distance < 0x0100); // it's currently meant to be used for record entries, which have max 255 bytes length
+            try // allow throwing foreach bodies
+                if ((result= dg(T,L,V)) != 0)
+                    break;
+            catch (Exception e) { /* todo: handle exception */ }
+        }
+
+        return result;
+    }
+
+    int opApply(int delegate(ubyte distance, ubyte T, ubyte L, const(ubyte)[] V) /*nothrow*/ /*@nogc*/ dg) const nothrow {
+        int result; /* continue as long as result==0 */
+        ubyte  T /*Tag*/, L /*Length*/;
+        const(ubyte)[]  V /*Value*/;
+        ptrdiff_t  distance; /*_from_begin, after each TLV-group processed */
+        for (const(ubyte)* p = arr.ptr;
+             p-arr.ptr+2         <= arr.length  &&
+             p-arr.ptr+2+ *(p+1) <= arr.length  &&  *p != 0x00;
+             p += 2+ *(p+1))
+        {
+            T = * p;
+            L = *(p+1);
+            V =   p[2..2+L];
+            distance = p-arr.ptr + 2+L;
+            assert (distance < 0x0100); // it's currently meant to be used for record entries, which have max 255 bytes length
+            try // allow throwing foreach bodies
+                if ((result= dg(cast(ubyte)distance,T,L,V)) != 0)
+                    break;
+            catch (Exception e) { /* todo: handle exception */ }
+        }
+
+        return result;
+    }
+} // struct TLV_Range_array
+
+TLV_Range_array  tlv_Range(const(ubyte)[] arg_for_constructor) nothrow { return TLV_Range_array(arg_for_constructor); }

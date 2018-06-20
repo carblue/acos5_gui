@@ -53,11 +53,12 @@ import std.stdio;
 import std.exception : assumeWontThrow, assumeUnique;
 import std.conv: to;
 import std.format;
-import std.range : iota;
+import std.range : iota, chunks;
 import std.range.primitives : empty, front;
 import std.array : array;
 import std.algorithm.comparison : among, clamp, equal, min, max;
 import std.algorithm.searching : canFind, countUntil, all, any, find;
+import std.algorithm.mutation : remove;
 //import std.algorithm.iteration : uniq;
 //import std.algorithm.sorting : sort;
 import std.typecons : Tuple, tuple;
@@ -79,7 +80,8 @@ import acos5_64_shared;
 
 import util_opensc : lh, card, acos5_64_short_select, readFile, decompose, PKCS15Path_FileType, pkcs15_names,
     PKCS15_FILE_TYPE, fs, sitTypeFS, PRKDF, PUKDF, AODF, cry_____7_4_4___46_generate_keypair_RSA,
-    util_connect_card, connect_card, PKCS15_ObjectTyp, errorDescription, PKCS15, iter_begin, appdf, prkdf, pukdf, tnTypePtr;
+    util_connect_card, connect_card, PKCS15_ObjectTyp, errorDescription, PKCS15, iter_begin, appdf, prkdf, pukdf, tnTypePtr,
+    /*populate_tree_fs,*/ itTypeFS, scbs_usr_adm_pin_seid, scbs_usr_adm_pin_ref;
 
 //import asn1_pkcs15 : CIO_RSA_private, CIO_RSA_public, CIO_Auth_Pin, encodeEntry_PKCS15_PRKDF, encodeEntry_PKCS15_PUKDF;
 import libtasn1;
@@ -120,7 +122,7 @@ enum /* matrixRowName */ {
     r_keyPairId = 1, // 5
       r_keyPairModifiable,
       r_usageRSAprivateKeyPrKDF,
-    r_usageRSApublicKeyPuKDF,
+//    r_usageRSApublicKeyPuKDF,    hidden
       r_keyPairLabel,
       r_authIdRSAprivateFile,  // 13
 
@@ -149,7 +151,7 @@ enum /* matrixRowName */ {
 
     r_AC_Update_Delete_RSAprivateFile,
     r_AC_Update_Delete_RSApublicFile,
-    r_AC_Create_Delete_RSADir,
+    r_AC_Delete_Create_RSADir,
 }
 
 // tag txpes
@@ -172,6 +174,7 @@ struct _authIdRSAprivateFile{}
 struct _AC_Update_PrKDF_PuKDF{}
 struct _AC_Update_Delete_RSAprivateFile{}
 struct _AC_Update_Delete_RSApublicFile{}
+struct _AC_Delete_Create_RSADir{}
 
 Pub!_sizeNewRSAModulusBits   sizeNewRSAModulusBits;
 Pub!_storeAsCRTRSAprivate    storeAsCRTRSAprivate;
@@ -202,19 +205,21 @@ Obs_statusInput              statusInput;
 Pub!(_AC_Update_PrKDF_PuKDF,          ubyte[2])  AC_Update_PrKDF_PuKDF;
 Pub!(_AC_Update_Delete_RSAprivateFile,ubyte[2])  AC_Update_Delete_RSAprivateFile;
 Pub!(_AC_Update_Delete_RSApublicFile, ubyte[2])  AC_Update_Delete_RSApublicFile;
+Pub!(_AC_Delete_Create_RSADir,        ubyte[2])  AC_Delete_Create_RSADir;
+
 
 mixin template Pub_boilerplate(T,V)
 {
   @property V get() const /*@nogc*/ nothrow /*pure*/ /*@safe*/ { return _value; }
 //  Handle handle() nothrow         { return _h1; }
 //  void   handle(Handle h) nothrow { _h1 = h; }
-/+
+
   void emit_self() nothrow {
     try
        emit(T.stringof, _value);
      catch (Exception e) { /* todo: handle exception */ }
   }
-+/
+
   // Mix in all the code we need to make Foo into a signal
   mixin Signal!(string, V);
 
@@ -243,7 +248,7 @@ class Pub(T, V=int)
     @property V set(V v, bool programmatically=false)  nothrow {
         try {
             _value = v;
-assumeWontThrow(writefln(T.stringof~" object was set to value %s", _value));
+////assumeWontThrow(writefln(T.stringof~" object was set to value %s", _value));
             static if (is(T==_usageRSAprivateKeyACOS) || is(T==_usageRSAprivateKeyPrKDF) /*|| is(T==_usageRSApublicKeyPuKDF)*/) {
                 if (_h1 !is null) {
 //assumeWontThrow(writefln(T.stringof~" object was set to value %s and translate int", _value));
@@ -256,7 +261,8 @@ assumeWontThrow(writefln(T.stringof~" object was set to value %s", _value));
                     _h1.SetStringId2 ("", _lin, _col, _value);
                 }
             }
-            else static if (is(T==_AC_Update_PrKDF_PuKDF) || is(T==_AC_Update_Delete_RSAprivateFile) || is(T==_AC_Update_Delete_RSApublicFile)) {
+            else static if (is(T==_AC_Update_PrKDF_PuKDF) || is(T==_AC_Delete_Create_RSADir) ||
+                is(T==_AC_Update_Delete_RSAprivateFile) || is(T==_AC_Update_Delete_RSApublicFile)) {
                 if (programmatically && _h1 !is null) {
                     _h1.SetStringId2 ("", _lin, _col, format!"%02X"(_value[0])  ~" / "~format!"%02X"(_value[1]));
                 }
@@ -343,7 +349,7 @@ V[2] mapping:
             v[1] = t[0];
             _value = v;
 end:
-assumeWontThrow(writefln(T.stringof~" object was set to values %04X, %s", _value[0], _value[1]));
+////assumeWontThrow(writefln(T.stringof~" object was set to values %04X, %s", _value[0], _value[1]));
             if (programmatically &&  _h1 !is null)
                 _h1.SetStringId2 ("", _lin, _col, format!"%4X"(_value[0]));
             emit(T.stringof, _value);
@@ -388,7 +394,7 @@ class PubA16(T, V=ubyte)
             emit(T.stringof, _value);
         }
         catch (Exception e) { /* todo: handle exception */ }
-assumeWontThrow(writefln(T.stringof~" object (was set to) values %(%02X %)", _value));
+////assumeWontThrow(writefln(T.stringof~" object (was set to) values %(%02X %)", _value));
         return _value;
     }
 
@@ -396,7 +402,7 @@ assumeWontThrow(writefln(T.stringof~" object (was set to) values %(%02X %)", _va
 }
 
 class Obs_usageRSApublicKeyPuKDF {
-    this(int lin/*, int col*/, Handle control = null) {
+    this(int lin=0/*, int col*/, Handle control = null) {
         _lin = lin;
         _col = 1;
         _h = control;
@@ -423,7 +429,7 @@ class Obs_usageRSApublicKeyPuKDF {
         if ((v&32)==0) // if non-unwrap, then remove wrap
             _value &= ~16;
 
-assumeWontThrow(writefln(typeof(this).stringof~" object was set to value %s", _value));
+////assumeWontThrow(writefln(typeof(this).stringof~" object was set to value %s", _value));
         emit("_usageRSApublicKeyPuKDF", _value);
 
         if (_h !is null) {
@@ -484,7 +490,7 @@ class Obs_sizeNewRSAprivateFile { // T für tag Klassen _KULIR1, _RLTGv, _RLTGn
     void present()
     {
 //        emit("_sizeNewRSAprivateFile", _value);
-assumeWontThrow(writefln(typeof(this).stringof~" object was set to _fidRSAprivate(%04X), _fidSizeRSAprivate(%s), _value(%s)", _fidRSAprivate, _fidSizeRSAprivate, _value));
+////assumeWontThrow(writefln(typeof(this).stringof~" object was set to _fidRSAprivate(%04X), _fidSizeRSAprivate(%s), _value(%s)", _fidRSAprivate, _fidSizeRSAprivate, _value));
 
         if (_h !is null) {
             _h.SetStringId2 ("", _lin, _col, _fidSizeRSAprivate.to!string ~" / "~ _value.to!string);
@@ -545,7 +551,7 @@ class Obs_sizeNewRSApublicFile {
     void present()
     {
 //        emit("_sizeNewRSApublicFile", _value);
-assumeWontThrow(writefln(typeof(this).stringof~" object was set to _fidRSApublic(%04X), _fidSizeRSApublic(%s), _value(%s)", _fidRSApublic, _fidSizeRSApublic, _value));
+////assumeWontThrow(writefln(typeof(this).stringof~" object was set to _fidRSApublic(%04X), _fidSizeRSApublic(%s), _value(%s)", _fidRSApublic, _fidSizeRSApublic, _value));
 
         if (_h !is null) {
             _h.SetStringId2 ("", _lin, _col, _fidSizeRSApublic.to!string ~" / "~ _value.to!string);
@@ -683,7 +689,7 @@ class Obs_change_calcPrKDF {
             _PrKDFentry.der_new.length = outDerLen;
         _value = cast(int)(_PrKDFentry.der_new.length - _PrKDFentry.der.length);
 //        emit("_change_calcPrKDF", _value);
-assumeWontThrow(writefln(typeof(this).stringof~" object was set"));
+////assumeWontThrow(writefln(typeof(this).stringof~" object was set"));
 ////assumeWontThrow(writefln("_new_encodedData of PrKDFentry: %(%02X %)", _PrKDFentry.der_new));
         if (_h !is null) {
             _h.SetIntegerId2/*SetStringId2*/ ("", _lin, _col, _value/*.to!string*/); //  ~" / "~ _value.to!string
@@ -803,7 +809,7 @@ class Obs_change_calcPuKDF {
             _PuKDFentry.der_new.length = outDerLen;
         _value = cast(int)(_PuKDFentry.der_new.length - _PuKDFentry.der.length);
 //        emit("_change_calcPuKDF", _value);
-assumeWontThrow(writefln(typeof(this).stringof~" object was set"));
+////assumeWontThrow(writefln(typeof(this).stringof~" object was set"));
 ////assumeWontThrow(writefln("_new_encodedData of PuKDFentry: %(%02X %)", _PuKDFentry.der_new));
         if (_h !is null) {
             _h.SetIntegerId2/*SetStringId2*/ ("", _lin, _col, _value/*.to!string*/); //  ~" / "~ _value.to!string
@@ -830,7 +836,7 @@ class Obs_statusInput {
         _h = control;
     }
 
-  @property bool[5] get() const /*@nogc*/ nothrow /*pure*/ /*@safe*/ { return _value; }
+  @property bool[6] get() const /*@nogc*/ nothrow /*pure*/ /*@safe*/ { return _value; }
 
 //    @property bool[4] val() const @nogc nothrow /*pure*/ @safe { return _value; }
 
@@ -859,10 +865,21 @@ class Obs_statusInput {
         }
         calculate();
     }
+    void watch(string msg, ubyte[16] v) {
+        switch(msg) {
+            case "_valuePublicExponent":
+                _value[5] = ub82integral(v[0..8])>0 || ub82integral(v[8..16])>0;
+                break;
+            default:
+                writeln(msg); stdout.flush();
+                assert(0, "Unknown observation");
+        }
+        calculate();
+    }
     void calculate() {
-        _value[0] = all(_value[1..$]);
+        _value[0] = all(AA["radio_RSA"].GetStringVALUE().among("toggle_RSA_PrKDF_PuKDF_change", "toggle_RSA_key_pair_delete")? _value[1..$-1] : _value[1..$]);
 //        emit("_statusInput", _value);
-assumeWontThrow(writefln(typeof(this).stringof~" object was set to values %(%s %)", _value));
+////assumeWontThrow(writefln(typeof(this).stringof~" object was set to values %(%s %)", _value));
 
         with (_h) if (_h !is null) {
             if (_value[0]) {
@@ -881,12 +898,13 @@ assumeWontThrow(writefln(typeof(this).stringof~" object was set to values %(%s %
 
     private :
 /*
-bool[10] mapping:
+bool[ ] mapping:
  0==true: overall okay;
  1==true: appdf !is null, i.e. appDir exists
  2==true: fidRSAprivate exists and is below appDir in same directory as fidRSApublic
  3==true: fidRSApublic exists  and is below appDir in same directory as fidRSAprivate
  4==true  fidRSAprivate and fidRSApublic are a key pair with common key id; may also read priv file from pub in order to verify
+ 5==true  valuePublicExponent is a prime
 
 
  00a40000024100
@@ -898,7 +916,7 @@ bool[10] mapping:
 00460000 02 2004
 
 */
-        bool[5]  _value = [false,  false, false, false,  true ];
+        bool[6]  _value = [false,  false, false, false,  true, false ];
         int       _lin;
         int       _col;
         Handle    _h;
@@ -1011,7 +1029,7 @@ int set_more_for_keyPairId(int keyPairId) nothrow
     import core.bitop : bitswap;
 
 //assumeWontThrow(writefln("toggle_RSA_: %s", AA["toggle_RSA_"].GetIntegerVALUE()));
-    printf("set_more_for_keyPairId (%d)\n", keyPairId);
+////    printf("set_more_for_keyPairId (%d)\n", keyPairId);
 
     int  asn1_result;
     int  outLen;
@@ -1035,8 +1053,8 @@ int set_more_for_keyPairId(int keyPairId) nothrow
 
         keyPairModifiable.set((flags[0]&2)/2, true);
 
-        if (!keyPairModifiable.get &&  (/+ AA["toggle_RSA_key_pair_delete"].GetIntegerVALUE() || +/
-                                        AA["toggle_RSA_key_pair_generate"].GetIntegerVALUE() ) ) {
+        if (!keyPairModifiable.get &&  (AA["toggle_RSA_key_pair_delete"].GetIntegerVALUE() ||
+                                        AA["toggle_RSA_key_pair_regenerate"].GetIntegerVALUE() ) ) {
             IupMessage("Feedback upon setting keyPairId",
 "The PrKDF entry for the selected keyPairId disallows modifying the RSA private key !\nThe toggle will be changed to toggle_RSA_PrKDF_PuKDF_change toggled");
             AA["toggle_RSA_PrKDF_PuKDF_change"].SetIntegerVALUE(1);
@@ -1134,7 +1152,7 @@ int set_more_for_keyPairId(int keyPairId) nothrow
     catch (Exception e) {}
 ////
     enum string commands = `
-import std.range : chunks;
+//import std.range : chunks;
 int rv;
 foreach (ub2 fid; chunks(rsaPub.data[8..8+rsaPub.data[1]], 2))
     rv= acos5_64_short_select(card, null, fid, true);
@@ -1231,7 +1249,7 @@ int matrixRsaAttributes_dropcheck_cb(Ihandle* self, int lin, int col) {
 } // matrixRsaAttributes_dropcheck_cb
 
 int matrixRsaAttributes_drop_cb(Ihandle* self, Ihandle* drop, int lin, int col) {
-    printf("matrixRsaAttributes_drop_cb(%d, %d)\n", lin, col);
+////    printf("matrixRsaAttributes_drop_cb(%d, %d)\n", lin, col);
     if (col==2)
         return IUP_IGNORE; // draw nothing
 //    Handle h = createHandle(drop);
@@ -1250,19 +1268,20 @@ int matrixRsaAttributes_drop_cb(Ihandle* self, Ihandle* drop, int lin, int col) 
                     SetIntegerId("", i++, rv);
                 }
                 SetAttributeId("", i, null);
-                SetAttributeStr(IUP_VALUE, "");
-                return IUP_DEFAULT;
+                SetAttributeStr(IUP_VALUE, null);
+                return IUP_DEFAULT; // show a dropdown field
             }
-            return     IUP_IGNORE; // assert(0);
+            return     IUP_IGNORE;  // show a text-edition field
 
         case r_authIdRSAprivateFile:
             if (hR.GetStringVALUE()!="toggle_RSA_key_pair_delete") {
                 int i = 1;
-////                SetIntegerId("", i++, 0);
+//                SetIntegerId("", i++, 0);
                 foreach (const ref elem; AODF) {
-                    asn1_result = asn1_read_value(elem.structure_new, "pinAuthObj.commonAuthenticationObjectAttributes.authId", str, outLen);
+                    asn1_result = asn1_read_value(elem.structure, "pinAuthObj.commonAuthenticationObjectAttributes.authId", str, outLen);
                     if (asn1_result == ASN1_ELEMENT_NOT_FOUND) {
-                        if (asn1_read_value(elem.structure_new, "biometricAuthObj.commonAuthenticationObjectAttributes.authId", str, outLen) != ASN1_SUCCESS)
+assumeWontThrow(writeln("### asn1_read_value pinAuthObj.commonAuthenticationObjectAttributes.authId: ", asn1_strerror2(asn1_result)));
+                        if (asn1_read_value(elem.structure, "biometricAuthObj.commonAuthenticationObjectAttributes.authId", str, outLen) != ASN1_SUCCESS)
                             continue;
                     }
                     else if (asn1_result != ASN1_SUCCESS)
@@ -1271,27 +1290,28 @@ int matrixRsaAttributes_drop_cb(Ihandle* self, Ihandle* drop, int lin, int col) 
                     SetIntegerId("", i++, str[0]);
                 }
                 SetAttributeId("", i, null);
-                SetAttributeStr(IUP_VALUE, "");
+                SetAttributeStr(IUP_VALUE, null);
                 return IUP_DEFAULT;
             }
-            return     IUP_IGNORE; // assert(0);
+            return     IUP_IGNORE;
 
         case r_sizeNewRSAModulusBits:
             foreach (i; 1..16)
                 SetIntegerId("", i, 4096-(i-1)*256);
             SetAttributeId("", 16, null);
-            SetAttributeStr(IUP_VALUE, "");
+            SetAttributeStr(IUP_VALUE, null);
             return IUP_DEFAULT;
 
         default:
-            return IUP_IGNORE; // assert(0);
+            return IUP_IGNORE;
     }
 }
 
 int matrixRsaAttributes_dropselect_cb(Ihandle* self, int lin, int col, Ihandle* /*drop*/, const(char)* t, int i, int v)
 {
 /*
-DROPSELECT_CB: Action generated when an element in the dropdown list or the popup menu is selected. For the dropdown, if returns IUP_CONTINUE the value is accepted as a new
+DROPSELECT_CB: Action generated when an element in the dropdown list or the popup menu is selected. For the dropdown, if returns IUP_CONTINUE
+the value is accepted as a new
 value and the matrix leaves edition mode, else the item is selected and editing remains. For the popup menu the returned value is ignored.
 
 int function(Ihandle *ih, int lin , int col, Ihandle *drop, char *t, int i, int v ); [in C]
@@ -1303,7 +1323,12 @@ t: Text of the item whose state was changed.
 i: Number of the item whose state was changed.
 v: Indicates if item was selected or unselected (1 or 0). Always 1 for the popup menu.
 */
-    printf("matrixRsaAttributes_dropselect_cb(%d, %d, %s, %d, %d)\n", lin, col, t, i, v);
+    assert(t);
+    int val;
+    try
+        val = fromStringz(t).to!int;
+    catch(Exception e) { return IUP_CONTINUE; }
+////    printf("matrixRsaAttributes_dropselect_cb(lin: %d, col: %d, t: %s, i, mumber of the item whose state was changed: %d, selected?: %d)\n", lin, col, t, i, v);
     if (v && col==1) {
         Handle h = createHandle(self);
 
@@ -1313,11 +1338,11 @@ v: Indicates if item was selected or unselected (1 or 0). Always 1 for the popup
                 break;
 
             case r_keyPairId:
-                keyPairId.set = h.GetIntegerVALUE;
+                keyPairId.set = val; //h.GetIntegerVALUE;
                 break;
 
             case r_authIdRSAprivateFile:
-                authIdRSAprivateFile.set = h.GetIntegerVALUE;
+                authIdRSAprivateFile.set = val; //h.GetIntegerVALUE;
                 break;
 
             default:
@@ -1329,7 +1354,7 @@ v: Indicates if item was selected or unselected (1 or 0). Always 1 for the popup
 
 int matrixRsaAttributes_edition_cb(Ihandle* ih, int lin, int col, int mode, int update)
 {
-    printf("matrixRsaAttributes_edition_cb(%d, %d) mode: %d, update: %d\n", lin, col, mode, update);
+////    printf("matrixRsaAttributes_edition_cb(%d, %d) mode: %d, update: %d\n", lin, col, mode, update);
     if (mode==1) {
         AA["statusbar"].SetString(IUP_TITLE, "statusbar");
         if (AA["matrixRsaAttributes"].GetIntegerId2("", r_keyPairId, 1)==0 && lin.among(r_keyPairModifiable,
@@ -1357,9 +1382,9 @@ int matrixRsaAttributes_edition_cb(Ihandle* ih, int lin, int col, int mode, int 
                                        r_change_calcPuKDF,
 //                                     r_authIdRSAprivateFile,
                                        r_valuePublicExponent,
-                                       r_statusInput,
+                                       r_statusInput
 //                                     r_usageRSAprivateKeyPrKDF,
-                                       r_usageRSApublicKeyPuKDF
+//                                       r_usageRSApublicKeyPuKDF,  hidden
 //                                     r_keyPairModifiable
                 )) // read_only
                     return IUP_IGNORE;
@@ -1383,14 +1408,14 @@ int matrixRsaAttributes_edition_cb(Ihandle* ih, int lin, int col, int mode, int 
                                        r_valuePublicExponent,
                                        r_statusInput,
                                        r_usageRSAprivateKeyPrKDF,
-                                       r_usageRSApublicKeyPuKDF,
+//                                       r_usageRSApublicKeyPuKDF,  hidden
                                        r_keyPairModifiable
                 )) // read_only
                     return IUP_IGNORE;
                 else
                     return IUP_DEFAULT;
 
-            case "toggle_RSA_key_pair_generate",
+            case "toggle_RSA_key_pair_regenerate",
                  "toggle_RSA_key_pair_create_and_generate":
                 if (col==2 ||lin.among(r_acos_internal,
 //                                     r_keyPairId,
@@ -1407,9 +1432,9 @@ int matrixRsaAttributes_edition_cb(Ihandle* ih, int lin, int col, int mode, int 
                                        r_change_calcPuKDF,
 //                                       r_authIdRSAprivateFile,
 //                                       r_valuePublicExponent,
-                                       r_statusInput,
+                                       r_statusInput
 //                                       r_usageRSAprivateKeyPrKDF,
-                                       r_usageRSApublicKeyPuKDF
+//                                       r_usageRSApublicKeyPuKDF,  hidden
 //                                       r_keyPairModifiable
                 )) // read_only
                     return IUP_IGNORE;
@@ -1440,15 +1465,7 @@ int matrixRsaAttributes_edition_cb(Ihandle* ih, int lin, int col, int mode, int 
                 }
             } catch (Exception e) {}
             break;
-/*
-        case r_usageRSApublicKeyPuKDF:
-            {
-                invmp = clamp(h.GetIntegerVALUE & 209, 0, 1023);
-                usageRSApublicKeyPuKDF.set(tmp, true); // strange, doesn't update with new string
-                h.SetStringVALUE (keyUsageFlagsInt2string(tmp));
-            }
-            break;
-*/
+
         case r_usageRSAprivateKeyPrKDF:
             {
                 IupMessage("Feedback upon setting usageRSAprivateKeyPrKDF",
@@ -1499,22 +1516,13 @@ int matrixRsaAttributes_edition_cb(Ihandle* ih, int lin, int col, int mode, int 
 
 int matrixRsaAttributes_togglevalue_cb(Ihandle* self, int lin, int col, int status)
 {
-    printf("matrixRsaAttributes_togglevalue_cb(%d, %d) status: %d\n", lin, col, status);
+////    printf("matrixRsaAttributes_togglevalue_cb(%d, %d) status: %d\n", lin, col, status);
     if (col==1 && lin==r_storeAsCRTRSAprivate)
         storeAsCRTRSAprivate.set = status;
     else if (col==1 && lin==r_keyPairModifiable && AA["matrixRsaAttributes"].GetIntegerId2("", r_keyPairId, 1)!=0)
         keyPairModifiable.set = status;
     return IUP_DEFAULT;
 }
-/+
-int matrixRsaAttributes_click_cb(Ihandle* ih, int lin, int col, char* status)
-{
-  if (col>0 || lin>3)
-    return IUP_DEFAULT;
-  printf("matrixRsaAttributes_click_cb(%d, %d) status: %s\n", lin, col, status);
-  return IUP_DEFAULT;
-}
-+/
 
 int toggle_RSA_cb(Ihandle* ih, int state)
 {
@@ -1522,9 +1530,19 @@ int toggle_RSA_cb(Ihandle* ih, int state)
         AA["statusbar"].SetString(IUP_TITLE, "statusbar");
         return IUP_DEFAULT;
     }
-    printf("toggle_RSA_cb (%d)\n", state);
+
+    if (!keyPairModifiable.get &&  (AA["toggle_RSA_key_pair_delete"].GetIntegerVALUE() ||
+                                    AA["toggle_RSA_key_pair_regenerate"].GetIntegerVALUE() ) ) {
+        IupMessage("Feedback upon setting keyPairId",
+"The PrKDF entry for the selected keyPairId disallows modifying the RSA private key !\nThe toggle will be changed to toggle_RSA_PrKDF_PuKDF_change toggled");
+        AA["toggle_RSA_PrKDF_PuKDF_change"].SetIntegerVALUE(1);
+        return IUP_DEFAULT;
+    }
+
     Handle hButton = AA["btn_RSA"];
     Handle hRadio  = AA["radio_RSA"];
+////    printf("toggle_RSA_cb (%d) %s\n", state, hRadio.GetStringVALUE().toStringz);
+
     with (AA["matrixRsaAttributes"])
     switch (hRadio.GetStringVALUE()) { // the active radio button
         case "toggle_RSA_PrKDF_PuKDF_change":            hButton.SetString(IUP_TITLE, "PrKDF/PuKDF only: Change some administrative (PKCS#15) data");
@@ -1538,7 +1556,7 @@ int toggle_RSA_cb(Ihandle* ih, int state)
             SetRGBId2(IUP_BGCOLOR, r_storeAsCRTRSAprivate,    1,  255,255,255);
             SetRGBId2(IUP_BGCOLOR, r_usageRSAprivateKeyACOS,  1,  255,255,255);
             break;
-        case "toggle_RSA_key_pair_delete":               hButton.SetString(IUP_TITLE, "RSA key pair: Delete key pair files");
+        case "toggle_RSA_key_pair_delete":               hButton.SetString(IUP_TITLE, "RSA key pair: Delete key pair files (Currently not capable to delete the last existing key pair, i.e. one must remain to be selectable)");
             SetRGBId2(IUP_BGCOLOR, r_keyPairModifiable,       1,  255,255,255);
             SetRGBId2(IUP_BGCOLOR, r_usageRSAprivateKeyPrKDF, 1,  255,255,255);
             SetRGBId2(IUP_BGCOLOR, r_keyPairLabel,            1,  255,255,255);
@@ -1549,7 +1567,7 @@ int toggle_RSA_cb(Ihandle* ih, int state)
             SetRGBId2(IUP_BGCOLOR, r_storeAsCRTRSAprivate,    1,  255,255,255);
             SetRGBId2(IUP_BGCOLOR, r_usageRSAprivateKeyACOS,  1,  255,255,255);
             break;
-        case "toggle_RSA_key_pair_generate":             hButton.SetString(IUP_TITLE, "RSA key pair: Regenerate RSA key pair content in existing files");
+        case "toggle_RSA_key_pair_regenerate":           hButton.SetString(IUP_TITLE, "RSA key pair: Regenerate RSA key pair content in existing files (Takes some time: Up to 3-5 minutes for 4096 bit)");
             SetRGBId2(IUP_BGCOLOR, r_keyPairModifiable,       1,  152,251,152);
             SetRGBId2(IUP_BGCOLOR, r_usageRSAprivateKeyPrKDF, 1,  152,251,152);
             SetRGBId2(IUP_BGCOLOR, r_keyPairLabel,            1,  152,251,152);
@@ -1573,38 +1591,43 @@ int toggle_RSA_cb(Ihandle* ih, int state)
             break;
         default:  assert(0);
     }
+    valuePublicExponent.emit_self();
     return IUP_DEFAULT;
 }
 
 const char[] btn_RSA_cb_common1 =`
-            int diff = change_calcPrKDF.get;
+            int diff;
+            diff = doDelete? change_calcPrKDF.pkcs15_ObjectTyp.posStart - change_calcPrKDF.pkcs15_ObjectTyp.posEnd : change_calcPrKDF.get;
+
             ubyte[] zeroAdd = new ubyte[ diff>=0? 0 : abs(diff) ];
             auto haystackPriv = find!((a,b) => getIdentifier(a, "privateRSAKey.commonKeyAttributes.iD", false) == b)(PRKDF, keyPairId.get);
             assert(!haystackPriv.empty);
             // change_calcPrKDF.pkcs15_ObjectTyp shall be identical to resulting haystackPriv.front (except the _new components)!) !
 
-            change_calcPrKDF.pkcs15_ObjectTyp.posEnd +=  diff;
-            if (change_calcPrKDF.pkcs15_ObjectTyp.der_new !is null)
-                haystackPriv.front.der = change_calcPrKDF.pkcs15_ObjectTyp.der =  change_calcPrKDF.pkcs15_ObjectTyp.der_new.dup;
+            with (change_calcPrKDF.pkcs15_ObjectTyp)
+            if (!doDelete && der_new !is null) {
+                haystackPriv.front.der = der = der_new.dup;
 
-            asn1_node  structurePriv;
-            asn1_delete_structure(&haystackPriv.front.structure);
-            int asn1_result = asn1_create_element(PKCS15, pkcs15_names[PKCS15_FILE_TYPE.PKCS15_PRKDF][3], &structurePriv);
-            if (asn1_result != ASN1_SUCCESS) {
-                assumeWontThrow(writeln("### Structure creation: ", asn1_strerror2(asn1_result)));
-                return IUP_DEFAULT;
+                asn1_node  structurePriv, tmp = haystackPriv.front.structure;
+                int asn1_result = asn1_create_element(PKCS15, pkcs15_names[PKCS15_FILE_TYPE.PKCS15_PRKDF][3], &structurePriv);
+                if (asn1_result != ASN1_SUCCESS) {
+                    assumeWontThrow(writeln("### Structure creation: ", asn1_strerror2(asn1_result)));
+                    return IUP_DEFAULT;
+                }
+                if (asn1_der_decoding(&structurePriv, haystackPriv.front.der, errorDescription) != ASN1_SUCCESS) {
+                    assumeWontThrow(writeln("### asn1Decoding: ", errorDescription));
+                    return IUP_DEFAULT;
+                }
+                haystackPriv.front.structure = structurePriv;
+                structure                    = structurePriv;
+                asn1_delete_structure(&tmp);
             }
-            asn1_result = asn1_der_decoding(&structurePriv, haystackPriv.front.der, errorDescription);
-            if (asn1_result != ASN1_SUCCESS) {
-                assumeWontThrow(writeln("### asn1Decoding: ", errorDescription));
-                return IUP_DEFAULT;
-            }
-            haystackPriv.front.structure                = structurePriv;
-            change_calcPrKDF.pkcs15_ObjectTyp.structure = structurePriv;
 
             ubyte[] bufPriv;
+            change_calcPrKDF.pkcs15_ObjectTyp.posEnd +=  diff;
             foreach (i, ref elem; haystackPriv) {
-                bufPriv ~= elem.der;
+                if (i>0 || !doDelete)
+                    bufPriv ~= elem.der;
                 if (i>0)
                     elem.posStart += diff;
                 elem.posEnd       += diff;
@@ -1615,34 +1638,36 @@ const char[] btn_RSA_cb_common1 =`
 //assumeWontThrow(writeln("  ### check haystackPriv:                      ", haystackPriv));
 
 
-            diff = change_calcPuKDF.get;
+            diff = doDelete? change_calcPuKDF.pkcs15_ObjectTyp.posStart - change_calcPuKDF.pkcs15_ObjectTyp.posEnd : change_calcPuKDF.get;
             zeroAdd = new ubyte[ diff>=0? 0 : abs(diff) ];
             auto haystackPubl = find!((a,b) => getIdentifier(a, "publicRSAKey.commonKeyAttributes.iD", false) == b)(PUKDF, keyPairId.get);
             assert(!haystackPubl.empty);
             // change_calcPuKDF.pkcs15_ObjectTyp shall be identical to resulting haystackPubl.front (except the _new components)!) !
 
-            change_calcPuKDF.pkcs15_ObjectTyp.posEnd +=  diff;
-            if (change_calcPuKDF.pkcs15_ObjectTyp.der_new !is null)
-                haystackPubl.front.der = change_calcPuKDF.pkcs15_ObjectTyp.der =  change_calcPuKDF.pkcs15_ObjectTyp.der_new.dup;
+            with (change_calcPuKDF.pkcs15_ObjectTyp)
+            if (!doDelete && der_new !is null) {
+                haystackPubl.front.der = der = der_new.dup;
 
-            asn1_node  structurePubl;
-            asn1_delete_structure(&haystackPubl.front.structure);
-            asn1_result = asn1_create_element(PKCS15, pkcs15_names[PKCS15_FILE_TYPE.PKCS15_PUKDF][3], &structurePubl);
-            if (asn1_result != ASN1_SUCCESS) {
-                assumeWontThrow(writeln("### Structure creation: ", asn1_strerror2(asn1_result)));
-                return IUP_DEFAULT;
+                asn1_node  structurePubl, tmp = haystackPubl.front.structure;
+                int asn1_result = asn1_create_element(PKCS15, pkcs15_names[PKCS15_FILE_TYPE.PKCS15_PUKDF][3], &structurePubl);
+                if (asn1_result != ASN1_SUCCESS) {
+                    assumeWontThrow(writeln("### Structure creation: ", asn1_strerror2(asn1_result)));
+                    return IUP_DEFAULT;
+                }
+                if (asn1_der_decoding(&structurePubl, haystackPubl.front.der, errorDescription) != ASN1_SUCCESS) {
+                    assumeWontThrow(writeln("### asn1Decoding: ", errorDescription));
+                    return IUP_DEFAULT;
+                }
+                haystackPubl.front.structure = structurePubl;
+                structure                    = structurePubl;
+                asn1_delete_structure(&tmp);
             }
-            asn1_result = asn1_der_decoding(&structurePubl, haystackPubl.front.der, errorDescription);
-            if (asn1_result != ASN1_SUCCESS) {
-                assumeWontThrow(writeln("### asn1Decoding: ", errorDescription));
-                return IUP_DEFAULT;
-            }
-            haystackPubl.front.structure                = structurePubl;
-            change_calcPuKDF.pkcs15_ObjectTyp.structure = structurePubl;
 
             ubyte[] bufPubl;
+            change_calcPuKDF.pkcs15_ObjectTyp.posEnd +=  diff;
             foreach (i, ref elem; haystackPubl) {
-                bufPubl ~= elem.der;
+                if (i>0 || !doDelete)
+                    bufPubl ~= elem.der;
                 if (i>0)
                     elem.posStart += diff;
                 elem.posEnd       += diff;
@@ -1655,6 +1680,7 @@ const char[] btn_RSA_cb_common1 =`
 //mixin(btn_RSA_cb_common1);
 
 
+/* TODO: the pin handling code is far to complicated: Think about an elegant alternative, keeping in mind that there should be max 2 pins only for everything */
 int btn_RSA_cb(Ihandle* ih)
 {
     import std.math : abs;
@@ -1687,74 +1713,25 @@ int btn_RSA_cb(Ihandle* ih)
 
             //Does statusInput check, that the bytes to be written to PrKDF and PuKDF are there in "free space"
 //            {} // behavior changed: cases seem to introduce a new scope
+            bool doDelete = false;
             mixin(btn_RSA_cb_common1);
-/+
-int sc_verify(sc_card_t *card, unsigned int type, int ref,
-	      const u8 *pin, size_t pinlen, int *tries_left)
-{
-	struct sc_pin_cmd_data data;
 
-	memset(&data, 0, sizeof(data));
-	data.cmd = SC_PIN_CMD_VERIFY;
-	data.pin_type = type;
-	data.pin_reference = ref;
-	data.pin1.data = pin;
-	data.pin1.len = pinlen;
-
-	return sc_pin_cmd(card, &data, tries_left);
-}
-int sc_pin_cmd(sc_card* card, sc_pin_cmd_data*, int* tries_left);
-sc_pin_cmd_data  pin_cmd_data = {SC_PIN_CMD.SC_PIN_CMD_VERIFY, SC_PIN_CMD_NEED_PADDING ... };
-
-//	int sc_verify(sc_card* card,  uint type, int ref_, const(ubyte)* buf, size_t buflen, int* tries_left);
-//rv= sc_verify(card,  SC_AC.SC_AC_CHV,  pinLocal? 0x80 | pinReference : pinReference, p_pinHex, 8, &tries_left);
-
-            ub2 ac =  AC_Update_PrKDF_PuKDF.get;
-            assert(ac[0] == ac[1], "PrKDF and PuKDF shall have the same SCB: Either both always readable or protected by the same pin");
-            assert(ac[0] != 0xFF);
-            int       tries_left;
-            int       pinLocal = 1;
-            int       pinReference = 1;
-            char[32]  pin = "\0";
-            ubyte*    p_pinHex = cast(ubyte*)pin.ptr;
-            if (ac[0] != 0) {
-                int r = IupGetParam("Pin requested for authorization (SCB "~toHexString!(Order.increasing,LetterCase.upper)(ac[0])~")", &param_action, null/* void* user_data*/, /*format*/
-                    "&Pin local (User)? If local==No, then it's the Security Officer Pin:%b[No,Yes]\n" ~
-                    "&Pin reference (1-31; selects the record# in pin file):%i\n" ~
-                    "Pin (minLen: 4, maxLen: 8):%s\n", &pinLocal, &pinLocal, pin.ptr, null);
-                assumeWontThrow(writeln("Value from IupGetParam: ", pin));
-                assumeWontThrow(writefln("Value from IupGetParam hex: %(%02X %)", p_pinHex[0..8]));
-                assumeWontThrow(writefln("Return button pressed: %s", r));
-//Returns: a status code 1 if the button 1 was pressed, 0 if the button 2 was pressed or if an error occurred.
-//IupGetParam - Button1 (OK)
-//Value from IupGetParam: 12345678
-//Value from IupGetParam hex: 31 32 33 34 35 36 37 38
-//Return button pressed: 1
-
-//IupGetParam - Button2 (Cancel)
-//Value from IupGetParam:
-//Value from IupGetParam hex: 00 00 00 00 00 00 00 00
-//Return button pressed: 0
-            }
-+/
-
-            import core.stdc.string : strlen;
             enum string commands = `
-            import std.range : chunks;
             import core.stdc.string : strlen;
             int rv;
             // check whether auth is required for updating PrKDF and/or PuKDF
             ub2 ac =  AC_Update_PrKDF_PuKDF.get;
             assert(ac[0] == ac[1], "PrKDF and PuKDF shall have the same SCB: Either both always readable or protected by the same pin");
             assert(ac[0] != 0xFF); // PrKDF and PuKDF MUST BE updatable
+            assert(ac[0] == 0 || ac[0].among(scbs_usr_adm_pin_seid[0], scbs_usr_adm_pin_seid[1]));
             int       tries_left;
-            int       pinLocal = 1;     // the default: to be changed in GetParamDialog
-            int       pinReference = 1; // the default: to be changed in GetParamDialog
+            int       pinLocal     =  ac[0]==scbs_usr_adm_pin_seid[1]? 0 : 1;     // the correct entry: not to be changed in GetParamDialog
+            int       pinReference =  ac[0]==scbs_usr_adm_pin_seid[1]? scbs_usr_adm_pin_ref[1] : scbs_usr_adm_pin_ref[0];
             char[32]  pin = '\0';       // TODO: how to protect against very long pin entries, exceeding 31 ?
             ubyte*    p_pinHex = cast(ubyte*)pin.ptr;
             if (ac[0] != 0) {
                 rv = IupGetParam(toStringz("Pin requested for authorization (SCB "~toHexString!(Order.increasing,LetterCase.upper)([ubyte(ac[0])])~")"),
-                    &param_action, null/* void* user_data*/, /*format*/
+                    null/* &param_action*/, null/* void* user_data*/, /*format*/
                     "&Pin local (User)? If local==No, then it's the Security Officer Pin:%b[No,Yes]\n" ~
                     "&Pin reference (1-31; selects the record# in pin file):%i\n" ~
                     "Pin (minLen: 4, maxLen: 8):%s\n", &pinLocal, &pinLocal, pin.ptr, null);
@@ -1793,10 +1770,10 @@ sc_pin_cmd_data  pin_cmd_data = {SC_PIN_CMD.SC_PIN_CMD_VERIFY, SC_PIN_CMD_NEED_P
             hstat.SetString(IUP_TITLE, "SUCCESS: Change some administrative (PKCS#15) data");
             return IUP_DEFAULT; // case "toggle_RSA_PrKDF_PuKDF_change"
 
-        case "toggle_RSA_key_pair_generate":
+        case "toggle_RSA_key_pair_regenerate":
+            bool doDelete = false;
             mixin(btn_RSA_cb_common1);
             enum string commands = `
-            import std.range : chunks, chain;
             int rv;
             uba  lv_key_len_type_data = [0x02, cast(ubyte)(sizeNewRSAModulusBits.get/128), code(storeAsCRTRSAprivate.get, usageRSAprivateKeyACOS.get)];
             if (any(valuePublicExponent.get[0..8]) || ub82integral(valuePublicExponent.get[8..16])!=0x10001) {
@@ -1811,8 +1788,12 @@ sc_pin_cmd_data  pin_cmd_data = {SC_PIN_CMD.SC_PIN_CMD_VERIFY, SC_PIN_CMD_NEED_P
             assert(scbs[0] != 0xFF); // FIXME to strict
             assert(scbs[1] != 0xFF); // FIXME to strict
             int[2]       tries_left;
-            int[2]       pinLocal = 1;
-            int[2]       pinReference = 1;
+            int[2]       pinLocal;
+            pinLocal[0] =      scbs[0]==scbs_usr_adm_pin_seid[1]? 0 : 1;     // the correct entry: not to be changed in GetParamDialog
+            pinLocal[1] =      scbs[1]==scbs_usr_adm_pin_seid[1]? 0 : 1;     // the correct entry: not to be changed in GetParamDialog
+            int[2]       pinReference;
+            pinReference[0] =  scbs[0]==scbs_usr_adm_pin_seid[1]? scbs_usr_adm_pin_ref[1] : scbs_usr_adm_pin_ref[0];
+            pinReference[1] =  scbs[1]==scbs_usr_adm_pin_seid[1]? scbs_usr_adm_pin_ref[1] : scbs_usr_adm_pin_ref[0];
             char[32][2]  pin;
             pin[0] = "\0";
             pin[1] = "\0";
@@ -1822,28 +1803,29 @@ sc_pin_cmd_data  pin_cmd_data = {SC_PIN_CMD.SC_PIN_CMD_VERIFY, SC_PIN_CMD_NEED_P
 
             if (scbs[0] != 0) { // updating private key file needs auth
                 rv = IupGetParam(toStringz("Pin requested for authorization (SCB "~toHexString!(Order.increasing,LetterCase.upper)([ubyte(scbs[0])])~")"),
-                    &param_action, null/* void* user_data*/, /*format*/
+                    null/* &param_action*/, null/* void* user_data*/, /*format*/
                     "&Pin local (User)? If local==No, then it's the Security Officer Pin:%b[No,Yes]\n" ~
                     "&Pin reference (1-31; selects the record# in pin file):%i\n" ~
                     "Pin (minLen: 4, maxLen: 8):%s\n", &pinLocal[0], &pinReference[0], pin[0].ptr, null);
                 if (rv != 1)
                     return IUP_DEFAULT;
-                assumeWontThrow(writeln("Value from IupGetParam [0]: ", pin[0]));
-                assumeWontThrow(writefln("Value from IupGetParam hex [0]: %(%02X %)", p_pinHex[0][0..8]));
-                assumeWontThrow(writefln("Return button pressed [0]: %s", rv));
+//                assumeWontThrow(writeln("Value from IupGetParam [0]: ", pin[0]));
+//                assumeWontThrow(writefln("Value from IupGetParam hex [0]: %(%02X %)", p_pinHex[0][0..8]));
+//                assumeWontThrow(writefln("Return button pressed [0]: %s", rv));
             }
             if (scbs[1] && scbs[1] != scbs[0]) { // updating public key file needs auth different from the private
                 rv = IupGetParam(toStringz("Pin requested for authorization (SCB "~toHexString!(Order.increasing,LetterCase.upper)([ubyte(scbs[1])])~")"),
-                    &param_action, null/* void* user_data*/, /*format*/
+                    null/* &param_action*/, null/* void* user_data*/, /*format*/
                     "&Pin local (User)? If local==No, then it's the Security Officer Pin:%b[No,Yes]\n" ~
                     "&Pin reference (1-31; selects the record# in pin file):%i\n" ~
                     "Pin (minLen: 4, maxLen: 8):%s\n", &pinLocal[1], &pinReference[1], pin[1].ptr, null);
                 if (rv != 1)
                     return IUP_DEFAULT;
-                assumeWontThrow(writeln("Value from IupGetParam [1]: ", pin[1]));
-                assumeWontThrow(writefln("Value from IupGetParam hex [1]: %(%02X %)", p_pinHex[1][0..8]));
-                assumeWontThrow(writefln("Return button pressed [1]: %s", rv));
+//                assumeWontThrow(writeln("Value from IupGetParam [1]: ", pin[1]));
+//                assumeWontThrow(writefln("Value from IupGetParam hex [1]: %(%02X %)", p_pinHex[1][0..8]));
+//                assumeWontThrow(writefln("Return button pressed [1]: %s", rv));
             }
+            // select app dir
             {
                 ub2 fid = integral2ub!2(fidRSADir.get)[0..2];
                 rv= acos5_64_short_select(card, null, fid, true);
@@ -1851,21 +1833,26 @@ sc_pin_cmd_data  pin_cmd_data = {SC_PIN_CMD.SC_PIN_CMD_VERIFY, SC_PIN_CMD_NEED_P
             }
             if (scbs[0]) {
                 rv = sc_verify(card, SC_AC.SC_AC_CHV, pinLocal[0]? 0x80 | pinReference[0] : pinReference[0], p_pinHex[0], 8, &tries_left[0]);
-                if (rv != SC_SUCCESS)
+                if (rv != SC_SUCCESS) {
+                    hstat.SetString(IUP_TITLE, "FAILURE: Pin verification failed. Retries left: "~tries_left[0].to!string);
                     return IUP_DEFAULT;
+                }
             }
             if (scbs[1] && scbs[1] != scbs[0]) {
                 rv = sc_verify(card, SC_AC.SC_AC_CHV, pinLocal[1]? 0x80 | pinReference[1] : pinReference[1], p_pinHex[1], 8, &tries_left[1]);
-                if (rv != SC_SUCCESS)
+                if (rv != SC_SUCCESS) {
+                    hstat.SetString(IUP_TITLE, "FAILURE: Pin verification failed. Retries left: "~tries_left[1].to!string);
                     return IUP_DEFAULT;
+                }
             }
             {
                 sc_security_env  env = { SC_SEC_ENV_FILE_REF_PRESENT, SC_SEC_OPERATION.SC_SEC_OPERATION_GENERATE_RSAPRIVATE };
                 env.file_ref.len = 2;
                 env.file_ref.value[0..2] = integral2ub!2((fidRSAprivate.get)[0])[0..2];
                 if ((rv= sc_set_security_env(card, &env, 0)) < 0) {
-                    mixin (log!(__FUNCTION__, "sc_set_security_env failed for SC_SEC_OPERATION_GENERATE_RSAPRIVATE"));
-                    return rv;
+                    mixin (log!(__FUNCTION__,  "sc_set_security_env failed for SC_SEC_OPERATION_GENERATE_RSAPRIVATE"));
+                    hstat.SetString(IUP_TITLE, "sc_set_security_env failed for SC_SEC_OPERATION_GENERATE_RSAPRIVATE");
+                    return IUP_DEFAULT;
                 }
             }
             {
@@ -1873,13 +1860,14 @@ sc_pin_cmd_data  pin_cmd_data = {SC_PIN_CMD.SC_PIN_CMD_VERIFY, SC_PIN_CMD_NEED_P
                 env.file_ref.len = 2;
                 env.file_ref.value[0..2] = integral2ub!2((fidRSApublic.get)[0])[0..2];
                 if ((rv= sc_set_security_env(card, &env, 0)) < 0) {
-                    mixin (log!(__FUNCTION__, "sc_set_security_env failed for SC_SEC_OPERATION_GENERATE_RSAPUBLIC"));
-                    return rv;
+                    mixin (log!(__FUNCTION__,  "sc_set_security_env failed for SC_SEC_OPERATION_GENERATE_RSAPUBLIC"));
+                    hstat.SetString(IUP_TITLE, "sc_set_security_env failed for SC_SEC_OPERATION_GENERATE_RSAPUBLIC");
+                    return IUP_DEFAULT;
                 }
             }
 
             if ((rv= cry_____7_4_4___46_generate_keypair_RSA(card, lv_key_len_type_data)) != SC_SUCCESS) {
-                assumeWontThrow(writeln("  ### FAILED: Something went wrong with generate_keypair_RSA"));
+                mixin (log!(__FUNCTION__,  "regenerate_keypair_RSA failed"));
                 hstat.SetString(IUP_TITLE, "FAILURE: Generate new RSA key pair content");
                 return IUP_DEFAULT;
             }
@@ -1888,8 +1876,8 @@ sc_pin_cmd_data  pin_cmd_data = {SC_PIN_CMD.SC_PIN_CMD_VERIFY, SC_PIN_CMD_NEED_P
             ub2 ac =  AC_Update_PrKDF_PuKDF.get;
             assert(ac[0] == ac[1], "PrKDF and PuKDF shall have the same SCB: Either both always readable or protected by the same pin");
             assert(ac[0] != 0xFF); // PrKDF and PuKDF MUST BE updatable
-            assert(ac[0] == 0 || ac[0].among(scbs[0], scbs[1]));
-            long k = countUntil(scbs[], ac[0]);
+            assert(ac[0] == 0 || ac[0].among(scbs_usr_adm_pin_seid[0], scbs_usr_adm_pin_seid[1]));
+            long k = countUntil(scbs_usr_adm_pin_seid[], ac[0]);
 
             foreach (ub2 fid; chunks(prkdf.data[8..8+prkdf.data[1]], 2))
                 rv= acos5_64_short_select(card, null, fid, true);
@@ -1914,60 +1902,210 @@ sc_pin_cmd_data  pin_cmd_data = {SC_PIN_CMD.SC_PIN_CMD_VERIFY, SC_PIN_CMD_NEED_P
             assert(rv==bufPubl.length);
 `;
             mixin (connect_card!commands);
-            hstat.SetString(IUP_TITLE, "SUCCESS: Generate new RSA key pair content");
-            return IUP_DEFAULT; // case "toggle_RSA_key_pair_generate"
+            hstat.SetString(IUP_TITLE, "SUCCESS: Regenerate RSA key pair content in existing files");
+            return IUP_DEFAULT; // case "toggle_RSA_key_pair_regenerate"
+
+        case "toggle_RSA_key_pair_delete":
+        /*
+           A   key pair id must be selected, and be >0
+           The key pair id must be modifiable
+           Ask for permission, if the key pair id is associated with a certificate, because it will render the certificate useless
+        */
+            bool doDelete = true;
+            int keyPairId_old = keyPairId.get;
+            mixin(btn_RSA_cb_common1);
+            enum string commands = `
+            int rv;
+            ubyte[3] scbs = [ubyte(AC_Update_Delete_RSAprivateFile.get[1]), ubyte(AC_Update_Delete_RSApublicFile.get[1]), ubyte(AC_Delete_Create_RSADir.get[0]) ];
+
+            // check whether auth is required for deleting private key file or public key file
+            int[3]       tries_left;
+            int[3]       pinLocal = 1;
+            int[3]       pinReference = 1;
+            char[32][3]  pin;
+            ubyte*[3]    p_pinHex;
+            foreach (i; 0..3) {
+                assert(scbs[i] != 0xFF); // FIXME to strict
+                pin[i] = "\0";
+                p_pinHex[i] = cast(ubyte*)(pin[i].ptr);
+            }
+
+            if (scbs[0]) { // deleting private key file needs auth
+                rv = IupGetParam(toStringz("Pin requested for authorization (SCB "~toHexString!(Order.increasing,LetterCase.upper)([ubyte(scbs[0])])~")"),
+                    null/* &param_action*/, null/* void* user_data*/, /*format*/
+                    "&Pin local (User)? If local==No, then it's the Security Officer Pin:%b[No,Yes]\n" ~
+                    "&Pin reference (1-31; selects the record# in pin file):%i\n" ~
+                    "Pin (minLen: 4, maxLen: 8):%s\n", &pinLocal[0], &pinReference[0], pin[0].ptr, null);
+                pin[0][8] = '\0';
+                if (rv != 1)
+                    return IUP_DEFAULT;
+//                assumeWontThrow(writeln("Value from IupGetParam [0]: ", pin[0]));
+//                assumeWontThrow(writefln("Value from IupGetParam hex [0]: %(%02X %)", p_pinHex[0][0..8]));
+//                assumeWontThrow(writefln("Return button pressed [0]: %s", rv));
+            }
+            if (scbs[1]) { // deleting public key file needs auth
+                if (scbs[1] == scbs[0]) {
+                    pin[1][] = pin[0][];
+                }
+                else { //  different from the private
+                    rv = IupGetParam(toStringz("Pin requested for authorization (SCB "~toHexString!(Order.increasing,LetterCase.upper)([ubyte(scbs[1])])~")"),
+                        null/* &param_action*/, null/* void* user_data*/, /*format*/
+                        "&Pin local (User)? If local==No, then it's the Security Officer Pin:%b[No,Yes]\n" ~
+                        "&Pin reference (1-31; selects the record# in pin file):%i\n" ~
+                        "Pin (minLen: 4, maxLen: 8):%s\n", &pinLocal[1], &pinReference[1], pin[1].ptr, null);
+                    pin[1][8] = '\0';
+                    if (rv != 1)
+                        return IUP_DEFAULT;
+                }
+            }
+            if (scbs[2]) { // deleting any file in dir needs auth   && scbs[2] != scbs[0] && scbs[2] != scbs[1]
+                if      (scbs[2] == scbs[0]) {
+                    pin[2][] = pin[0][];
+                }
+                else if (scbs[2] == scbs[1]) {
+                    pin[2][] = pin[1][];
+                }
+                else { //  different from the private
+                    rv = IupGetParam(toStringz("Pin requested for authorization (SCB "~toHexString!(Order.increasing,LetterCase.upper)([ubyte(scbs[2])])~")"),
+                        null/* &param_action*/, null/* void* user_data*/, /*format*/
+                        "&Pin local (User)? If local==No, then it's the Security Officer Pin:%b[No,Yes]\n" ~
+                        "&Pin reference (1-31; selects the record# in pin file):%i\n" ~
+                        "Pin (minLen: 4, maxLen: 8):%s\n", &pinLocal[2], &pinReference[2], pin[2].ptr, null);
+                    pin[2][8] = '\0';
+                    if (rv != 1)
+                        return IUP_DEFAULT;
+                }
+            }
+
+            // updating PRKDF and PUKDF
+            ub2 ac =  AC_Update_PrKDF_PuKDF.get;
+            assert(ac[0] == ac[1], "PrKDF and PuKDF shall have the same SCB: Either both always readable or protected by the same pin");
+            assert(ac[0] != 0xFF); // PrKDF and PuKDF MUST BE updatable
+            assert(ac[0] == 0 || ac[0].among(scbs[0], scbs[1], scbs[2]));
+            long k = countUntil(scbs[], ac[0]);
+
+            foreach (ub2 fid; chunks(prkdf.data[8..8+prkdf.data[1]], 2))
+                rv= acos5_64_short_select(card, null, fid, true);
+            assert(rv==0);
+            if (ac[0]) {
+                rv = sc_verify(card, SC_AC.SC_AC_CHV, pinLocal[k]? 0x80 | pinReference[k] : pinReference[k], p_pinHex[k], 8, &tries_left[k]);
+                if (rv != SC_SUCCESS)
+                    return IUP_DEFAULT;
+            }
+//assumeWontThrow(writefln("  ### check pos(%s), bufPriv: %(%02X %)", haystackPriv.front.posStart, bufPriv));
+            rv = sc_update_binary(card, haystackPriv.front.posStart, bufPriv.ptr, bufPriv.length, 0);
+            assert(rv==bufPriv.length);
+
+            foreach (ub2 fid; chunks(pukdf.data[8..8+pukdf.data[1]], 2))
+                rv= acos5_64_short_select(card, null, fid, true);
+            assert(rv==0);
+            if (ac[1]) {
+                rv = sc_verify(card, SC_AC.SC_AC_CHV, pinLocal[k]? 0x80 | pinReference[k] : pinReference[k], p_pinHex[k], 8, &tries_left[k]);
+                if (rv != SC_SUCCESS)
+                    return IUP_DEFAULT;
+            }
+//assumeWontThrow(writefln("  ### check pos(%s), bufPubl: %(%02X %)", haystackPubl.front.posStart, bufPubl));
+            rv = sc_update_binary(card, haystackPubl.front.posStart, bufPubl.ptr, bufPubl.length, 0);
+            assert(rv==bufPubl.length);
+
+            // select app dir
+            {
+                ub2 fid = integral2ub!2(fidRSADir.get)[0..2];
+                rv= acos5_64_short_select(card, null, fid, true);
+                assert(rv==0);
+            }
+            ub2 ub2fidRSAPriv = integral2ub!2(fidRSAprivate.get[0])[0..2];
+            sc_path path;
+            sc_path_set(&path, SC_PATH_TYPE.SC_PATH_TYPE_FILE_ID, ub2fidRSAPriv.ptr, 0, 0, -1);
+            // select private key file
+            rv= acos5_64_short_select(card, null, ub2fidRSAPriv, true);
+            assert(rv==0);
+            if (scbs[0]) {
+                rv = sc_verify(card, SC_AC.SC_AC_CHV, pinLocal[0]? 0x80 | pinReference[0] : pinReference[0], p_pinHex[0], 8, &tries_left[0]);
+                if (rv != SC_SUCCESS) {
+                    hstat.SetString(IUP_TITLE, "FAILURE: Pin verification failed. Retries left: "~tries_left[0].to!string);
+                    return IUP_DEFAULT;
+                }
+            }
+            if (scbs[2] && scbs[2] != scbs[0]) {
+                rv = sc_verify(card, SC_AC.SC_AC_CHV, pinLocal[2]? 0x80 | pinReference[2] : pinReference[2], p_pinHex[2], 8, &tries_left[2]);
+                if (rv != SC_SUCCESS) {
+                    hstat.SetString(IUP_TITLE, "FAILURE: Pin verification failed. Retries left: "~tries_left[2].to!string);
+                    return IUP_DEFAULT;
+                }
+            }
+            rv= sc_delete_file(card, &path);
+            assert(rv == SC_SUCCESS);
+
+            ub2 ub2fidRSAPub  = integral2ub!2(fidRSApublic.get[0])[0..2];
+            sc_path_set(&path, SC_PATH_TYPE.SC_PATH_TYPE_FILE_ID, ub2fidRSAPub.ptr, 0, 0, -1);
+            // select public key file
+            rv= acos5_64_short_select(card, null, ub2fidRSAPub, true);
+            assert(rv==0);
+            if (scbs[1]) {
+                rv = sc_verify(card, SC_AC.SC_AC_CHV, pinLocal[1]? 0x80 | pinReference[1] : pinReference[1], p_pinHex[1], 8, &tries_left[1]);
+                if (rv != SC_SUCCESS) {
+                    hstat.SetString(IUP_TITLE, "FAILURE: Pin verification failed. Retries left: "~tries_left[1].to!string);
+                    return IUP_DEFAULT;
+                }
+            }
+            if (scbs[2] && scbs[2] != scbs[1]) {
+                rv = sc_verify(card, SC_AC.SC_AC_CHV, pinLocal[2]? 0x80 | pinReference[2] : pinReference[2], p_pinHex[2], 8, &tries_left[2]);
+                if (rv != SC_SUCCESS) {
+                    hstat.SetString(IUP_TITLE, "FAILURE: Pin verification failed. Retries left: "~tries_left[2].to!string);
+                    return IUP_DEFAULT;
+                }
+            }
+            rv= sc_delete_file(card, &path);
+            assert(rv == SC_SUCCESS);
+`;
+            mixin (connect_card!commands);
+            hstat.SetString(IUP_TITLE, "SUCCESS: Delete key pair files");
+
+            // the files are deleted, but still part of fs and tree; now remove those too; TODO there seems to be an unresolved problem with DELNODE
+            ub2[] searched;
+            searched ~= integral2ub!2(fidRSAprivate.get[0])[0..2];
+            searched ~= integral2ub!2(fidRSApublic. get[0])[0..2];
+            sitTypeFS parent = new sitTypeFS(appdf);
+            try
+            foreach (tnTypePtr nodeFS, unUsed; fs.siblingRange(parent.begin(), parent.end())) {
+                assert(nodeFS);
+                if (nodeFS.data[0] != EFDB.RSA_Key_EF)
+                    continue;
+                ubyte len = nodeFS.data[1];
+                if (countUntil!((a,b) => equal(a[], b))(searched, nodeFS.data[8+len-2..8+len]) >= 0) {
+                    Handle h = AA["tree_fs"];
+                    int id = (cast(iup.iup_plusD.Tree) h).GetId(nodeFS);
+//assumeWontThrow(writeln("id: ", id));
+//assumeWontThrow(writeln("TITLE: ", h.GetStringId ("TITLE", id)));
+                    if (id>0) {
+                        h.SetStringVALUE(h.GetStringId ("TITLE", id)); // this seems to select as required
+                        h.SetStringId("DELNODE", id, "SELECTED");
+                        fs.erase(new itTypeFS(nodeFS));
+                    }
+                }
+            }
+            catch (Exception e) {}
+
+            int rv;
+            Handle h = AA["matrixRsaAttributes"];
+            foreach (int i, const ref elem; PRKDF) {
+                if ((rv= getIdentifier(elem, "privateRSAKey.commonKeyAttributes.iD", false)) < 0)
+                    continue;
+                h.SetIntegerId2("", r_keyPairId, 1, rv);
+                matrixRsaAttributes_dropselect_cb(h.GetHandle, r_keyPairId, 1, null, rv.to!string.toStringz, i+1, 1);
+                break;
+            }
+            // TODO remove will leak memory of structure
+            PRKDF = PRKDF.remove!((a) => getIdentifier(a, "privateRSAKey.commonKeyAttributes.iD", false) == keyPairId_old);
+            PUKDF = PUKDF.remove!((a) => getIdentifier(a, "publicRSAKey.commonKeyAttributes.iD",  false) == keyPairId_old);
+
+            GC.collect();
+            return IUP_DEFAULT; // case "toggle_RSA_key_pair_delete"
 
         default:
     }
     return IUP_DEFAULT;
 } // btn_RSA_cb
-
-
-int param_action(Ihandle* param_box, int param_index, void* user_data)
-{ // from html/examples/tests/getparam.c
-    printf("param_action(%d, %p)\n", param_index, user_data);
-    switch (param_index)
-    {
-    case IUP_GETPARAM_MAP:
-        printf("Map\n");
-        break;
-    case IUP_GETPARAM_CLOSE:
-        printf("IupGetParam - Close\n");
-        break;
-    case IUP_GETPARAM_BUTTON1:
-        printf("IupGetParam - Button1 (OK)\n");
-        break;
-    case IUP_GETPARAM_INIT:
-        printf("Init\n");
-        break;
-    case IUP_GETPARAM_BUTTON2:
-        printf("IupGetParam - Button2 (Cancel)\n");
-        break;
-    case IUP_GETPARAM_BUTTON3:
-        printf("IupGetParam - Button3 (Help)\n");
-        break;
-    default:
-        {
-            Ihandle* param = cast(Ihandle*) IupGetAttributeId(param_box, "PARAM", param_index);
-            printf("PARAM%d = %s\n", param_index, IupGetAttribute(param, "VALUE"));
-            break;
-        }
-    }
-    return 1;
-}
-
-/*
-int btn_RSA_checkPRKDF_PUKDF_cb(Ihandle* ih)
-{
-    assumeWontThrow(writeln);
-    foreach (i, elem; PRKDF)
-        assumeWontThrow(writefln("PRKDF[%s]: %s", i, elem));
-    assumeWontThrow(writeln);
-    foreach (i, elem; PUKDF)
-        assumeWontThrow(writefln("PUKDF[%s]: %s", i, elem));
-    assumeWontThrow(writeln);
-    return IUP_DEFAULT;
-} // btn_RSA_checkPRKDF_PUKDF_cb
-*/
 
 } //extern(C) nothrow
