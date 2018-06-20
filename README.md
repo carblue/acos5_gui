@@ -4,6 +4,8 @@ An Administration tool (and more) for ACS ACOS5-64 (v2: Smart Card/CryptoMate64 
 The Linux acos5_64 driver/SM binary libacos5_64.so included is bound to a specific opensc version and depends on specific shared object(s) phobos and druntime of a D compiler suite (currently supported is DMD 2.080.0: https://dlang.org/download.html).<br>
 Other "systemDependencies" are listed in dub.json.<br>
 
+![alt text](Screenshot_20180620_acos5_64_gui.png)
+
 OpenSC supports a subset of PKCS#15 v1.1 + CommonKeyAttributes.algReference from ISO 7816-15.
 The support by this tool is reflected in file PKCS15.asn, which is OpenSC's support stripped down for:
   IC card case<br>

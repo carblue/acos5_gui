@@ -1152,7 +1152,6 @@ int set_more_for_keyPairId(int keyPairId) nothrow
     catch (Exception e) {}
 ////
     enum string commands = `
-//import std.range : chunks;
 int rv;
 foreach (ub2 fid; chunks(rsaPub.data[8..8+rsaPub.data[1]], 2))
     rv= acos5_64_short_select(card, null, fid, true);
@@ -1310,8 +1309,7 @@ assumeWontThrow(writeln("### asn1_read_value pinAuthObj.commonAuthenticationObje
 int matrixRsaAttributes_dropselect_cb(Ihandle* self, int lin, int col, Ihandle* /*drop*/, const(char)* t, int i, int v)
 {
 /*
-DROPSELECT_CB: Action generated when an element in the dropdown list or the popup menu is selected. For the dropdown, if returns IUP_CONTINUE
-the value is accepted as a new
+DROPSELECT_CB: Action generated when an element in the dropdown list or the popup menu is selected. For the dropdown, if returns IUP_CONTINUE the value is accepted as a new
 value and the matrix leaves edition mode, else the item is selected and editing remains. For the popup menu the returned value is ignored.
 
 int function(Ihandle *ih, int lin , int col, Ihandle *drop, char *t, int i, int v ); [in C]
