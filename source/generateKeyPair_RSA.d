@@ -63,13 +63,18 @@ import std.algorithm.mutation : remove;
 //import std.algorithm.sorting : sort;
 import std.typecons : Tuple, tuple;
 //import std.ascii : isHexDigit;
-import std.string : /*chomp, */  toStringz, fromStringz;
+import std.string : /*chomp, */  toStringz, fromStringz, representation;
 import std.digest; // : toHexString;
 
 import libopensc.opensc;
 import libopensc.types;
 import libopensc.errors;
 import libopensc.log;
+import libopensc.cards;
+import pkcs15init.profile : sc_profile;
+import libopensc.pkcs15 : sc_pkcs15_card, sc_pkcs15_bind, sc_pkcs15_unbind, sc_pkcs15_auth_info;
+import pkcs15init.pkcs15init : sc_pkcs15init_bind, sc_pkcs15init_unbind, sc_pkcs15init_set_callbacks, sc_pkcs15init_delete_by_path,
+    sc_pkcs15init_callbacks, sc_pkcs15init_set_callbacks, sc_pkcs15init_authenticate;
 
 import iup.iup_plusD;
 
@@ -81,10 +86,12 @@ import acos5_64_shared;
 import util_opensc : lh, card, acos5_64_short_select, readFile, decompose, PKCS15Path_FileType, pkcs15_names,
     PKCS15_FILE_TYPE, fs, sitTypeFS, PRKDF, PUKDF, AODF, cry_____7_4_4___46_generate_keypair_RSA,
     util_connect_card, connect_card, PKCS15_ObjectTyp, errorDescription, PKCS15, iter_begin, appdf, prkdf, pukdf, tnTypePtr,
-    /*populate_tree_fs,*/ itTypeFS, scbs_usr_adm_pin_seid, scbs_usr_adm_pin_ref;
+    /*populate_tree_fs,*/ itTypeFS, aid, cm_7_3_1_14_get_card_info, is_ACOSV3_opmodeV3_FIPS_140_2L3, is_ACOSV3_opmodeV3_FIPS_140_2L3_active,
+    my_pkcs15init_callbacks;
 
 //import asn1_pkcs15 : CIO_RSA_private, CIO_RSA_public, CIO_Auth_Pin, encodeEntry_PKCS15_PRKDF, encodeEntry_PKCS15_PUKDF;
 import libtasn1;
+import pkcs11;
 
 
 int getIdentifier(const ref PKCS15_ObjectTyp ot, string nodeName, bool new_=true) nothrow {
@@ -401,6 +408,44 @@ class PubA16(T, V=ubyte)
     mixin Pub_boilerplate!(T,V[16]);
 }
 
+class PubA256(T, V=ubyte)
+{
+    this(int lin/*, int col*/, Handle control = null/*, bool hexRep = false*/) {
+        _lin = lin;
+        _col = 1;
+        _h1  = control;
+        _hexRep = true;//hexRep;
+        if (_h1 !is null)
+            _h1.SetAttributeStr(T.stringof, cast(char*)this);
+    }
+
+    @property V[256] get() const @nogc nothrow /*pure*/ @safe { return _value; }
+/+
+    @property V set(V v, bool programmatically=false)  nothrow {
+        try {
+            _value = v;
+////assumeWontThrow(writefln(T.stringof~" object was set to value %s", _value));
+
+            if (programmatically &&  _h1 !is null)
+                _h1.SetStringId2 ("", _lin, _col, _hexRep? format!"%X"(_value) : _value.to!string);
+
+            emit(T.stringof, _value);
+            /* this is critical for _keyPairId:
+             * First change_calcPrKDF.watch and change_calcPuKDF.watch must run: They create/dup structure to structure_new
+             * only then: set_more_for_keyPairId */
+            static if (is (T == _keyPairId))
+                set_more_for_keyPairId(_value);
+        }
+        catch (Exception e) { /* todo: handle exception */ }
+        return _value;
+    }
++/
+    mixin Pub_boilerplate!(T,V[256]);
+    private :
+    int      len; // used
+}
+
+
 class Obs_usageRSApublicKeyPuKDF {
     this(int lin=0/*, int col*/, Handle control = null) {
         _lin = lin;
@@ -630,7 +675,7 @@ class Obs_change_calcPrKDF {
                     assumeWontThrow(writeln("### asn1_read_value privateRSAKey.commonObjectAttributes.flags: ", asn1_strerror2(asn1_result)));
                     break;
                 }
-                assert(outLen==2); // bits
+//                assert(outLen==2); // bits
                 flags[0] = util_general.bitswap(flags[0]);
 
                 ubyte[1] tmp = util_general.bitswap( cast(ubyte) ((flags[0]&0xFD) | (v!=0)*2) );
@@ -1048,7 +1093,7 @@ int set_more_for_keyPairId(int keyPairId) nothrow
     if (asn1_result != ASN1_SUCCESS)
         assumeWontThrow(writeln("### asn1_read_value privateRSAKey.commonObjectAttributes.flags: ", asn1_strerror2(asn1_result)));
     else {
-        assert(outLen==2); // bits
+//        assert(outLen==2); // bits
         flags[0] = util_general.bitswap(flags[0]);
 
         keyPairModifiable.set((flags[0]&2)/2, true);
@@ -1089,7 +1134,7 @@ int set_more_for_keyPairId(int keyPairId) nothrow
     if (asn1_result != ASN1_SUCCESS)
         assumeWontThrow(writeln("### asn1_read_value privateRSAKey.commonKeyAttributes.usage: ", asn1_strerror2(asn1_result)));
     else {
-        assert(outLen==10); // bits
+//        assert(outLen==10); // bits
 //assumeWontThrow(writefln("keyUsageFlags: %(%02X %)", keyUsageFlags));
         usageRSAprivateKeyPrKDF.set( bitswap(ub22integral(keyUsageFlags)<<16), true);
     }
@@ -1185,7 +1230,7 @@ void updatePrKDFPuKDF() {
             return;
         }
 
-//	    rc = sc_update_binary(card, posStartPriv, const(ubyte)* buf, posEnd1Priv-posStartPriv, 0);
+//        rc = sc_update_binary(card, posStartPriv, const(ubyte)* buf, posEnd1Priv-posStartPriv, 0);
     }
     else {
 
@@ -1352,17 +1397,20 @@ v: Indicates if item was selected or unselected (1 or 0). Always 1 for the popup
 
 int matrixRsaAttributes_edition_cb(Ihandle* ih, int lin, int col, int mode, int update)
 {
-////    printf("matrixRsaAttributes_edition_cb(%d, %d) mode: %d, update: %d\n", lin, col, mode, update);
+//matrixRsaAttributes_edition_cb(1, 1) mode: 1, update: 0
+//matrixRsaAttributes_edition_cb(1, 1) mode: 0, update: 1
+//    printf("matrixRsaAttributes_edition_cb(%d, %d) mode: %d, update: %d\n", lin, col, mode, update);
     if (mode==1) {
         AA["statusbar"].SetString(IUP_TITLE, "statusbar");
-        if (AA["matrixRsaAttributes"].GetIntegerId2("", r_keyPairId, 1)==0 && lin.among(r_keyPairModifiable,
-                                                                                        r_usageRSAprivateKeyPrKDF,
-                                                                                        r_keyPairLabel,
-                                                                                        r_sizeNewRSAModulusBits))
-            return IUP_IGNORE;
-        if (AA["matrixRsaAttributes"].GetIntegerId2("", r_keyPairId, 1)==0 && lin==r_authIdRSAprivateFile &&
-            AA["radio_RSA"].GetStringVALUE()!="toggle_RSA_key_pair_delete")
-            return IUP_IGNORE;
+        if (AA["matrixRsaAttributes"].GetIntegerId2("", r_keyPairId, 1)==0) {
+            if (lin.among(r_keyPairModifiable,
+                          r_usageRSAprivateKeyPrKDF,
+                          r_keyPairLabel,
+                          r_sizeNewRSAModulusBits))
+                return IUP_IGNORE;
+            if (lin==r_authIdRSAprivateFile && AA["radio_RSA"].GetStringVALUE()!="toggle_RSA_key_pair_delete")
+                return IUP_IGNORE;
+        }
         switch (AA["radio_RSA"].GetStringVALUE()) { // the active radio button
             case "toggle_RSA_PrKDF_PuKDF_change":
                 if (col==2 ||lin.among(r_acos_internal,
@@ -1437,6 +1485,9 @@ int matrixRsaAttributes_edition_cb(Ihandle* ih, int lin, int col, int mode, int 
                 )) // read_only
                     return IUP_IGNORE;
                 else
+                    return IUP_DEFAULT;
+
+            case "toggle_RSA_key_pair_try_sign":
                     return IUP_DEFAULT;
 
             default:  assert(0);
@@ -1587,6 +1638,8 @@ int toggle_RSA_cb(Ihandle* ih, int state)
             SetRGBId2(IUP_BGCOLOR, r_storeAsCRTRSAprivate,    1,  152,251,152);
             SetRGBId2(IUP_BGCOLOR, r_usageRSAprivateKeyACOS,  1,  152,251,152);
             break;
+        case "toggle_RSA_key_pair_try_sign":  hButton.SetString(IUP_TITLE, "RSA key pair: Sign SHA1/SHA256 hash");
+            break;
         default:  assert(0);
     }
     valuePublicExponent.emit_self();
@@ -1715,53 +1768,45 @@ int btn_RSA_cb(Ihandle* ih)
             mixin(btn_RSA_cb_common1);
 
             enum string commands = `
-            import core.stdc.string : strlen;
             int rv;
-            // check whether auth is required for updating PrKDF and/or PuKDF
-            ub2 ac =  AC_Update_PrKDF_PuKDF.get;
-            assert(ac[0] == ac[1], "PrKDF and PuKDF shall have the same SCB: Either both always readable or protected by the same pin");
-            assert(ac[0] != 0xFF); // PrKDF and PuKDF MUST BE updatable
-            assert(ac[0] == 0 || ac[0].among(scbs_usr_adm_pin_seid[0], scbs_usr_adm_pin_seid[1]));
-            int       tries_left;
-            int       pinLocal     =  ac[0]==scbs_usr_adm_pin_seid[1]? 0 : 1;     // the correct entry: not to be changed in GetParamDialog
-            int       pinReference =  ac[0]==scbs_usr_adm_pin_seid[1]? scbs_usr_adm_pin_ref[1] : scbs_usr_adm_pin_ref[0];
-            char[32]  pin = '\0';       // TODO: how to protect against very long pin entries, exceeding 31 ?
-            ubyte*    p_pinHex = cast(ubyte*)pin.ptr;
-            if (ac[0] != 0) {
-                rv = IupGetParam(toStringz("Pin requested for authorization (SCB "~toHexString!(Order.increasing,LetterCase.upper)([ubyte(ac[0])])~")"),
-                    null/* &param_action*/, null/* void* user_data*/, /*format*/
-                    "&Pin local (User)? If local==No, then it's the Security Officer Pin:%b[No,Yes]\n" ~
-                    "&Pin reference (1-31; selects the record# in pin file):%i\n" ~
-                    "Pin (minLen: 4, maxLen: 8):%s\n", &pinLocal, &pinLocal, pin.ptr, null);
-                size_t  pinLen = strlen(pin.ptr);
-                if (rv != 1 || pinReference<1 || pinReference>31 || pinLen<4 || pinLen>8)
-                    return IUP_DEFAULT;
-//                assumeWontThrow(writeln("Value from IupGetParam: ", pin));
-//                assumeWontThrow(writefln("Value from IupGetParam hex: %(%02X %)", p_pinHex[0..8]));
-//                assumeWontThrow(writefln("Return button pressed: %s", rv));
+            // from tools/pkcs15-init.c  main
+            sc_pkcs15_card*  p15card;
+            sc_profile*      profile;
+            const(char)*     opt_profile      = "acos5_64"; //"pkcs15";
+            const(char)*     opt_card_profile = "acos5_64";
+            sc_file*         file;
+
+            sc_pkcs15init_set_callbacks(&my_pkcs15init_callbacks);
+
+            /* Bind the card-specific operations and load the profile */
+            rv= sc_pkcs15init_bind(card, opt_profile, opt_card_profile, null, &profile);
+            if (rv < 0) {
+                printf("Couldn't bind to the card: %s\n", sc_strerror(rv));
+                return IUP_DEFAULT; //return 1;
+            }
+            rv = sc_pkcs15_bind(card, &aid, &p15card);
+
+            file = sc_file_new();
+            scope(exit) {
+                if (file)
+                    sc_file_free(file);
+                if (profile)
+                    sc_pkcs15init_unbind(profile);
+                if (p15card)
+                    sc_pkcs15_unbind(p15card);
             }
 
-            foreach (ub2 fid; chunks(prkdf.data[8..8+prkdf.data[1]], 2))
-                rv= acos5_64_short_select(card, null, fid, true);
-            assert(rv==0);
-            if (ac[0]) {
-                rv = sc_verify(card, SC_AC.SC_AC_CHV, pinLocal? 0x80 | pinReference : pinReference, p_pinHex, 8, &tries_left);
-                if (rv != SC_SUCCESS)
-                    return IUP_DEFAULT;
-            }
-            rv = sc_update_binary(card, haystackPriv.front.posStart, bufPriv.ptr, bufPriv.length, 0);
+            // update PRKDF and PUKDF; essential: don't allow to be called if the files aren't sufficiently sized
+            sc_path_set(&file.path, SC_PATH_TYPE.SC_PATH_TYPE_PATH, &prkdf.data[8], prkdf.data[1], 0, -1);
+            rv = sc_pkcs15init_authenticate(profile, p15card, file, SC_AC_OP.SC_AC_OP_UPDATE);
+            if (rv >= 0 && bufPriv.length)
+                rv = sc_update_binary(card, haystackPriv.front.posStart, bufPriv.ptr, bufPriv.length, 0);
             assert(rv==bufPriv.length);
 
-            foreach (ub2 fid; chunks(pukdf.data[8..8+pukdf.data[1]], 2))
-                rv= acos5_64_short_select(card, null, fid, true);
-            assert(rv==0);
-            // not required if opensc pin caching covers that ?
-            if (ac[1]) {
-                rv = sc_verify(card, SC_AC.SC_AC_CHV, pinLocal? 0x80 | pinReference : pinReference, p_pinHex, 8, &tries_left);
-                if (rv != SC_SUCCESS)
-                    return IUP_DEFAULT;
-            }
-            rv = sc_update_binary(card, haystackPubl.front.posStart, bufPubl.ptr, bufPubl.length, 0);
+            sc_path_set(&file.path, SC_PATH_TYPE.SC_PATH_TYPE_PATH, &pukdf.data[8], pukdf.data[1], 0, -1);
+            rv = sc_pkcs15init_authenticate(profile, p15card, file, SC_AC_OP.SC_AC_OP_UPDATE);
+            if (rv >= 0 && bufPubl.length)
+                rv = sc_update_binary(card, haystackPubl.front.posStart, bufPubl.ptr, bufPubl.length, 0);
             assert(rv==bufPubl.length);
 `;
             mixin(connect_card!commands);
@@ -1771,78 +1816,68 @@ int btn_RSA_cb(Ihandle* ih)
         case "toggle_RSA_key_pair_regenerate":
             bool doDelete = false;
             mixin(btn_RSA_cb_common1);
+
+            auto       pos_parent = new sitTypeFS(appdf);
+            tnTypePtr  prFile, puFile;
+            try {
+                prFile = fs.siblingRange(fs.begin(pos_parent), fs.end(pos_parent)).locate!"equal(a[2..4], b[])"(integral2ub!2(fidRSAprivate.get[0])[0..2]);
+                pos_parent = new sitTypeFS(appdf);
+                puFile = fs.siblingRange(fs.begin(pos_parent), fs.end(pos_parent)).locate!"equal(a[2..4], b[])"(integral2ub!2(fidRSApublic.get[0])[0..2]);
+            }
+            catch (Exception e) { return IUP_DEFAULT; }
+            assert(prFile);
+            assert(puFile);
             enum string commands = `
             int rv;
+            // from tools/pkcs15-init.c  main
+            sc_pkcs15_card*  p15card;
+            sc_profile*      profile;
+            const(char)*     opt_profile      = "acos5_64"; //"pkcs15";
+            const(char)*     opt_card_profile = "acos5_64";
+            sc_file*         file;
+
+            sc_pkcs15init_set_callbacks(&my_pkcs15init_callbacks);
+
+            /* Bind the card-specific operations and load the profile */
+            rv= sc_pkcs15init_bind(card, opt_profile, opt_card_profile, null, &profile);
+            if (rv < 0) {
+                printf("Couldn't bind to the card: %s\n", sc_strerror(rv));
+                return IUP_DEFAULT; //return 1;
+            }
+            rv = sc_pkcs15_bind(card, &aid, &p15card);
+
+            file = sc_file_new();
+            scope(exit) {
+                if (file)
+                    sc_file_free(file);
+                if (profile)
+                    sc_pkcs15init_unbind(profile);
+                if (p15card)
+                    sc_pkcs15_unbind(p15card);
+            }
+
             uba  lv_key_len_type_data = [0x02, cast(ubyte)(sizeNewRSAModulusBits.get/128), code(storeAsCRTRSAprivate.get, usageRSAprivateKeyACOS.get)];
             if (any(valuePublicExponent.get[0..8]) || ub82integral(valuePublicExponent.get[8..16])!=0x10001) {
                 lv_key_len_type_data[0] = 0x12;
                 lv_key_len_type_data ~= valuePublicExponent.get;
             }
 
-//            auto scbs = chain(AC_Update_Delete_RSAprivateFile.get[], AC_Update_Delete_RSApublicFile.get[]).sort.uniq.array;
-            ub2 scbs = [ubyte(AC_Update_Delete_RSAprivateFile.get[0]), ubyte(AC_Update_Delete_RSApublicFile.get[0])];
 
-            // check whether auth is required for updating private key file or public key file
-            assert(scbs[0] != 0xFF); // FIXME to strict
-            assert(scbs[1] != 0xFF); // FIXME to strict
-            int[2]       tries_left;
-            int[2]       pinLocal;
-            pinLocal[0] =      scbs[0]==scbs_usr_adm_pin_seid[1]? 0 : 1;     // the correct entry: not to be changed in GetParamDialog
-            pinLocal[1] =      scbs[1]==scbs_usr_adm_pin_seid[1]? 0 : 1;     // the correct entry: not to be changed in GetParamDialog
-            int[2]       pinReference;
-            pinReference[0] =  scbs[0]==scbs_usr_adm_pin_seid[1]? scbs_usr_adm_pin_ref[1] : scbs_usr_adm_pin_ref[0];
-            pinReference[1] =  scbs[1]==scbs_usr_adm_pin_seid[1]? scbs_usr_adm_pin_ref[1] : scbs_usr_adm_pin_ref[0];
-            char[32][2]  pin;
-            pin[0] = "\0";
-            pin[1] = "\0";
-            ubyte*[2]    p_pinHex;
-            p_pinHex[0] = cast(ubyte*)(pin[0].ptr);
-            p_pinHex[1] = cast(ubyte*)(pin[1].ptr);
+//            // select app dir
+//            {
+//                ub2 fid = integral2ub!2(fidRSADir.get)[0..2];
+//                rv= acos5_64_short_select(card, null, fid, true);
+//                assert(rv==0);
+//            }
+            sc_path_set(&file.path, SC_PATH_TYPE.SC_PATH_TYPE_PATH, &prFile.data[8], prFile.data[1], 0, -1);
+            rv = sc_pkcs15init_authenticate(profile, p15card, file, SC_AC_OP.SC_AC_OP_UPDATE);
+            if (rv < 0)
+                return IUP_DEFAULT;
+            sc_path_set(&file.path, SC_PATH_TYPE.SC_PATH_TYPE_PATH, &puFile.data[8], puFile.data[1], 0, -1);
+            rv = sc_pkcs15init_authenticate(profile, p15card, file, SC_AC_OP.SC_AC_OP_UPDATE);
+            if (rv < 0)
+                return IUP_DEFAULT;
 
-            if (scbs[0] != 0) { // updating private key file needs auth
-                rv = IupGetParam(toStringz("Pin requested for authorization (SCB "~toHexString!(Order.increasing,LetterCase.upper)([ubyte(scbs[0])])~")"),
-                    null/* &param_action*/, null/* void* user_data*/, /*format*/
-                    "&Pin local (User)? If local==No, then it's the Security Officer Pin:%b[No,Yes]\n" ~
-                    "&Pin reference (1-31; selects the record# in pin file):%i\n" ~
-                    "Pin (minLen: 4, maxLen: 8):%s\n", &pinLocal[0], &pinReference[0], pin[0].ptr, null);
-                if (rv != 1)
-                    return IUP_DEFAULT;
-//                assumeWontThrow(writeln("Value from IupGetParam [0]: ", pin[0]));
-//                assumeWontThrow(writefln("Value from IupGetParam hex [0]: %(%02X %)", p_pinHex[0][0..8]));
-//                assumeWontThrow(writefln("Return button pressed [0]: %s", rv));
-            }
-            if (scbs[1] && scbs[1] != scbs[0]) { // updating public key file needs auth different from the private
-                rv = IupGetParam(toStringz("Pin requested for authorization (SCB "~toHexString!(Order.increasing,LetterCase.upper)([ubyte(scbs[1])])~")"),
-                    null/* &param_action*/, null/* void* user_data*/, /*format*/
-                    "&Pin local (User)? If local==No, then it's the Security Officer Pin:%b[No,Yes]\n" ~
-                    "&Pin reference (1-31; selects the record# in pin file):%i\n" ~
-                    "Pin (minLen: 4, maxLen: 8):%s\n", &pinLocal[1], &pinReference[1], pin[1].ptr, null);
-                if (rv != 1)
-                    return IUP_DEFAULT;
-//                assumeWontThrow(writeln("Value from IupGetParam [1]: ", pin[1]));
-//                assumeWontThrow(writefln("Value from IupGetParam hex [1]: %(%02X %)", p_pinHex[1][0..8]));
-//                assumeWontThrow(writefln("Return button pressed [1]: %s", rv));
-            }
-            // select app dir
-            {
-                ub2 fid = integral2ub!2(fidRSADir.get)[0..2];
-                rv= acos5_64_short_select(card, null, fid, true);
-                assert(rv==0);
-            }
-            if (scbs[0]) {
-                rv = sc_verify(card, SC_AC.SC_AC_CHV, pinLocal[0]? 0x80 | pinReference[0] : pinReference[0], p_pinHex[0], 8, &tries_left[0]);
-                if (rv != SC_SUCCESS) {
-                    hstat.SetString(IUP_TITLE, "FAILURE: Pin verification failed. Retries left: "~tries_left[0].to!string);
-                    return IUP_DEFAULT;
-                }
-            }
-            if (scbs[1] && scbs[1] != scbs[0]) {
-                rv = sc_verify(card, SC_AC.SC_AC_CHV, pinLocal[1]? 0x80 | pinReference[1] : pinReference[1], p_pinHex[1], 8, &tries_left[1]);
-                if (rv != SC_SUCCESS) {
-                    hstat.SetString(IUP_TITLE, "FAILURE: Pin verification failed. Retries left: "~tries_left[1].to!string);
-                    return IUP_DEFAULT;
-                }
-            }
             {
                 sc_security_env  env = { SC_SEC_ENV_FILE_REF_PRESENT, SC_SEC_OPERATION.SC_SEC_OPERATION_GENERATE_RSAPRIVATE };
                 env.file_ref.len = 2;
@@ -1871,32 +1906,17 @@ int btn_RSA_cb(Ihandle* ih)
             }
 
             // almost done, except updating PRKDF and PUKDF
-            ub2 ac =  AC_Update_PrKDF_PuKDF.get;
-            assert(ac[0] == ac[1], "PrKDF and PuKDF shall have the same SCB: Either both always readable or protected by the same pin");
-            assert(ac[0] != 0xFF); // PrKDF and PuKDF MUST BE updatable
-            assert(ac[0] == 0 || ac[0].among(scbs_usr_adm_pin_seid[0], scbs_usr_adm_pin_seid[1]));
-            long k = countUntil(scbs_usr_adm_pin_seid[], ac[0]);
-
-            foreach (ub2 fid; chunks(prkdf.data[8..8+prkdf.data[1]], 2))
-                rv= acos5_64_short_select(card, null, fid, true);
-            assert(rv==0);
-            if (ac[0]) {
-                rv = sc_verify(card, SC_AC.SC_AC_CHV, pinLocal[k]? 0x80 | pinReference[k] : pinReference[k], p_pinHex[k], 8, &tries_left[k]);
-                if (rv != SC_SUCCESS)
-                    return IUP_DEFAULT;
-            }
-            rv = sc_update_binary(card, haystackPriv.front.posStart, bufPriv.ptr, bufPriv.length, 0);
+            // update PRKDF and PUKDF; essential: don't allow to be called if the files aren't sufficiently sized
+            sc_path_set(&file.path, SC_PATH_TYPE.SC_PATH_TYPE_PATH, &prkdf.data[8], prkdf.data[1], 0, -1);
+            rv = sc_pkcs15init_authenticate(profile, p15card, file, SC_AC_OP.SC_AC_OP_UPDATE);
+            if (rv >= 0 && bufPriv.length)
+                rv = sc_update_binary(card, haystackPriv.front.posStart, bufPriv.ptr, bufPriv.length, 0);
             assert(rv==bufPriv.length);
 
-            foreach (ub2 fid; chunks(pukdf.data[8..8+pukdf.data[1]], 2))
-                rv= acos5_64_short_select(card, null, fid, true);
-            assert(rv==0);
-            if (ac[1]) {
-                rv = sc_verify(card, SC_AC.SC_AC_CHV, pinLocal[k]? 0x80 | pinReference[k] : pinReference[k], p_pinHex[k], 8, &tries_left[k]);
-                if (rv != SC_SUCCESS)
-                    return IUP_DEFAULT;
-            }
-            rv = sc_update_binary(card, haystackPubl.front.posStart, bufPubl.ptr, bufPubl.length, 0);
+            sc_path_set(&file.path, SC_PATH_TYPE.SC_PATH_TYPE_PATH, &pukdf.data[8], pukdf.data[1], 0, -1);
+            rv = sc_pkcs15init_authenticate(profile, p15card, file, SC_AC_OP.SC_AC_OP_UPDATE);
+            if (rv >= 0 && bufPubl.length)
+                rv = sc_update_binary(card, haystackPubl.front.posStart, bufPubl.ptr, bufPubl.length, 0);
             assert(rv==bufPubl.length);
 `;
             mixin (connect_card!commands);
@@ -1906,161 +1926,79 @@ int btn_RSA_cb(Ihandle* ih)
         case "toggle_RSA_key_pair_delete":
         /*
            A   key pair id must be selected, and be >0
-           The key pair id must be modifiable
+           The key pair must be modifiable; flags bit modifiable
            Ask for permission, if the key pair id is associated with a certificate, because it will render the certificate useless
         */
             bool doDelete = true;
             int keyPairId_old = keyPairId.get;
             mixin(btn_RSA_cb_common1);
+
+            auto       pos_parent = new sitTypeFS(appdf);
+            tnTypePtr  prFile, puFile;
+            try {
+                prFile = fs.siblingRange(fs.begin(pos_parent), fs.end(pos_parent)).locate!"equal(a[2..4], b[])"(integral2ub!2(fidRSAprivate.get[0])[0..2]);
+                pos_parent = new sitTypeFS(appdf);
+                puFile = fs.siblingRange(fs.begin(pos_parent), fs.end(pos_parent)).locate!"equal(a[2..4], b[])"(integral2ub!2(fidRSApublic.get[0])[0..2]);
+            }
+            catch (Exception e) { return IUP_DEFAULT; }
+            assert(prFile);
+            assert(puFile);
+
             enum string commands = `
             int rv;
-            ubyte[3] scbs = [ubyte(AC_Update_Delete_RSAprivateFile.get[1]), ubyte(AC_Update_Delete_RSApublicFile.get[1]), ubyte(AC_Delete_Create_RSADir.get[0]) ];
+            // from tools/pkcs15-init.c  main
+            sc_pkcs15_card*  p15card;
+            sc_profile*      profile;
+            const(char)*     opt_profile      = "acos5_64"; //"pkcs15";
+            const(char)*     opt_card_profile = "acos5_64";
+            sc_file*         file;
 
-            // check whether auth is required for deleting private key file or public key file
-            int[3]       tries_left;
-            int[3]       pinLocal = 1;
-            int[3]       pinReference = 1;
-            char[32][3]  pin;
-            ubyte*[3]    p_pinHex;
-            foreach (i; 0..3) {
-                assert(scbs[i] != 0xFF); // FIXME to strict
-                pin[i] = "\0";
-                p_pinHex[i] = cast(ubyte*)(pin[i].ptr);
-            }
+            sc_pkcs15init_set_callbacks(&my_pkcs15init_callbacks);
 
-            if (scbs[0]) { // deleting private key file needs auth
-                rv = IupGetParam(toStringz("Pin requested for authorization (SCB "~toHexString!(Order.increasing,LetterCase.upper)([ubyte(scbs[0])])~")"),
-                    null/* &param_action*/, null/* void* user_data*/, /*format*/
-                    "&Pin local (User)? If local==No, then it's the Security Officer Pin:%b[No,Yes]\n" ~
-                    "&Pin reference (1-31; selects the record# in pin file):%i\n" ~
-                    "Pin (minLen: 4, maxLen: 8):%s\n", &pinLocal[0], &pinReference[0], pin[0].ptr, null);
-                pin[0][8] = '\0';
-                if (rv != 1)
-                    return IUP_DEFAULT;
-//                assumeWontThrow(writeln("Value from IupGetParam [0]: ", pin[0]));
-//                assumeWontThrow(writefln("Value from IupGetParam hex [0]: %(%02X %)", p_pinHex[0][0..8]));
-//                assumeWontThrow(writefln("Return button pressed [0]: %s", rv));
+            /* Bind the card-specific operations and load the profile */
+            rv= sc_pkcs15init_bind(card, opt_profile, opt_card_profile, null, &profile);
+            if (rv < 0) {
+                printf("Couldn't bind to the card: %s\n", sc_strerror(rv));
+                return IUP_DEFAULT; //return 1;
             }
-            if (scbs[1]) { // deleting public key file needs auth
-                if (scbs[1] == scbs[0]) {
-                    pin[1][] = pin[0][];
-                }
-                else { //  different from the private
-                    rv = IupGetParam(toStringz("Pin requested for authorization (SCB "~toHexString!(Order.increasing,LetterCase.upper)([ubyte(scbs[1])])~")"),
-                        null/* &param_action*/, null/* void* user_data*/, /*format*/
-                        "&Pin local (User)? If local==No, then it's the Security Officer Pin:%b[No,Yes]\n" ~
-                        "&Pin reference (1-31; selects the record# in pin file):%i\n" ~
-                        "Pin (minLen: 4, maxLen: 8):%s\n", &pinLocal[1], &pinReference[1], pin[1].ptr, null);
-                    pin[1][8] = '\0';
-                    if (rv != 1)
-                        return IUP_DEFAULT;
-                }
-            }
-            if (scbs[2]) { // deleting any file in dir needs auth   && scbs[2] != scbs[0] && scbs[2] != scbs[1]
-                if      (scbs[2] == scbs[0]) {
-                    pin[2][] = pin[0][];
-                }
-                else if (scbs[2] == scbs[1]) {
-                    pin[2][] = pin[1][];
-                }
-                else { //  different from the private
-                    rv = IupGetParam(toStringz("Pin requested for authorization (SCB "~toHexString!(Order.increasing,LetterCase.upper)([ubyte(scbs[2])])~")"),
-                        null/* &param_action*/, null/* void* user_data*/, /*format*/
-                        "&Pin local (User)? If local==No, then it's the Security Officer Pin:%b[No,Yes]\n" ~
-                        "&Pin reference (1-31; selects the record# in pin file):%i\n" ~
-                        "Pin (minLen: 4, maxLen: 8):%s\n", &pinLocal[2], &pinReference[2], pin[2].ptr, null);
-                    pin[2][8] = '\0';
-                    if (rv != 1)
-                        return IUP_DEFAULT;
-                }
+            rv = sc_pkcs15_bind(card, &aid, &p15card);
+
+            file = sc_file_new();
+            scope(exit) {
+                if (file)
+                    sc_file_free(file);
+                if (profile)
+                    sc_pkcs15init_unbind(profile);
+                if (p15card)
+                    sc_pkcs15_unbind(p15card);
             }
 
-            // updating PRKDF and PUKDF
-            ub2 ac =  AC_Update_PrKDF_PuKDF.get;
-            assert(ac[0] == ac[1], "PrKDF and PuKDF shall have the same SCB: Either both always readable or protected by the same pin");
-            assert(ac[0] != 0xFF); // PrKDF and PuKDF MUST BE updatable
-            assert(ac[0] == 0 || ac[0].among(scbs[0], scbs[1], scbs[2]));
-            long k = countUntil(scbs[], ac[0]);
-
-            foreach (ub2 fid; chunks(prkdf.data[8..8+prkdf.data[1]], 2))
-                rv= acos5_64_short_select(card, null, fid, true);
-            assert(rv==0);
-            if (ac[0]) {
-                rv = sc_verify(card, SC_AC.SC_AC_CHV, pinLocal[k]? 0x80 | pinReference[k] : pinReference[k], p_pinHex[k], 8, &tries_left[k]);
-                if (rv != SC_SUCCESS)
-                    return IUP_DEFAULT;
-            }
-//assumeWontThrow(writefln("  ### check pos(%s), bufPriv: %(%02X %)", haystackPriv.front.posStart, bufPriv));
-            rv = sc_update_binary(card, haystackPriv.front.posStart, bufPriv.ptr, bufPriv.length, 0);
+            // update PRKDF and PUKDF; essential: don't allow to be called if the files aren't sufficiently sized
+            sc_path_set(&file.path, SC_PATH_TYPE.SC_PATH_TYPE_PATH, &prkdf.data[8], prkdf.data[1], 0, -1);
+            rv = sc_pkcs15init_authenticate(profile, p15card, file, SC_AC_OP.SC_AC_OP_UPDATE);
+            if (rv >= 0 && bufPriv.length)
+                rv = sc_update_binary(card, haystackPriv.front.posStart, bufPriv.ptr, bufPriv.length, 0);
             assert(rv==bufPriv.length);
 
-            foreach (ub2 fid; chunks(pukdf.data[8..8+pukdf.data[1]], 2))
-                rv= acos5_64_short_select(card, null, fid, true);
-            assert(rv==0);
-            if (ac[1]) {
-                rv = sc_verify(card, SC_AC.SC_AC_CHV, pinLocal[k]? 0x80 | pinReference[k] : pinReference[k], p_pinHex[k], 8, &tries_left[k]);
-                if (rv != SC_SUCCESS)
-                    return IUP_DEFAULT;
-            }
-//assumeWontThrow(writefln("  ### check pos(%s), bufPubl: %(%02X %)", haystackPubl.front.posStart, bufPubl));
-            rv = sc_update_binary(card, haystackPubl.front.posStart, bufPubl.ptr, bufPubl.length, 0);
+            sc_path_set(&file.path, SC_PATH_TYPE.SC_PATH_TYPE_PATH, &pukdf.data[8], pukdf.data[1], 0, -1);
+            rv = sc_pkcs15init_authenticate(profile, p15card, file, SC_AC_OP.SC_AC_OP_UPDATE);
+            if (rv >= 0 && bufPubl.length)
+                rv = sc_update_binary(card, haystackPubl.front.posStart, bufPubl.ptr, bufPubl.length, 0);
             assert(rv==bufPubl.length);
 
-            // select app dir
-            {
-                ub2 fid = integral2ub!2(fidRSADir.get)[0..2];
-                rv= acos5_64_short_select(card, null, fid, true);
-                assert(rv==0);
-            }
-            ub2 ub2fidRSAPriv = integral2ub!2(fidRSAprivate.get[0])[0..2];
-            sc_path path;
-            sc_path_set(&path, SC_PATH_TYPE.SC_PATH_TYPE_FILE_ID, ub2fidRSAPriv.ptr, 0, 0, -1);
-            // select private key file
-            rv= acos5_64_short_select(card, null, ub2fidRSAPriv, true);
-            assert(rv==0);
-            if (scbs[0]) {
-                rv = sc_verify(card, SC_AC.SC_AC_CHV, pinLocal[0]? 0x80 | pinReference[0] : pinReference[0], p_pinHex[0], 8, &tries_left[0]);
-                if (rv != SC_SUCCESS) {
-                    hstat.SetString(IUP_TITLE, "FAILURE: Pin verification failed. Retries left: "~tries_left[0].to!string);
-                    return IUP_DEFAULT;
-                }
-            }
-            if (scbs[2] && scbs[2] != scbs[0]) {
-                rv = sc_verify(card, SC_AC.SC_AC_CHV, pinLocal[2]? 0x80 | pinReference[2] : pinReference[2], p_pinHex[2], 8, &tries_left[2]);
-                if (rv != SC_SUCCESS) {
-                    hstat.SetString(IUP_TITLE, "FAILURE: Pin verification failed. Retries left: "~tries_left[2].to!string);
-                    return IUP_DEFAULT;
-                }
-            }
-            rv= sc_delete_file(card, &path);
+            // delete RSA files
+            sc_path_set(&file.path, SC_PATH_TYPE.SC_PATH_TYPE_PATH, &prFile.data[8], prFile.data[1], 0, -1);
+            rv= sc_pkcs15init_delete_by_path(profile, p15card, &file.path);
             assert(rv == SC_SUCCESS);
 
-            ub2 ub2fidRSAPub  = integral2ub!2(fidRSApublic.get[0])[0..2];
-            sc_path_set(&path, SC_PATH_TYPE.SC_PATH_TYPE_FILE_ID, ub2fidRSAPub.ptr, 0, 0, -1);
-            // select public key file
-            rv= acos5_64_short_select(card, null, ub2fidRSAPub, true);
-            assert(rv==0);
-            if (scbs[1]) {
-                rv = sc_verify(card, SC_AC.SC_AC_CHV, pinLocal[1]? 0x80 | pinReference[1] : pinReference[1], p_pinHex[1], 8, &tries_left[1]);
-                if (rv != SC_SUCCESS) {
-                    hstat.SetString(IUP_TITLE, "FAILURE: Pin verification failed. Retries left: "~tries_left[1].to!string);
-                    return IUP_DEFAULT;
-                }
-            }
-            if (scbs[2] && scbs[2] != scbs[1]) {
-                rv = sc_verify(card, SC_AC.SC_AC_CHV, pinLocal[2]? 0x80 | pinReference[2] : pinReference[2], p_pinHex[2], 8, &tries_left[2]);
-                if (rv != SC_SUCCESS) {
-                    hstat.SetString(IUP_TITLE, "FAILURE: Pin verification failed. Retries left: "~tries_left[2].to!string);
-                    return IUP_DEFAULT;
-                }
-            }
-            rv= sc_delete_file(card, &path);
+            sc_path_set(&file.path, SC_PATH_TYPE.SC_PATH_TYPE_PATH, &puFile.data[8], puFile.data[1], 0, -1);
+            rv= sc_pkcs15init_delete_by_path(profile, p15card, &file.path);
             assert(rv == SC_SUCCESS);
 `;
-            mixin (connect_card!commands);
+            mixin (connect_card!commands); // x-1930 -56
             hstat.SetString(IUP_TITLE, "SUCCESS: Delete key pair files");
 
-            // the files are deleted, but still part of fs and tree; now remove those too; TODO there seems to be an unresolved problem with DELNODE
+            // the files are deleted, but still part of fs and tree view; now remove those too
             ub2[] searched;
             searched ~= integral2ub!2(fidRSAprivate.get[0])[0..2];
             searched ~= integral2ub!2(fidRSApublic. get[0])[0..2];
@@ -2098,10 +2036,216 @@ int btn_RSA_cb(Ihandle* ih)
             PRKDF = PRKDF.remove!((a) => getIdentifier(a, "privateRSAKey.commonKeyAttributes.iD", false) == keyPairId_old);
             PUKDF = PUKDF.remove!((a) => getIdentifier(a, "publicRSAKey.commonKeyAttributes.iD",  false) == keyPairId_old);
 
-            GC.collect();
+            GC.collect(); // just a check
             return IUP_DEFAULT; // case "toggle_RSA_key_pair_delete"
 
-        default:
+        case "toggle_RSA_key_pair_create_and_generate":
+            /*
+               const char[] btn_RSA_cb_common1  isn't usable
+               how to insert new key pair id
+             */
+            IupMessage("Feedback upon toggle_RSA_key_pair_create_and_generate",
+"This is not yet ready !\nThe toggle will be changed to toggle_RSA_PrKDF_PuKDF_change toggled");
+            AA["toggle_RSA_PrKDF_PuKDF_change"].SetIntegerVALUE(1);
+/+
+The following does work basically, but some important pieces of the puzzle are still missing
+            { // scope for the Cryptoki session; upon leaving, everything related get's closed/released
+                import core.sys.posix.dlfcn;
+                import util_pkcs11;
+
+                CK_BYTE[]          userPin = [0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38];
+                CK_RV              rv;
+
+                assumeWontThrow(PKCS11.load("opensc-pkcs11.so"));
+                scope(exit)  assumeWontThrow(PKCS11.unload());
+                // libacos5_64.so is loaded already, but we need the library handle
+                lh = assumeWontThrow(Runtime.loadLibrary("libacos5_64.so")); // this works without path (at least on Linux), as it is loaded already; nowadays libacos5_64.so is stored within standard so. library search path
+                assert(lh);
+                scope(exit)
+                    if (!assumeWontThrow(Runtime.unloadLibrary(lh))) {
+                        assumeWontThrow(writeln("Failed to do: Runtime.unloadLibrary(lh)"));
+//                        return IUP_DEFAULT;
+                    }
+
+                auto control_generate_key = cast(ft_control_generate_key) dlsym(lh, "control_generate_key");
+                char* error = dlerror();
+                if (error) {
+                    printf("dlsym error control_generate_key: %s\n", error);
+                    return IUP_DEFAULT;
+                }
+                /* This will switch off updating PrKDF and PuKDF by opensc, thus we'll have to do it here later !
+                  Multiple reasons:
+                  1. It's currently impossible to convince opensc to encode the publicRSAKeyAttributes.value CHOICE as indirect. i.e. it would store the publicRSAKey within PuKDF,
+                     consuming a lot of memory for many/long keys unnecessarily: acos stores the pub key in files anyway, and they are accessible
+                  2. opensc always adds signRecover/verifyRecover when sign/verify is selected
+                  3. PuKDF contains wrong entry commonKeyAttributes.native=false
+                  4. opensc changes the id setting, see id-style in profile; currently I prefer 1-byte ids, same as the last nibble of fileid, i.e. keypair 41F5/4135 gets id 0x05
+                  5. opensc erases CommonObjectAttributes.flags for pubkey occasionally
+                  6. opensc stores less bits for
+                  7  opensc stores incorect modulusLength
+                 */
+                control_generate_key(true, false, false);  // TODO take value from matrix
+
+                rv= C_Initialize(null);
+
+                pkcs11_check_return_value(rv, "Failed to initialze Cryptoki");
+                if (rv != CKR_OK)
+                    return IUP_DEFAULT;
+                scope(exit)
+                    C_Finalize(NULL_PTR);
+
+                CK_SLOT_ID  slot = pkcs11_get_slot();
+                CK_SESSION_HANDLE  session = pkcs11_start_session(slot);
+                pkcs11_login(session, userPin); // CKR_USER_PIN_NOT_INITIALIZED
+
+                CK_OBJECT_HANDLE  publicKey, privateKey;
+                CK_MECHANISM mechanism = { CKM_RSA_PKCS_KEY_PAIR_GEN, NULL_PTR, 0 };
+                CK_ULONG modulusBits = 1024;  // TODO take value from matrix
+                CK_BYTE[] publicExponent = [ 1, 0, 1 ];  // TODO take value from matrix // check whether the key_gen command respects this ; check  publicExponent handling in general in opensc (e.g. _sc_card_add_rsa_alg)
+                CK_BYTE[] subject = cast(ubyte[])representation("KO");
+                CK_BYTE[] id      = [5];  // TODO take value from matrix
+                CK_BBOOL wahr = CK_TRUE;
+                CK_ATTRIBUTE[] publicKeyTemplate = [
+                    {CKA_ID, id.ptr, id.length},
+                    {CKA_LABEL, subject.ptr, subject.length},
+                    {CKA_TOKEN, &wahr, wahr.sizeof}, // CKA_TOKEN=true to create a token object, opposed to session object
+//                    {CKA_LOCAL, &wahr, wahr.sizeof},
+//                    {CKA_ENCRYPT, &wahr, wahr.sizeof},  // TODO take value from matrix
+                    {CKA_VERIFY, &wahr, wahr.sizeof},  // TODO take value from matrix
+                    {CKA_MODULUS_BITS, &modulusBits, modulusBits.sizeof},
+                    {CKA_PUBLIC_EXPONENT, publicExponent.ptr, 3}
+                ];
+                CK_ATTRIBUTE[] privateKeyTemplate = [
+                    {CKA_ID, id.ptr, id.length},
+                    {CKA_LABEL, subject.ptr, subject.length},
+                    {CKA_TOKEN, &wahr, wahr.sizeof},
+//                    {CKA_LOCAL, &wahr, wahr.sizeof},
+                    {CKA_PRIVATE, &wahr, wahr.sizeof},
+                    {CKA_SENSITIVE, &wahr, wahr.sizeof},
+//                    {CKA_DECRYPT, &wahr, wahr.sizeof},  // TODO take value from matrix
+                    {CKA_SIGN, &wahr, wahr.sizeof}  // TODO take value from matrix
+                ];
+
+                rv = C_GenerateKeyPair(session,
+                    &mechanism,
+                    publicKeyTemplate.ptr,  publicKeyTemplate.length,
+                    privateKeyTemplate.ptr, privateKeyTemplate.length,
+                    &publicKey,
+                    &privateKey);
+                pkcs11_check_return_value(rv, "generate key pair");
+
+                pkcs11_logout(session);
+                pkcs11_end_session(session);
+            }  // scope for the Cryptoki session; upon leaving, everything related get's closed/released
+//            assumeWontThrow(writeln("Hello World."));
++/
+            break;
+
+        case "toggle_RSA_key_pair_try_sign":
+//            bool doDelete = false;
+//            mixin(btn_RSA_cb_common1);
+/+
+Algorithm to be used is referenced here. Refer to : Algorithm Reference Values with Respect to the SE DO Template.
+80h  01       10
+
+File ID of an Asymmetric Key to be used in PSO:Sign/Verify.
+81h  02       41F3
+Usage Qualifier Byte: Bit 6 indicates that the template can be used
+in signing; and the file referenced is a PRIVATE key EF. Bit7
+indicates that the template can be used in verifying signature and
+the referenced file is a PUBLIC key.
+95h  01       40
+
+enum {
+	SC_SEC_ENV_ALG_REF_PRESENT     = 0x0001,
+	SC_SEC_ENV_FILE_REF_PRESENT    = 0x0002,
+	SC_SEC_ENV_KEY_REF_PRESENT     = 0x0004,
+	SC_SEC_ENV_KEY_REF_SYMMETRIC   = 0x0008,
+	SC_SEC_ENV_ALG_PRESENT         = 0x0010,
+}
+
++/
+            /* convert the 'textual' hex to an ubyte hex (first 64 chars = 32 byte) ; sadly std.conv.hexString works for literals only */
+            string tmp_str = AA["hash_to_be_signed"].GetStringVALUE();
+            tmp_str.length = 64;
+            string tmp_str2 = tmp_str[ 0..16] ~ '\0' ~ tmp_str[16..32] ~ '\0' ~ tmp_str[32..48] ~ '\0' ~ tmp_str[48..64] ~ '\0';
+            ub32 hash;
+            hash[ 0.. 8] = integral2ub!8(strtoull(tmp_str2.ptr,    null, 16))[0..8];
+            hash[ 8..16] = integral2ub!8(strtoull(tmp_str2.ptr+17, null, 16))[0..8];
+            hash[16..24] = integral2ub!8(strtoull(tmp_str2.ptr+34, null, 16))[0..8];
+            hash[24..32] = integral2ub!8(strtoull(tmp_str2.ptr+51, null, 16))[0..8];
+            assumeWontThrow(writefln("### hash_to_be_signed: %(%02X %)", hash));
+
+            auto       pos_parent = new sitTypeFS(appdf);
+            tnTypePtr  prFile;
+            try
+                prFile = fs.siblingRange(fs.begin(pos_parent), fs.end(pos_parent)).locate!"equal(a[2..4], b[])"(integral2ub!2(fidRSAprivate.get[0])[0..2]);
+            catch (Exception e) { return IUP_DEFAULT; }
+            assert(prFile);
+            enum string commands = `
+            int rv;
+            // from tools/pkcs15-init.c  main
+            sc_pkcs15_card*  p15card;
+            sc_profile*      profile;
+            const(char)*     opt_profile      = "acos5_64"; //"pkcs15";
+            const(char)*     opt_card_profile = "acos5_64";
+            sc_file*         file;
+
+            sc_pkcs15init_set_callbacks(&my_pkcs15init_callbacks);
+
+            /* Bind the card-specific operations and load the profile */
+            rv= sc_pkcs15init_bind(card, opt_profile, opt_card_profile, null, &profile);
+            if (rv < 0) {
+                printf("Couldn't bind to the card: %s\n", sc_strerror(rv));
+                return IUP_DEFAULT; //return 1;
+            }
+            rv = sc_pkcs15_bind(card, &aid, &p15card);
+
+            file = sc_file_new();
+            scope(exit) {
+                if (file)
+                    sc_file_free(file);
+                if (profile)
+                    sc_pkcs15init_unbind(profile);
+                if (p15card)
+                    sc_pkcs15_unbind(p15card);
+            }
+
+//            // select app dir
+//            {
+//                ub2 fid = integral2ub!2(fidRSADir.get)[0..2];
+//                rv= acos5_64_short_select(card, null, fid, true);
+//                assert(rv==0);
+//            }
+            sc_path_set(&file.path, SC_PATH_TYPE.SC_PATH_TYPE_PATH, &prFile.data[8], prFile.data[1], 0, -1);
+            rv = sc_pkcs15init_authenticate(profile, p15card, file, SC_AC_OP.SC_AC_OP_GENERATE);
+            if (rv < 0)
+                return IUP_DEFAULT;
+
+            {
+                sc_security_env  env = { SC_SEC_ENV_FILE_REF_PRESENT | SC_SEC_ENV_ALG_PRESENT, SC_SEC_OPERATION.SC_SEC_OPERATION_SIGN, SC_ALGORITHM_RSA };
+                env.file_ref.len = 2;
+                env.file_ref.value[0..2] = integral2ub!2((fidRSAprivate.get)[0])[0..2];
+                if ((rv= sc_set_security_env(card, &env, 0)) < 0) {
+                    mixin (log!(__FUNCTION__,  "sc_set_security_env failed for SC_SEC_OPERATION_SIGN"));
+                    hstat.SetString(IUP_TITLE, "sc_set_security_env failed for SC_SEC_OPERATION_SIGN");
+                    return IUP_DEFAULT;
+                }
+            }
+            size_t sigLen = sizeNewRSAModulusBits.get/8;
+            ubyte[] signature = new ubyte[sigLen];
+//            ubyte[32] data = iota(ubyte(1), ubyte(33), ubyte(1)).array[]; // simulates a SHA256 hash
+            if ((rv= sc_compute_signature(card, hash.ptr, hash.length, signature.ptr, signature.length)) != sigLen) {
+                    mixin (log!(__FUNCTION__,  "sc_compute_signature failed"));
+                    hstat.SetString(IUP_TITLE, "sc_compute_signature failed");
+                    return IUP_DEFAULT;
+            }
+            assumeWontThrow(writefln("### signature: %(%02X %)", signature));
+`;
+            mixin (connect_card!commands);
+            break;
+
+        default:  assert(0);
     }
     return IUP_DEFAULT;
 } // btn_RSA_cb

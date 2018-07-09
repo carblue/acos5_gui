@@ -63,6 +63,7 @@ import libopensc.opensc;
 import libopensc.types;
 import libopensc.errors;
 import libopensc.log;
+import libopensc.cards;
 
 import libintl : _, __;
 version(I18N)
@@ -76,7 +77,7 @@ import pkcs11;
 import util_general;
 import gui : create_dialog_dlg0;
 import util_opensc : lh, card, populate_tree_fs, PKCS15_FILE_TYPE, util_connect_card, connect_card, PKCS15, errorDescription,
-    fs, itTypeFS, iter_begin, appdf, prkdf, pukdf, populate_scbs_usr_adm_pin_seid;
+    fs, itTypeFS, iter_begin, appdf, prkdf, pukdf, is_ACOSV3_opmodeV3_FIPS_140_2L3, is_ACOSV3_opmodeV3_FIPS_140_2L3_active, cm_7_3_1_14_get_card_info;
  //, acos5_64_short_select, uploadHexfile
     /*, PRKDF, PUKDF, PUKDF_TRUSTED, SKDF, CDF, CDF_TRUSTED, CDF_USEFUL, DODF, AODF*/
 import util_pkcs11 : pkcs11_check_return_value, pkcs11_get_slot;
@@ -84,6 +85,8 @@ import generateKeyPair_RSA;
 
 import libtasn1;// : asn1_parser2tree, asn1_delete_structure, ASN1_SUCCESS;
 import tasn1_pkcs15 : tasn1_pkcs15_tab;
+
+import acos5_64_shared;
 
 /+
 void dummy_function(sc_context* ctx) /*@safe*/ {
@@ -116,15 +119,16 @@ version(I18N) {
     create_dialog_dlg0.Show; // this does the mapping; it's here because some things can be done only after mapping
 
     int parse_result;
-    if (1)
+    if (true)
         parse_result = asn1_array2tree (tasn1_pkcs15_tab, &PKCS15, errorDescription);
     else
-        parse_result = asn1_parser2tree ("/path/to/PKCS15.asn", &PKCS15, errorDescription);
+        parse_result = asn1_parser2tree ("PKCS15.asn", &PKCS15, errorDescription);
 
     if (parse_result != ASN1_SUCCESS) {
         writeln(errorDescription);
         exit(EXIT_FAILURE);
     }
+
 /+  once create the array/vector  /* C VECTOR CREATION */
     char[ASN1_MAX_ERROR_DESCRIPTION_SIZE] error_desc;
     parse_result = asn1_parser2array ("PKCS15.asn".ptr,
@@ -133,7 +137,6 @@ version(I18N) {
 +/
     enum string commands = `
         populate_tree_fs(); // populates PrKDF, PuKDF (and dropdown key pair id),
-        populate_scbs_usr_adm_pin_seid();
 /+
         import std.range : chunks;
         ubyte[6] certPath = [0x3F, 0x00, 0x41, 0x00, 0x41, 0x20];
@@ -161,6 +164,7 @@ version(I18N) {
     writeln("DODF.length:          ", DODF.length);
     writeln("AODF.length:          ", AODF.length);
 */
+/+ +/
     prkdf = fs.preOrderRange(iter_begin, fs.end()).locate!"a[6]==b"(PKCS15_FILE_TYPE.PKCS15_PRKDF);
     pukdf = fs.preOrderRange(iter_begin, fs.end()).locate!"a[6]==b"(PKCS15_FILE_TYPE.PKCS15_PUKDF);
 
@@ -227,7 +231,7 @@ version(I18N) {
     AC_Update_PrKDF_PuKDF  .set([prkdf is null? 0xFF : prkdf.data[25], pukdf is null? 0xFF : pukdf.data[25]], true);
     AC_Delete_Create_RSADir.set([appdf is null? 0xFF : appdf.data[24], appdf is null? 0xFF : appdf.data[25]], true);
     toggle_RSA_cb(AA["toggle_RSA_PrKDF_PuKDF_change"].GetHandle, 1);
-
+/+ +/
     AA["fs_text_asn1"].SetAttributeVALUE("");
     AA["fs_text"].SetAttributeVALUE("");
     AA["fs_text"].SetString(IUP_APPEND, " ");
@@ -340,11 +344,12 @@ Intention: decrypt,sign (not recommended)    decrypt,sign    decrypt,sign (...)
 Intention: decrypt                           decrypt         decrypt (,unwrap)
 
 The primary choice among 4 alternatives is, what to do (choosable within the following radio buttons)
-A - Don't change anything stored in the RSA key pair files, thus modifiable is only: "Key pair label", "Key pair id", "authId", within reasonable limits "Private key usage PrKDF" and "Public key usage PuKDF", "Key pair is modifiable?"
+A - Don't change anything stored in the RSA key pair files, thus modifiable is only: "Key pair label", "authId", within reasonable limits "Private key usage PrKDF", "Key pair is modifiable?"
 B - Do remove a RSA key pair (delete files and adapt EF(PrKDF) and EF(PuKDF).
-C - The RSA key pair files do exist already and get reused: Do regenerate the RSA key pair.
+C - The RSA key pair files do exist already and get reused: Do regenerate the RSA key pair, with private file known to the card only (should be unreadable, thus it never can be compromised).
 D - The RSA key pair files don't exist: Do create new RSA key pair files sized as required and generate the RSA key pair. The file ids are not freely choosable but dictated by the acos5_64.profile file.
 
+It seems to be non-deterministic which parameters N (modulus) and d (private exponent) will be choosen by the internal acos library code and it isn't affected by the CVE-2017-15361 vulnerability (ROCA)
 Choices C and B allow to change everything (for B there is the limit what fits into the existing files, possibly limiting modulus bits and/or the CRT choice).
 Depending on the primary choice, the following table 'RSA key pair generation attributes' will have varying fields blocked as read-only. The table works Excel-like, i.e. recalculating depending fields and status.
 In order to keep the code simple, not all 'impossible' options (e.g. from Drop-Down choices selectable) get blocked rigth away, but all entries constantly get checked afterwards whether they are appropriate for the selected primary choice operation, signaling the overall status by color.
@@ -399,6 +404,60 @@ If the key to be used for signing was generated using 'Private key usage ACOS'='
 
 ACOS allows specifying a 16 byte public exponent prime, but opensc is limited to max 4 bytes, the lower value of opensc is relevant.
 `);
+
+    AA["importExport_text"].SetString(IUP_APPEND, `
+This applies to the whole file system: (Currently, the output is in /tmp)
+First select whether to import or export and enter from/to which file  /path/from//to/file  on the hosting computer.
+Export will collect all information retrievable from the card/token and write it to an archive file on the hosting computer.
+Import will take an archive file and apply all commands necessary to reconstruct a file system from scratch, based on the enclosed archive information, i.e. 'Import' starts from a virgin card (no existing MF)
+
+The format of the archive file: tar
+Files within the archive:
+commands_create
+tab_hierarchy
+...
+as many files as mentioned in tab_hierarchy
+
+The non-content files 'commands_create' and 'tab_hierarchy' are ASCII-encoded, thus they can be easily inspected. For processing, they will be translated internally to hex-encoding again.
+The content files are raw, hex content, to be inspected by a hex-editor.
+
+An example:
+'commands_create' lists all commands that need to be executed to generate the file structure skeleton (i.e. everything except commands to activate and except file contents)
+A tool like scriptor from package pcsc-tools would accept file 'commands_create' as batch file and do exactly that generation of the file structure skeleton.
+file 'tab_hierarchy' is a no-edit/read-only file, which gets generated from 'commands_create' automatically in order to create the path of each file as a file name entry in this table file.
+Suppose, the exported file system had 3 files/directories: The mandatory MF directory, a directory with file id 0x4100, and a file within  directory 0x4100 with file id 0x4101:
+The entries in 'tab_hierarchy' will be then
+#3F00  5
+#3F004100  5
+ 3F0041004101  5
+
+One more file (other than commands_create, commands_activate, tab_hierarchy)  must exist in this example, named 3F0041004101, which contains the hex content of file with file id 0x4101
+If file id 0x4101 where a record-based file with 2 records, each record get's its own file name:
+ 3F0041004101_1  5
+ 3F0041004101_2  5
+
+The last digit in the above examples (5) is the LifeCycleStatusInter. 5 means, those files have to be in activazed state in the end.
+
+The import facility will read file contents from those files and write them to the card, For this to work, no file may be acticated until all reconstruction is done. Therefore,
+the 'commands_create' may not include setting a LifeCycleStatusInteger nor any activate command
+'tab_hierarchy' entries starting with a # are just comments and identify directories; they don't need storing of content
+
+Now let's assume, file id 0x4101 identifies a pin file or a symetric key file; then the recommended file access for those files is non-readable and the export utility will have written a file
+named 3F0041004101, but with no content.
+
+For those cases, where You know the content or like to appear specific content, do change contents manually in the archive file.
+So far this should work for everything except for RSA key files generated on-card: They never can/should be exportable.
+The only way to have an exact clone of a card/token as archive file is to generate RSA keys outside the card, e.g. by openssl commands, write them to the archive manually, respecting the acos format of RSA files and then import the archive to the card/token.
+
+Perhaps I'll offer some single-file-import facility, i.e. limitited to certain files like RSA or certificates etc.
+
+At the moment, my intention is primaryly to get users started with some base installations/import archives supplied to choose from, which are known to work with acos5_64_gui
+
+
+, but shall list activate commands in the end as required. The batch of 'commands_create' thus gets split into 2 parts:
+First the mere create and select commands generating the skeletin, second the select and activate commands which will run in the end.
+`);
+
 /*
     AA["sanity_overview_text"].SetString(IUP_APPEND, `
 These sanity checks are intended to be run with ACOS5-64 cards/tokens operating the first time with the acos5_64 driver (and this tool) and are run automatically, if dub.json has dlang version identifier SANITYCHECK defined:
@@ -543,36 +602,3 @@ The checks may be grouped into these categories:
     IupClose();
     return EXIT_SUCCESS;
 }
-/+
-1
- Must be specified when object is created with C_CreateObject.
-2
- Must not be specified when object is created with C_CreateObject.
-3
- Must be specified when object is generated with C_GenerateKey or
-C_GenerateKeyPair.
-4
- Must not be specified when object is generated with C_GenerateKey or
-C_GenerateKeyPair.
-5
- Must be specified when object is unwrapped with C_UnwrapKey.
-6
- Must not be specified when object is unwrapped with C_UnwrapKey.
-7
- Cannot be revealed if object has its CKA_SENSITIVE attribute set to CK_TRUE or
-its CKA_EXTRACTABLE attribute set to CK_FALSE.
-8
- May be modified after object is created with a C_SetAttributeValue call, or in the
-process of copying object with a C_CopyObject call. However, it is possible that a
-particular token may not permit modification of the attribute during the course of a
-C_CopyObject call.
-9
- Default value is token-specific, and may depend on the values of other attributes.
-10
- Can only be set to CK_TRUE by the SO user.
-11
- Attribute cannot be changed once set to CK_TRUE. It becomes a read only attribute.
-12
- Attribute cannot be changed once set to CK_FALSE. It becomes a read only
-attribute.
-+/

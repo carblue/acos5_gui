@@ -8,7 +8,7 @@
 	"dependencies" : {
 		"iup": "~>3.25.0-beta.1",
 		"opensc": "~>0.18.0-beta.3",
-		"emsi_containers": "~>0.8.0-alpha.8",
+		"emsi_containers": "~>0.8.0-alpha.9",
 		"tasn1:wrapper": "~>0.0.5",
 		"pkcs11": "~>2.40.0-alpha.3"
 	},
@@ -26,8 +26,8 @@
     "mainSourceFile" : "source/acos5_64_gui.d",
 	"xxxbuildRequirements" : ["disallowDeprecations"],
 
-	"dflags-posix-dmd": ["-mcpu=native",  "-defaultlib=libphobos2.so"],
-	"xdflagsx-posix-ldc": ["-mcpu=haswell", "-defaultlib=phobos2-ldc-shared,druntime-ldc-shared"],
+	"dflags-posix-dmd": ["-defaultlib=libphobos2.so"],
+	"dflags-posix-ldc": ["-defaultlib=phobos2-ldc-shared,druntime-ldc-shared"],
 	"xdflagsx-posix-gdc": ["-shared-libphobos", "-Wunknown-pragmas", "-vtls", "-vcg-ast", "-defaultlib=libphobos2.so"],
 
 	"lflags-posix" : ["--no-undefined", "--as-needed"],

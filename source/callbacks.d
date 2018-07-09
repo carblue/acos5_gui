@@ -29,12 +29,15 @@ import std.exception : assumeWontThrow;//(expr, msg, file, line)
 import std.algorithm.comparison : max, /*min, clamp, equal, mismatch,*/ among;
 import std.algorithm.searching : maxElement, countUntil, canFind;
 import std.traits : EnumMembers;
-import std.conv : to;
+import std.conv : to, hexString;
+import std.range : iota, slide, chunks;
+
 
 import libopensc.opensc;
 import libopensc.types;
 import libopensc.errors;
 import libopensc.log;
+import libopensc.cards;
 
 import iup.iup_plusD;
 
@@ -44,7 +47,8 @@ import util_general;// : ub22integral;
 import acos5_64_shared;
 
 import util_opensc : lh, card, TreeTypeFS, acos5_64_short_select, readFile, decompose, PKCS15Path_FileType, PKCS15_FILE_TYPE, fs, sitTypeFS,
-    util_connect_card, connect_card, cm_7_3_1_14_get_card_info;
+    util_connect_card, connect_card, cm_7_3_1_14_get_card_info, is_ACOSV3_opmodeV3_FIPS_140_2L3, is_ACOSV3_opmodeV3_FIPS_140_2L3_active;
+//    aa_7_2_6_82_external_authentication;
 
 
 ub8 map2DropDown = [1, 2, 3, 4, 5, 6, 7, 8];
@@ -117,11 +121,11 @@ void populate_list_op_file_possible(TreeTypeFS.nodeType* pn, ub2 fid, EFDB fdb, 
     h.SetCallback(IUP_VALUECHANGED_CB, &list_op_file_possible_val_changed_cb);
 //    assumeWontThrow(writeln(map2DropDown));
 
-    if (fileReadPossible && auto_read && (sac[0]==0 || sac[0]&0x40)) {
+    if (fileReadPossible && auto_read && (sac[0]==0 || sac[0]&0x40) || (is_ACOSV3_opmodeV3_FIPS_140_2L3 && sac[0].among(1,3)) ) {
         ubyte expectedFileType = pn.data[6];
         ubyte detectedFileType;
         PKCS15Path_FileType[] dummyPkcs15Extracted;
-        readFile(pn, fid, fdb, decompose(fdb, size_or_MRL_NOR).expand, expectedFileType, detectedFileType, dummyPkcs15Extracted);
+        readFile(pn, fid, fdb, sac[0], decompose(fdb, size_or_MRL_NOR).expand, expectedFileType, detectedFileType, dummyPkcs15Extracted);
 //assumeWontThrow(writefln("expectedFileType: %s, detectedFileType: %s, dummyPkcs15Extracted: ", expectedFileType, cast(PKCS15_FILE_TYPE)detectedFileType, dummyPkcs15Extracted));
     }
 }
@@ -181,7 +185,7 @@ int selectbranchleaf_cb(Ihandle* /*ih*/, int id, int status)
             ++i;
         }
 //        with (PKCS15_FILE_TYPE) if (pn.data[6].among(PKCS15_Pin, PKCS15_SecretKey, PKCS15_RSAPrivateKey))
-        with (EFDB) if (pn.data[0].among(CHV_EF, Sym_Key_EF, RSA_Key_EF) && pn.data[6]!=PKCS15_FILE_TYPE.PKCS15_RSAPublicKey)
+        with (EFDB) if (pn.data[0].among(CHV_EF, Sym_Key_EF/*, RSA_Key_EF*/) && pn.data[6]!=PKCS15_FILE_TYPE.PKCS15_RSAPublicKey)
             return IUP_DEFAULT;
         AA["fs_text"].SetString(IUP_APPEND, "\nContent:");
 
@@ -261,7 +265,6 @@ int toggle_auto_decode_asn1_cb(Ihandle* ih, int state)
   return IUP_DEFAULT;
 }
 
-
 int btn_sanity_cb(Ihandle* ih)
 {
     enum string commands = `
@@ -291,3 +294,43 @@ int btn_sanity_cb(Ihandle* ih)
     mixin (connect_card!commands);
     return IUP_DEFAULT;
 } // btn_sanity_cb
+
+/+
+int btn_do_cb(Ihandle* ih)
+{
+    enum string commands = `
+    int rv;
+/*
+    if ((rv= aa_7_2_6_82_external_authentication(card, 0x01)) != SC_SUCCESS) {
+        mixin (log!(__FUNCTION__,  "external_authentication failed with error code %d", "rv"));
+        return IUP_DEFAULT;
+    }
+*/
+//    auto newData = cast(immutable(ubyte)[])hexString!"C18808323436383335373988083335373938363432";
+//    auto newData = cast(immutable(ubyte)[])hexString!"8101881498CDFDC8688F20233113D9203DE06EAEEF8C548319321FE60000";
+    auto newData = cast(immutable(ubyte)[])hexString!"0102030405060708090A0B0C0D0E0F10";
+    auto path    = cast(immutable(ubyte)[])hexString!"3F 00 41 00 39 06";
+
+    foreach (ub2 fid; chunks(path, 2)) {
+        if ((rv= acos5_64_short_select(card, null, fid, false)) != SC_SUCCESS)
+        return IUP_DEFAULT;
+    }
+/+
+    ub8 pw = [0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38];
+    int tries_left;
+    if ((rv= sc_verify(card, SC_AC.SC_AC_CHV, 129, pw.ptr, pw.length, &tries_left)) != SC_SUCCESS) {
+        mixin (log!(__FUNCTION__,  "sc_verify failed with error code %d", "rv"));
+        return IUP_DEFAULT;
+    }
+    sc_path path2;
+    sc_path_set(&path2, SC_PATH_TYPE.SC_PATH_TYPE_FILE_ID, path.ptr+4, path.length-4, 0, -1);
++/
+    if ((rv= sc_update_record(card, 2, newData.ptr, newData.length, 0)) != SC_SUCCESS) {
+        mixin (log!(__FUNCTION__,  "sc_update_record failed with error code %d", "rv"));
+        return IUP_DEFAULT;
+    }
+`;
+//    mixin (connect_card!commands);
+    return IUP_DEFAULT;
+}
++/

@@ -359,15 +359,15 @@ So the existence of this callback defines the matrix operation mode.
         SetAttributeId2("",  r_sizeNewRSApublicFile,    0,   __("Public key file size (bytes) available / required"));
 //      SetAttributeId2("",  r_sizeNewRSApublicFile,    1,   "? / 533");
         SetAttributeId2("",  r_sizeNewRSApublicFile,    2,   __("Header (FCI) of public key file"));
-        SetAttributeId2("",  r_change_calcPrKDF,        0,   __("PrKDF change calc.")); //  / unused available A/A
+        SetAttributeId2("",  r_change_calcPrKDF,        0,   __("PrKDF change calc. (How many bytes more or less will be required to store the changes)")); //  / unused available A/A
         SetAttributeId2("",  r_change_calcPrKDF,        1,   "?");
-        SetAttributeId2("",  r_change_calcPuKDF,        0,   __("PuKDF change calc.")); //  / does it fit into file size? A/A
+        SetAttributeId2("",  r_change_calcPuKDF,        0,   __("PuKDF change calc. (How many bytes more or less will be required to store the changes)")); //  / does it fit into file size? A/A
         SetAttributeId2("",  r_change_calcPuKDF,        1,   "?");
         SetAttributeId2("",  r_authIdRSAprivateFile,    0,   __("authId (that protects private key; 1 byte hex. 01..FF)"));
         SetAttributeId2("",  r_authIdRSAprivateFile,    2,   __("PrKDF"));
         SetAttributeId2("",  r_valuePublicExponent,     0,   __("Public exponent e (a prime, default 0x10001; max 16 bytes hex., leading zero bytes trimmed)  0x"));
         SetAttributeId2("",  r_valuePublicExponent,     2,   __("public key file"));
-        SetAttributeId2("",  r_statusInput,             0,   __("Status of input (whether all required info is okay for the operation"));
+        SetAttributeId2("",  r_statusInput,             0,   __("Status of input (whether all required info/limits are okay for the operation"));
         SetAttributeId2("",  r_statusInput,             1,  "No");
         SetRGBId2(IUP_BGCOLOR, r_statusInput, 1,  255, 0, 0);
         SetAttributeId2("",  r_usageRSAprivateKeyPrKDF, 0,   __("Private key usage PrKDF (enter as int, 2.. max 558, shown as text)"));
