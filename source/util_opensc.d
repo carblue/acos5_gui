@@ -60,7 +60,7 @@ module util_opensc;
 import core.sys.posix.dlfcn;
 
 import core.runtime : Runtime;
-import core.stdc.stdlib : EXIT_SUCCESS, EXIT_FAILURE, exit, getenv, strtol; //, div_t, div, malloc, free;
+import core.stdc.stdlib : EXIT_SUCCESS, EXIT_FAILURE, exit, getenv, strtol, free, calloc; //, div_t, div, malloc, free;
 import core.stdc.config : c_long, c_ulong;
 import core.stdc.string;
 import std.stdio;
@@ -82,8 +82,12 @@ import libopensc.opensc;// "dependencies" : "opensc": "==0.15.14",   : sc_card,S
 import libopensc.types;  // to much to make sense listing // sc_path, sc_atr, sc_file, sc_serial_number, SC_MAX_PATH_SIZE, SC_PATH_TYPE_PATH, sc_apdu, SC_AC_OP_GENERATE;
 import libopensc.errors; // to much to make sense listing ?
 import libopensc.log;
+import libopensc.cards;
 import libopensc.iso7816;
-import libopensc.pkcs15 : SC_PKCS15_DF, sc_pkcs15_prkey, sc_pkcs15_bignum;
+import libopensc.pkcs15 : SC_PKCS15_DF, sc_pkcs15_prkey, sc_pkcs15_bignum, sc_pkcs15_card, sc_pkcs15_bind, sc_pkcs15_unbind, sc_pkcs15_auth_info;
+import pkcs15init.profile : sc_profile;
+import pkcs15init.pkcs15init : sc_pkcs15init_bind, sc_pkcs15init_unbind, sc_pkcs15init_set_callbacks, sc_pkcs15init_delete_by_path,
+    sc_pkcs15init_callbacks, sc_pkcs15init_set_callbacks, sc_pkcs15init_authenticate, sc_pkcs15init_create_file;
 
 import iup.iup_plusD;
 
@@ -204,8 +208,8 @@ version(ENABLE_TOSTRING)
         [1]: (originally DCB always zero), replaced by the Length of path ubyte[16] actually used (from the beginning, i.e. path[0..Length])
         [2]: FILE ID (MSB)
         [3]: FILE ID (LSB)
-        [4]: depending on FDB: FILE ID (MSB) or MRL (Max. Record Length)
-        [5]: depending on FDB: FILE ID (LSB) or NOR (Number of Records)
+        [4]: depending on FDB: SIZE (MSB) or MRL (Max. Record Length)
+        [5]: depending on FDB: SIZE (LSB) or NOR (Number of Records)
         [6]: (originally SFI), replaced by default 0xFF or if applicable, the meaning expressed as  enum PKCS15_FILE_TYPE, that this file has for PKCS#15, i.e.
              tree traversal for all nodes with data[6]!=0xFF visits all files relevant for the PKCS#15 file structure or mentioned in PKCS#15 files,
              e.g. only those public RSA key files, that are listed in EF.PuKD will get the image symbol IUP_IMGBLANK; there may be other RSA files not known to PKCS#15,
@@ -224,9 +228,10 @@ tnTypePtr   appdf;
 tnTypePtr   prkdf;
 tnTypePtr   pukdf;
 itTypeFS    iter_begin;
+//sitTypeFS   siter_app;  wrong: siter_app internally get's changed while using it
 
-ub2 scbs_usr_adm_pin_seid; // SCB in SecurityEnvironmentFile: index 0: user pin; index 1: admin/Security/Officer pin
-ub2 scbs_usr_adm_pin_ref;
+
+sc_aid aid;
 
 asn1_node  PKCS15;
 string errorDescription;
@@ -243,57 +248,109 @@ PKCS15_ObjectTyp[]            AODF; /*8*/
 
 __gshared sc_card*            card;
 __gshared void*               lh; // library handle
+bool  is_ACOSV3_opmodeV3_FIPS_140_2L3;
+bool  is_ACOSV3_opmodeV3_FIPS_140_2L3_active;
+
 ft_cm_7_3_1_14_get_card_info  cm_7_3_1_14_get_card_info;
 ft_acos5_64_short_select      acos5_64_short_select;
 ft_uploadHexfile              uploadHexfile;
 
-//ft_construct_sc_security_env  construct_sc_security_env;
-//ft_cry_mse_7_4_2_1_22_set     cry_mse_7_4_2_1_22_set;
 ft_cry_____7_4_4___46_generate_keypair_RSA  cry_____7_4_4___46_generate_keypair_RSA;
+
+
+sc_pkcs15init_callbacks  my_pkcs15init_callbacks = { &get_pin_callback, null };
+
+/*
+ * PIN retrieval (from frontend) callback
+ */
+extern(C) int get_pin_callback(sc_profile* profile, int id, const(sc_pkcs15_auth_info)* info, const(char)* label, ubyte* pinbuf, size_t* pinsize) nothrow
+{
+/+
+    if (profile && profile.card && profile.card.ctx) {
+        sc_context* ctx = profile.card.ctx;
+        mixin (log!(__FUNCTION__, " called"));
+        mixin (log!(__FUNCTION__, " label: %s", "label"));
+        mixin (log!(__FUNCTION__, " id:    %i", "id"));
+        mixin (log!(__FUNCTION__, " auth_info.auth_id: %s", "sc_dump_hex(info.auth_id.value.ptr, info.auth_id.len)"));
+        mixin (log!(__FUNCTION__, " auth_info.path:    %s", "sc_dump_hex(info.path.value.ptr,    info.path.len)"));
+        mixin (log!(__FUNCTION__, " auth_info.auth_type: %u (0==SC_PKCS15_PIN_AUTH_TYPE_PIN)", "info.auth_type"));
+
+        mixin (log!(__FUNCTION__, " auth_info.attrs.pin.flags: %u (51==TYPE_FLAGS_PIN_LOCAL| NEEDS_PADDING|CASE_SENSITIVE)", "info.attrs.pin.flags"));
+        mixin (log!(__FUNCTION__, " auth_info.attrs.pin.type:  %u (1==SC_PKCS15_PIN_TYPE_ASCII_NUMERIC)", "info.attrs.pin.type"));
+        mixin (log!(__FUNCTION__, " auth_info.attrs.pin.stored_length:  %u", "info.attrs.pin.stored_length"));
+        mixin (log!(__FUNCTION__, " auth_info.attrs.pin.reference:      %i", "info.attrs.pin.reference"));
+        mixin (log!(__FUNCTION__, " auth_info.auth_method:              %u (1==SC_AC_CHV)", "info.auth_method"));
+        mixin (log!(__FUNCTION__, " auth_info.tries_left:               %i", "info.tries_left"));
+        mixin (log!(__FUNCTION__, " auth_info.max_tries:                %i", "info.max_tries"));
+        mixin (log!(__FUNCTION__, " auth_info.logged_in:                %i", "info.logged_in"));
+//    mixin (log!(__FUNCTION__, "Serial Number of Card (EEPROM): '%s'", "sc_dump_hex(&value[0], cardType_serial_len)"));
+        mixin (log!(__FUNCTION__, " profile.name:          %s", "profile.name"));
+        mixin (log!(__FUNCTION__, " profile.options[0]:    %s", "profile.options[0]"));
+        mixin (log!(__FUNCTION__, " profile.driver:        %s", "profile.driver"));
+        mixin (log!(__FUNCTION__, " profile.ops:           %p", "profile.driver"));
+        mixin (log!(__FUNCTION__, " profile.template_list: %p", "profile.template_list"));
+    }
++/
+
+    // check whether auth is required for deleting private key file or public key file
+    int       pinLocal = (info.attrs.pin.reference&0x80)==0x80;
+    int       pinReference = info.attrs.pin.reference&0x7F; // strip the local flag
+    pinbuf[0..9] = '\0';
+
+    int rv = IupGetParam(toStringz("Pin requested for authorization (SCB "/*~toHexString!(Order.increasing,LetterCase.upper)([ubyte(scbs[0])])*/~")"),
+                    null/* &param_action*/, null/* void* user_data*/, /*format*/
+                    "&Pin local (User)? If local==No, then it's the Security Officer Pin:%b[No,Yes]\n" ~
+                    "&Pin reference (1-31; selects the record# in pin file):%i\n" ~
+                    "Pin (minLen: 4, maxLen: 8):%s\n", &pinLocal, &pinReference, pinbuf, null);
+    if (rv != 1)
+        return SC_ERROR_INVALID_PIN_LENGTH;
+    *pinsize = 8;
+    return SC_SUCCESS;
+}
 
 
     /* add space after name:, type: and value:
        pretty-print BIT STRING
     */
-    string someScanner(int mode, const(char)[] line)
-    {
-        import core.stdc.stdlib : strtoull;
-        import core.bitop : bitswap;
-        import std.string : indexOf;
-        import std.math : pow;
+string someScanner(int mode, const(char)[] line)
+{
+    import core.stdc.stdlib : strtoull;
+    import core.bitop : bitswap;
+    import std.string : indexOf;
+    import std.math : pow;
 
-        string res;
-        try {
-            ptrdiff_t pos = indexOf(line, "name:");
-            if (pos == -1)
-                return  line.idup;
-            res = assumeUnique(line[0..pos+5]) ~ " " ~ assumeUnique(line[pos+5..$]);
-            if (mode>ASN1_PRINT_NAME) {
-                pos = indexOf(res, "type:");
-                if (pos != -1)
-                  res = res[0..pos+5] ~ " " ~ res[pos+5..$];
-            }
-            if (mode>ASN1_PRINT_NAME_TYPE) {
-                pos = indexOf(res, "value");
-                if (pos != -1) {
-                    import std.regex;
-                    auto valueRegcolon     = regex(r"  value(?:\(\d+\)){0,1}:");
-                    auto valueRegBITSTRING = regex(r".*value(?:\((\d+)\)){1}: ([0-9A-Fa-f]{2,16}){1}.*");
-                    res = replaceFirst(res, valueRegcolon, "$& ");
-                    auto m = matchFirst(res, valueRegBITSTRING);
-                    if (!m.empty && to!int(m[1])<=64 && m[2].length<=16) {
-                        ulong tmp = bitswap( strtoull(m[2].toStringz,null,16) << 8*(8-m[2].length/2));
-                        res ~= "  ->  ";
-                        foreach (i; 0..to!int(m[1]))
-                            res ~= (tmp & pow(2,i))? "1" : "0";
-                    }
+    string res;
+    try {
+        ptrdiff_t pos = indexOf(line, "name:");
+        if (pos == -1)
+            return  line.idup;
+        res = assumeUnique(line[0..pos+5]) ~ " " ~ assumeUnique(line[pos+5..$]);
+        if (mode>ASN1_PRINT_NAME) {
+            pos = indexOf(res, "type:");
+            if (pos != -1)
+              res = res[0..pos+5] ~ " " ~ res[pos+5..$];
+        }
+        if (mode>ASN1_PRINT_NAME_TYPE) {
+            pos = indexOf(res, "value");
+            if (pos != -1) {
+                import std.regex;
+                auto valueRegcolon     = regex(r"  value(?:\(\d+\)){0,1}:");
+                auto valueRegBITSTRING = regex(r".*value(?:\((\d+)\)){1}: ([0-9A-Fa-f]{2,16}){1}.*");
+                res = replaceFirst(res, valueRegcolon, "$& ");
+                auto m = matchFirst(res, valueRegBITSTRING);
+                if (!m.empty && to!int(m[1])<=64 && m[2].length<=16) {
+                    ulong tmp = bitswap( strtoull(m[2].toStringz,null,16) << 8*(8-m[2].length/2));
+                    res ~= "  ->  ";
+                    foreach (i; 0..to!int(m[1]))
+                        res ~= (tmp & pow(2,i))? "1" : "0";
                 }
             }
-            return  res;
         }
-        catch (Exception e) { /* todo: handle exception */ }
-        return  line.idup;
+        return  res;
     }
+    catch (Exception e) { /* todo: handle exception */ }
+    return  line.idup;
+}
 
 Tuple!(ushort, ubyte, ubyte) decompose(EFDB fdb, /*ub2*/uba size_or_MRL_NOR) nothrow {
     assert(size_or_MRL_NOR.length==2);
@@ -350,66 +407,6 @@ string file_type(int depth, EFDB fdb, ushort fid, ub2 size_or_MRL_NOR) nothrow {
         case SE_EF:               return "iEF linear-var, size max. "~t[0]~" ("~t[2]~"x"~t[1]~" max.) B    SecEnv of directory";
     }
 }
-
-int populate_scbs_usr_adm_pin_seid() nothrow
-{
-    /* when the fs is availanble, inspect the security environment file for user pin and so pin, i.e.
-       which seid has an Auth Template only, refers to a pin (and not key), and whether local/global pin*/
-    sitTypeFS  pos_parent = new sitTypeFS(appdf);
-    tnTypePtr  sefile;
-    try
-        sefile = fs.siblingRange(fs.begin(pos_parent), fs.end(pos_parent)).locate!"a[0]==b"(EFDB.SE_EF);
-    catch (Exception e) {}
-    assert(sefile);
-    uba   fid = sefile.data[8..8+ sefile.data[1]];
-    ubyte MRL = sefile.data[4];
-    ubyte NOR = sefile.data[5];
-    ubyte[][] rec;
-    rec.length = NOR;
-    int rv;
-
-    foreach (ub2 fid2; chunks(fid, 2))
-        rv= acos5_64_short_select(card, null, fid2, true);
-    assert(rv == SC_SUCCESS);
-    foreach (ubyte rec_idx; 0 .. NOR) {
-        rec[rec_idx] = new ubyte[MRL];
-        rv= sc_read_record(card, rec_idx+1, rec[rec_idx].ptr, MRL, 0 /*flags*/);
-        assert(rv==MRL);
-    }
-
-    foreach (i, const ref elem; rec) {
-        if (elem[0] == 0)
-            continue;
-        assert(equal(elem[0..2], [0x80, 0x01]));
-//      assert(      elem[   2] == i+1);
-        assert(elem.length >= 5);
-        ubyte reference;
-        bool  referenceIsPin;
-        foreach (d,T,L,V; tlv_Range(elem[3..$]))
-            if (d==8 && T==0xA4 && L==0x06)  // this is an entry with exactly 8 bytes payload; this matches the AT requirement: A4 len 83 len83==1 ?? 95 len95==1 ??
-                foreach (d1,T1,L1,V1; tlv_Range(V))  //V==83 01 81 95 01 08
-                    if (d1%3==0) {
-                        if      (T1==0x83 && L1==0x01)
-                            reference = V1[0];
-                        else if (T1==0x95 && L1==0x01)
-                            referenceIsPin = (V1[0]&8) != 0;
-                    }
-
-        if (referenceIsPin && reference) {
-            if (reference&0x80) {
-                scbs_usr_adm_pin_seid[0] = rec[i][2]; // the seid of the local pin
-                scbs_usr_adm_pin_ref [0] = reference&0x7F;
-            }
-            else {
-                scbs_usr_adm_pin_seid[1] = rec[i][2]; // the seid of the global pin
-                scbs_usr_adm_pin_ref [1] = reference;
-            }
-        }
-    }
-
-    return SC_SUCCESS;
-}
-
 
 /* All singing all dancing card connect routine */ // copied from acos5_64.d
 int util_connect_card(sc_context* ctx, scope sc_card** cardp, const(char)* reader_id, int do_wait, int do_lock, int verbose) nothrow @trusted
@@ -580,25 +577,7 @@ autofound:
         exit(1);
     }
 ////    printf("uploadHexfile() function is found\n");
-/+
-    construct_sc_security_env = cast(ft_construct_sc_security_env) dlsym(lh, "construct_sc_security_env");
-    error = dlerror();
-    if (error)
-    {
-        printf("dlsym error construct_sc_security_env: %s\n", error);
-        exit(1);
-    }
-////    printf("construct_sc_security_env() function is found\n");
 
-    cry_mse_7_4_2_1_22_set = cast(ft_cry_mse_7_4_2_1_22_set) dlsym(lh, "cry_mse_7_4_2_1_22_set");
-    error = dlerror();
-    if (error)
-    {
-        printf("dlsym error cry_mse_7_4_2_1_22_set: %s\n", error);
-        exit(1);
-    }
-////    printf("cry_mse_7_4_2_1_22_set() function is found\n");
-+/
     cry_____7_4_4___46_generate_keypair_RSA = cast(ft_cry_____7_4_4___46_generate_keypair_RSA) dlsym(lh, "cry_____7_4_4___46_generate_keypair_RSA");
     error = dlerror();
     if (error)
@@ -607,7 +586,16 @@ autofound:
         exit(1);
     }
 ////    printf("cry_____7_4_4___46_generate_keypair_RSA() function is found\n");
-
+/+
+    aa_7_2_6_82_external_authentication = cast(ft_aa_7_2_6_82_external_authentication) dlsym(lh, "aa_7_2_6_82_external_authentication");
+    error = dlerror();
+    if (error)
+    {
+        printf("dlsym error aa_7_2_6_82_external_authentication: %s\n", error);
+        exit(1);
+    }
+////    printf("aa_7_2_6_82_external_authentication() function is found\n");
++/
     return 0;
 } // util_connect_card
 
@@ -640,7 +628,7 @@ template connect_card(string commands, string returning="IUP_CONTINUE", string l
 //        writeln("PASSED: util_connect_card");
         scope(exit) {
             if (card) {
-                if (! assumeWontThrow(Runtime.unloadLibrary(lh))) {
+                if (lh && !assumeWontThrow(Runtime.unloadLibrary(lh))) {
                     assumeWontThrow(writeln("Failed to do: Runtime.unloadLibrary(lh)"));
                     `~returning_no_card_statement~`
                 }
@@ -667,7 +655,28 @@ else {
         } // scope(exit)
         if (rc || !card)
             return `~returning~`;
+        if (card.type==SC_CARD_TYPE_ACOS5_64_V3) {
+            ushort   SW1SW2;
+            ubyte    responseLen;
+            ubyte[]  response;
+            if ((rc= cm_7_3_1_14_get_card_info(card, card_info_type.Operation_Mode_Byte_Setting, 0, SW1SW2, responseLen, response)) != SC_SUCCESS) {
+                assumeWontThrow(writeln("FAILED: cm_7_3_1_14_get_card_info: Operation_Mode_Byte_Setting"));
+//                return rc;
+            }
+            else
+              is_ACOSV3_opmodeV3_FIPS_140_2L3 = cast(ubyte)SW1SW2==0? true : false;
+            AA["slot_token"].SetStringId2("", 42,  1, is_ACOSV3_opmodeV3_FIPS_140_2L3? "Yes" : "No");
+            if (is_ACOSV3_opmodeV3_FIPS_140_2L3) {
+                SW1SW2 = 0;
 
+                if ((rc= cm_7_3_1_14_get_card_info(card, card_info_type.Verify_FIPS_Compliance, 0, SW1SW2, responseLen, response)) != SC_SUCCESS) {
+                    assumeWontThrow(writeln("FAILED: cm_7_3_1_14_get_card_info: Verify_FIPS_Compliance"));
+//                    return rc;
+                }
+                is_ACOSV3_opmodeV3_FIPS_140_2L3_active = SW1SW2==0x900;
+                AA["slot_token"].SetStringId2("", 43,  1, is_ACOSV3_opmodeV3_FIPS_140_2L3_active? "Yes" : "No");
+            }
+        }
 `~commands~`
 //        return 0;
     } // disconnected from card now !
@@ -685,16 +694,16 @@ int enum_dir(int depth, sitTypeFS pos_parent, ref PKCS15Path_FileType[] collecto
     assert(fdb.among(EnumMembers!EFDB)); // [ EnumMembers!A ]
     ushort  fid = ub22integral(pos_parent.node.data[2..4]);
     ub2     size_or_MRL_NOR = pos_parent.node.data[4..6];
-    ubyte   lcsi = pos_parent.node.data[7];
+//    ubyte   lcsi = pos_parent.node.data[7];
     AA["tree_fs"].SetStringId((fdb & 0x38) == 0x38? IUP_ADDBRANCH : IUP_ADDLEAF,  depth,
         assumeWontThrow(format!" %04X  %s"(fid, file_type(depth, cast(EFDB)fdb, fid, size_or_MRL_NOR))));
     int rv = (cast(iup.iup_plusD.Tree) AA["tree_fs"]).SetUserId(depth+1, pos_parent.node);
     assert(rv);
-    AA["tree_fs"].SetAttributeId("TOGGLEVALUE", depth+1, lcsi==5? IUP_ON : IUP_OFF);
+    AA["tree_fs"].SetAttributeId("TOGGLEVALUE", depth+1, pos_parent.node.data[7]==5? IUP_ON : IUP_OFF);
 
     ubyte markedFileType = pos_parent.node.data[6];
     if (markedFileType<0xFF) {
-////assumeWontThrow(writefln("This node got PKCS#15-marked: 0x[ %(%02X %) ]", pos_parent.node.data));
+////assumeWontThrow(writefln("1_This node got PKCS#15-marked: 0x[ %(%02X %) ]", pos_parent.node.data));
         with (AA["tree_fs"])
         if (markedFileType.among(PKCS15_FILE_TYPE.PKCS15_DIR, PKCS15_FILE_TYPE.PKCS15_ODF, PKCS15_FILE_TYPE.PKCS15_TOKENINFO)) {
             SetAttributeId(IUP_IMAGE,       depth+1, IUP_IMGPAPER);
@@ -769,10 +778,10 @@ int enum_dir(int depth, sitTypeFS pos_parent, ref PKCS15Path_FileType[] collecto
 
                     collector = collector.remove(0);
                     assert(collector.empty);
-                    uba path5032 = info[8..8+info[1]]~[ubyte(0x50), ubyte(0x32)];
-                    collector ~= [ PKCS15Path_FileType( path5032, PKCS15_FILE_TYPE.PKCS15_TOKENINFO ) ];
                     uba path5031 = info[8..8+info[1]]~[ubyte(0x50), ubyte(0x31)];
                     collector ~= [ PKCS15Path_FileType( path5031, PKCS15_FILE_TYPE.PKCS15_ODF ) ];
+                    uba path5032 = info[8..8+info[1]]~[ubyte(0x50), ubyte(0x32)];
+                    collector ~= [ PKCS15Path_FileType( path5032, PKCS15_FILE_TYPE.PKCS15_TOKENINFO ) ];
 //assumeWontThrow(writeln(collector));
                 }
                 else if (info[0]==EFDB.Transparent_EF && pos_parent.node.data[6]==PKCS15_FILE_TYPE.PKCS15_APPDF) { // EF.PKCS15_ODF
@@ -786,9 +795,9 @@ int enum_dir(int depth, sitTypeFS pos_parent, ref PKCS15Path_FileType[] collecto
                     readFile_wrapped(info, pos_parent.node, expectedFileType, detectedFileType, true, collector);
 //assumeWontThrow(writeln("detectedFileType: ", cast(PKCS15_FILE_TYPE)detectedFileType,", collector: ",collector));
                     collector = collector.remove(0);
-                    assert(expectedFileType==detectedFileType);
-//if (expectedFileType!=detectedFileType)
-//writefln("### expectedFileType(%s), detectedFileType(%s)", expectedFileType, detectedFileType);
+//                    assert(expectedFileType==detectedFileType);
+if (expectedFileType!=detectedFileType)
+assumeWontThrow(writefln("### expectedFileType(%s), detectedFileType(%s)", expectedFileType, detectedFileType));
 //assumeWontThrow(writefln("expectedFileType: %s, detectedFileType: %s, collector: ", expectedFileType, cast(PKCS15_FILE_TYPE)detectedFileType, collector));
 //assumeWontThrow(writeln(collector));
                 }
@@ -829,20 +838,20 @@ int post_process(/*sitTypeFS pos_parent,*/ ref PKCS15Path_FileType[] collector) 
         ubyte len = nodeFS.data[1];
         assert(len>2 && len<=16 && len%2==0);
         ptrdiff_t  c_pos = countUntil!((a,b) => a.pkcs15FileType<=PKCS15_AODF && a.path.equal(b))(collector, nodeFS.data[8..8+len]);
-//assumeWontThrow(writefln("pos: %s,\t %(%02X %)", c_pos, pointer.data));
+//assumeWontThrow(writefln("pos: %s,\t %(%02X %)", c_pos, nodeFS.data));
         if (c_pos>=0) {
             ubyte expectedFileType = nodeFS.data[6] = collector[c_pos].pkcs15FileType;
             assert(expectedFileType.among(EnumMembers!PKCS15_FILE_TYPE) && expectedFileType!=PKCS15_NONE);
             ubyte detectedFileType = 0xFF;
             readFile_wrapped(nodeFS.data, nodeFS, expectedFileType, detectedFileType, expectedFileType.among(/*PKCS15_AODF, PKCS15_SKDF*/255)? false : true, collector);
             assert(detectedFileType.among(EnumMembers!PKCS15_FILE_TYPE));
-            assert(expectedFileType==detectedFileType); // TODO think about changing to e.g. throw an exception and inform user what exactly is wrong
-//if (expectedFileType!=detectedFileType)
-//writefln("### expectedFileType(%s), detectedFileType(%s)", expectedFileType, detectedFileType);
+//            assert(expectedFileType==detectedFileType); // TODO think about changing to e.g. throw an exception and inform user what exactly is wrong
+if (expectedFileType!=detectedFileType)
+writefln("### expectedFileType(%s), detectedFileType(%s)", expectedFileType, detectedFileType);
             // file xy was expected to have ASN.1 encoded content of PKCS#15 type z0, but the content inspection couldn't verify that (detected was PKCS#15 type z1)
             collector = collector.remove(c_pos);
             if (expectedFileType<0xFF) {
-////writefln("This node got PKCS#15-marked: 0x[ %(%02X %) ]", nodeFS.data);
+////writefln("2_This node got PKCS#15-marked: 0x[ %(%02X %) ]", nodeFS.data);
                 with (cast(iup.iup_plusD.Tree) AA["tree_fs"]) {
                     int nodeID = GetId(nodeFS);
                     SetAttributeId(IUP_IMAGE, nodeID, expectedFileType<=PKCS15_AODF || expectedFileType.among(PKCS15_ODF, PKCS15_TOKENINFO, PKCS15_UNUSED) ? IUP_IMGPAPER : IUP_IMGBLANK);
@@ -879,7 +888,7 @@ writefln("### expectedFileType(%s), detectedFileType(%s), path %(%02X %)", expec
             collector = collector.remove(c_pos);
 
             if (expectedFileType<0xFF) {
-////writefln("This node got PKCS#15-marked: 0x[ %(%02X %) ]", nodeFS.data);
+////writefln("3_This node got PKCS#15-marked: 0x[ %(%02X %) ]", nodeFS.data);
                 with (cast(iup.iup_plusD.Tree) AA["tree_fs"]) {
                     int nodeID = GetId(nodeFS);
                     SetAttributeId(IUP_IMAGE, nodeID, expectedFileType<=PKCS15_AODF || expectedFileType.among(PKCS15_ODF, PKCS15_TOKENINFO, PKCS15_UNUSED) ? IUP_IMGPAPER : IUP_IMGBLANK);
@@ -924,7 +933,7 @@ int populate_tree_fs() nothrow
         SetAttribute("TOGGLEVISIBLE", IUP_NO);
     }
 //// read 3F00 for correct '8byte info ! This will also make sure, we have a file system, otherwise return
-    ub32  rootFS = [0x3F, 0x2, 0x3F, 0x0,  0x0, 0x0, 0xFF, 0x0,   0x3F, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
+    ub32  rootFS = [0x3F, 0x2, 0x3F, 0x0,  0x0, 0x0, 0xFF, 0x05,   0x3F, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
         0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0]; // the last 2 bytes are incorrect
     fs = TreeTypeFS(rootFS);
 //writefln("head(%s), head.nextSibling(%s), feet(%s), *head.nextSibling(%s)", fs.head, fs.head.nextSibling, fs.feet, *(fs.head.nextSibling)); // 0x[%(%02X %)]
@@ -937,9 +946,13 @@ int populate_tree_fs() nothrow
         collector ~= PKCS15Path_FileType( path2F00, PKCS15_FILE_TYPE.PKCS15_DIR );
     rv = enum_dir(0,  pos_root.dup, collector);
     /* assuming there is 1 aooDF only */
+
     appdf = fs.preOrderRange(fs.begin(), fs.end()).locate!"a[6]==b"(PKCS15_FILE_TYPE.PKCS15_APPDF);
+//    if (!appdf)
+//        return SC_SUCCESS;
     assert(appdf);
     iter_begin = new itTypeFS(appdf);
+
     if (!collector.empty)
         rv = post_process(/*pos_root.dup,*/ collector);
 
@@ -968,7 +981,7 @@ void readFile_wrapped(ubyte[] info, tnTypePtr pn, const ubyte expectedFileType, 
     assumeWontThrow(writeln(fdb2)); // Transparent_EF
     assumeWontThrow(writeln(decompose(fdb2, size_or_MRL_NOR)[0])); // 33
 */
-    readFile(pn, fid2, fdb2, decompose(fdb2, size_or_MRL_NOR).expand, info[6], detectedFileType, pkcs15Extracted, doExtract);
+    readFile(pn, fid2, fdb2, info[24], decompose(fdb2, size_or_MRL_NOR).expand, info[6], detectedFileType, pkcs15Extracted, doExtract);
 //assumeWontThrow(writeln(detectedFileType, pkcs15Extracted));
     with (PKCS15_FILE_TYPE) if (!detectedFileType.among(PKCS15_SKDF, PKCS15_AODF))
     foreach (e; pkcs15Extracted.uniq!"a.path.equal(b.path)")
@@ -982,7 +995,7 @@ selectbranchleaf_cb(Ihandle* ih, int id, int status)
     populate_list_op_file_possible(pn, info.fid, cast(EFDB)info.fdb, size_or_MRL_NOR, pn.data[7], info.sac);
         readFile(pn, fid, fdb, decompose(fdb, size_or_MRL_NOR).expand, expectedFileType, detectedFileType, pkcs15Extracted);
 */
-void readFile(tnTypePtr pn, ub2 fid, EFDB fdb, ushort size, ubyte mrl, ubyte nor, ubyte expectedFileType, ref ubyte PKCS15fileType, out PKCS15Path_FileType[] pkcs15Extracted, bool doExtract=false) nothrow
+void readFile(tnTypePtr pn, ub2 fid, EFDB fdb, ubyte sacRead, ushort size, ubyte mrl, ubyte nor, ubyte expectedFileType, ref ubyte PKCS15fileType, out PKCS15Path_FileType[] pkcs15Extracted, bool doExtract=false) nothrow
 {
 //assumeWontThrow(writefln("readFile(ub2 %s, EFDB %s, expectedFileType %s)", fid, fdb, expectedFileType));
     with (EFDB)
@@ -995,6 +1008,17 @@ void readFile(tnTypePtr pn, ub2 fid, EFDB fdb, ushort size, ubyte mrl, ubyte nor
     size_t responselen;
     int rv;
     uint[] offsetTable = [0];
+
+    // SM-protected verify_pin doesn't work with the current settings: Presumably the ref manual is wrong here !
+    if (false && !doExtract && is_ACOSV3_opmodeV3_FIPS_140_2L3 && sacRead==3) {
+        ub8 pbuf = [ 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39 ];
+        int  tries_left;
+        rv = sc_verify(card, SC_AC.SC_AC_CHV, 0x81, pbuf.ptr, pbuf.length, &tries_left);
+        if (rv != SC_SUCCESS) {
+            assumeWontThrow(writefln("### sc_verify failed: Received rv: %s", rv));
+            return;
+        }
+    }
 
     with (EFDB)
     switch (fdb) {
@@ -1019,6 +1043,7 @@ void readFile(tnTypePtr pn, ub2 fid, EFDB fdb, ushort size, ubyte mrl, ubyte nor
             if (offsetTable.length<2)
                 offsetTable ~= cast(uint)buf.length;
 //assumeWontThrow(writefln("offsetTable[0]: %s, offsetTable[$-1]: %s", offsetTable[0], offsetTable[$-1]));
+//assumeWontThrow(writefln("offsetTable[]: %s", offsetTable));
             break;
         case Linear_Fixed_EF, Linear_Variable_EF, SE_EF:
             foreach (rec_idx; 1 .. 1+nor) {
@@ -1026,8 +1051,15 @@ void readFile(tnTypePtr pn, ub2 fid, EFDB fdb, ushort size, ubyte mrl, ubyte nor
                     buf = new ubyte[size? size : mrl];
                 else
                     buf[] = 0;
-                rv = sc_read_record(card, rec_idx, buf.ptr, buf.length, 0 /*flags*/);
-                assert(rv>0 && rv==buf.length);
+                if (is_ACOSV3_opmodeV3_FIPS_140_2L3 && fdb==SE_EF && sacRead.among(1,3) && rec_idx<=seFIPS.length) {
+                    buf[0..33] = seFIPS[rec_idx-1];
+                    rv = 33;
+                }
+                else
+                    rv = sc_read_record(card, rec_idx, buf.ptr, buf.length, 0 /*flags*/);
+////                assert(rv>0 && rv==buf.length);
+if (rv != buf.length)
+assumeWontThrow(writefln("### returned length from sc_read_record to short: Received %s, but expected %s. fid: %(%02X %)", rv, buf.length, fid));
 //assumeWontThrow(writefln("0x[%(%02X %)]", buf));
                 h.SetString("APPEND", "Record "~rec_idx.to!string);
                 if (fdb==SE_EF)
@@ -1039,7 +1071,10 @@ void readFile(tnTypePtr pn, ub2 fid, EFDB fdb, ushort size, ubyte mrl, ubyte nor
             // these types don't get ASN.1 decoded
             return;
         case RSA_Key_EF:
-            if ((rv= sc_get_data(card, 0, buf.ptr, buf.length)) != buf.length) return;
+            rv= sc_get_data(card, 0, buf.ptr, buf.length);
+            if (rv != buf.length) return;
+//            if (rv != buf.length)
+//assumeWontThrow(writefln("### returned length from sc_get_data to short: Received %s, but expected %s. fid: %(%02X %)", rv, buf.length, fid));
             h.SetString("APPEND", " ");
             foreach (chunk; chunks(buf, 48)) {
 //assumeWontThrow(writefln("0x[%(%02X %)]", chunk));
@@ -1082,6 +1117,8 @@ void readFile(tnTypePtr pn, ub2 fid, EFDB fdb, ushort size, ubyte mrl, ubyte nor
     foreach (sw; offsetTable.slide(2)) { // sw: SlideWindow
         asn1_node  structure;
         asn1_result = asn1_create_element(PKCS15, pkcs15_names[expectedFileType][doExtract? 1 : 3], &structure);
+//    [ "EF(AODF)",         "PKCS15.AuthenticationType", "authObjects.path.path",         "PKCS15.AuthenticationTypeChoice", "authObj"],
+
         scope(exit)
             asn1_delete_structure(&structure);
         if (asn1_result != ASN1_SUCCESS) {
@@ -1091,6 +1128,7 @@ void readFile(tnTypePtr pn, ub2 fid, EFDB fdb, ushort size, ubyte mrl, ubyte nor
         asn1_result = asn1_der_decoding(&structure, fdb==EFDB.RSA_Key_EF? response[0..responselen] : buf[sw[0]..sw[1]], errorDescription);
         if (asn1_result != ASN1_SUCCESS) {
             assumeWontThrow(writeln("### asn1Decoding: ", errorDescription));
+            assumeWontThrow(writefln("### asn1Decoding: expectedFileType(%s), sw0(%s), sw1(%s), pn.data(%(%02X %), bytes(%(%02X %))", expectedFileType, sw[0], sw[1], pn.data, fdb==EFDB.RSA_Key_EF? response[0..responselen] : buf[sw[0]..sw[1]]));
             continue;
         }
         PKCS15fileType = expectedFileType;
@@ -1103,6 +1141,14 @@ void readFile(tnTypePtr pn, ub2 fid, EFDB fdb, ushort size, ubyte mrl, ubyte nor
                     if ((asn1_result= asn1_read_value(structure, pkcs15_names[expectedFileType][2], str, outLen)) != ASN1_SUCCESS)
                         goto looptail;
                     pkcs15Extracted ~= PKCS15Path_FileType(str[0..outLen].dup, PKCS15_APPDF);
+                    if ((asn1_result= asn1_read_value(structure, "aid", str, outLen)) != ASN1_SUCCESS)
+                        goto looptail;
+                    if (outLen > SC_MAX_AID_SIZE)
+                        assumeWontThrow(writeln("### aid is incorrect: It's longer than 16 bytes"));
+                    else {
+                        aid.len              = outLen;
+                        aid.value[0..outLen] = str[0..outLen];
+                    }
                 }
                 break;
 
@@ -1240,15 +1286,16 @@ string RSA_public_openssh_formatted(ub2 fid, scope const ubyte[] rsa_raw_acos5_6
         "\n\nThe fingerprint (MD5) is: "~fingerprintMD5~"\n\nThe fingerprint (SHA256) base64-encoded is: "~fingerprintSHA256;
 }
 
-//code copyed from project acos5_64, module util_general_opensc; minor changes only concerning nothrow
-struct TLV_Range_array { // TLV always built of ubytes
-    const(ubyte)[] arr;
 
-    this(const(ubyte)[] in_arr) nothrow {
+//new modify bytes in playce but no change of length !
+struct TLV_Range_array_mod { // TLV always built of ubytes
+    ubyte[] arr;
+
+    this(ubyte[] in_arr) nothrow {
         assert(in_arr.length); // prevents @nogc
         arr = in_arr;
     }
-
+/+
     int opApply(int delegate(ubyte T, ubyte L, const(ubyte)[] V) /*nothrow*/ /*@nogc*/ dg) const nothrow {
         int result; /* continue as long as result==0 */
         ubyte  T /*Tag*/, L /*Length*/;
@@ -1272,13 +1319,13 @@ struct TLV_Range_array { // TLV always built of ubytes
 
         return result;
     }
-
-    int opApply(int delegate(ubyte distance, ubyte T, ubyte L, const(ubyte)[] V) /*nothrow*/ /*@nogc*/ dg) const nothrow {
++/
+    int opApply(int delegate(ubyte distance, ubyte T, ubyte L, ubyte[] V) /*nothrow*/ /*@nogc*/ dg) nothrow {
         int result; /* continue as long as result==0 */
         ubyte  T /*Tag*/, L /*Length*/;
-        const(ubyte)[]  V /*Value*/;
+        ubyte[]  V /*Value*/;
         ptrdiff_t  distance; /*_from_begin, after each TLV-group processed */
-        for (const(ubyte)* p = arr.ptr;
+        for (ubyte* p = arr.ptr;
              p-arr.ptr+2         <= arr.length  &&
              p-arr.ptr+2+ *(p+1) <= arr.length  &&  *p != 0x00;
              p += 2+ *(p+1))
@@ -1298,4 +1345,4 @@ struct TLV_Range_array { // TLV always built of ubytes
     }
 } // struct TLV_Range_array
 
-TLV_Range_array  tlv_Range(const(ubyte)[] arg_for_constructor) nothrow { return TLV_Range_array(arg_for_constructor); }
+TLV_Range_array_mod  tlv_Range_mod(ubyte[] arg_for_constructor) nothrow { return TLV_Range_array_mod(arg_for_constructor); }

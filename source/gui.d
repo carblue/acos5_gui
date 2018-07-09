@@ -30,6 +30,7 @@ import libintl : _, __;
 
 import callbacks;
 import generateKeyPair_RSA;
+import importExport;
 
 
 private Hbox create_cryptoki_slot_tokeninfo_tab() {
@@ -41,8 +42,8 @@ private Hbox create_cryptoki_slot_tokeninfo_tab() {
 
     matrix = new Matrix("slot_token");
     with (matrix) {
-        SetInteger(IUP_NUMLIN,         41);
-        SetInteger(IUP_NUMLIN_VISIBLE, 41);
+        SetInteger(IUP_NUMLIN,         43);
+        SetInteger(IUP_NUMLIN_VISIBLE, 43);
         SetInteger(IUP_NUMCOL,          1);
         SetInteger(IUP_NUMCOL_VISIBLE,  1);
         SetAttribute(IUP_RESIZEMATRIX, IUP_YES);
@@ -50,7 +51,7 @@ private Hbox create_cryptoki_slot_tokeninfo_tab() {
         SetAttribute(IUP_READONLY,     IUP_YES);
 //      SetAttribute("FLATSCROLLBAR",     IUP_YES);
 //      SetAttribute("EDITNEXT",     "COL");
-        SetIntegerId(IUP_WIDTH,   0,    220);
+        SetIntegerId(IUP_WIDTH,   0,    240);
         SetIntegerId(IUP_WIDTH,   1,    130);
         SetInteger(IUP_HEIGHTDEF,  5);
 
@@ -104,7 +105,11 @@ private Hbox create_cryptoki_slot_tokeninfo_tab() {
         SetAttributeId2("", 38,  0,   "Token PublicMemory free/total"); //   SetAttributeId2("", 25,  1, "-");
         SetAttributeId2("", 39,  0,   "Token PrivateMemory free/total"); //   SetAttributeId2("", 25,  1, "-");
         SetAttributeId2("", 40,  0,   "Token hardware/firmware version"); //  SetAttributeId2("",  7,  1, "CKF_REMOVABLE_DEVICE");
-        SetAttributeId2("", 41,  0,   "Token utcTime"); //  SetAttributeId2("",  7,  1, "CKF_REMOVABLE_DEVICE");
+        SetAttributeId2("", 41,  0,   "Token utcTime");
+        SetAttributeId2("", 42,  0,   "Token has provision for FIPS 140-2 Level 3–Compliant Mode");
+        SetAttributeId2("", 42,  1,   "No");
+        SetAttributeId2("", 43,  0,   "Token is verified to operate in FIPS 140-2 Level 3–Compliant Mode");
+        SetAttributeId2("", 43,  1,   "N/A");
 
         SetAttribute(IUP_TOGGLECENTERED,  IUP_YES);
         SetCallback(IUP_DROPCHECK_CB,  cast(Icallback) &slot_token_dropcheck_cb);
@@ -139,7 +144,7 @@ private Vbox create_opensc_conf_tab() {
 }
 
 private Hbox create_filesystem_tab() {
-    Control[] child_array1, child_array2;
+    Control[] child_array1, child_array2, child_array3;
     auto tree_fs = new Tree("tree_fs");
     with (tree_fs) {
         SetAttribute(IUP_SHOWTOGGLE, IUP_YES);
@@ -191,7 +196,16 @@ private Hbox create_filesystem_tab() {
 //      SetAttribute(IUP_VALUE, "1");
         SetCallback(IUP_VALUECHANGED_CB, &list_op_file_possible_val_changed_cb);
     }
-    child_array2 ~= list;
+    child_array3 ~= list;
+/+
+    auto btn_do = new Button("btn_do",  __("Update local CHV-File"));
+    btn_do.SetCallback(IUP_ACTION, &btn_do_cb);
+//    btn_do.SetAttribute(IUP_TIP, __("The action performed depends on the radio button setting"));
+    child_array3 ~= btn_do;
++/
+    auto hbox1 = new Hbox(child_array3, FILL_TYPE.FILL_FRONT_AND_BACK_AND_BETWEEN);
+    child_array2 ~= hbox1;
+
     child_array2 ~= new Label("Read-Result (hexadecimal; content ending with 4 zero bytes indicates: There were possibly more zero bytes, subject to 'zero byte truncation')");
 
     auto text1 = new Text("fs_text");
@@ -263,8 +277,10 @@ private Vbox create_GenerateKeyPair_RSA_tab() {
     child_array_toggles ~= toggle2;
     auto toggle3 = new Toggle("toggle_RSA_key_pair_regenerate", __("RSA key pair: Regenerate RSA key pair content in existing files (select by key pair id)"));
     child_array_toggles ~= toggle3;
-//    auto toggle4 = new Toggle("toggle_RSA_key_pair_create_and_generate", __("RSA key pair: Create new RSA key pair files and generate RSA key pair content"));
-//    child_array_toggles ~= toggle4;
+    auto toggle4 = new Toggle("toggle_RSA_key_pair_create_and_generate", __("RSA key pair: Create new RSA key pair files and generate RSA key pair content"));
+    child_array_toggles ~= toggle4;
+    auto toggle5 = new Toggle("toggle_RSA_key_pair_try_sign", __("RSA key pair: Sign SHA1/SHA256 hash (select key pair id)"));
+    child_array_toggles ~= toggle5;
 
     foreach (i,toggle; child_array_toggles) {
         toggle.SetAttributeVALUE(i==0? IUP_ON : IUP_OFF);
@@ -272,13 +288,21 @@ private Vbox create_GenerateKeyPair_RSA_tab() {
     }
     child_array  ~= new Radio("radio_RSA", new Vbox(child_array_toggles, FILL_TYPE.FILL_FRONT_AND_BACK_AND_BETWEEN));
 
-    auto text2 = new Text();
+    auto text2 = new Text("hash_to_be_signed");
     with (text2) {
+        SetAttribute(IUP_SIZE, "500");
+        SetAttribute(IUP_READONLY, IUP_YES);
+        SetStringVALUE("0102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F20  Content to be signed: 20/32 bytes");
+    }
+    child_array ~= text2;
+
+    auto text3 = new Text();
+    with (text3) {
         SetAttribute(IUP_SIZE, "500");
         SetAttribute(IUP_READONLY, IUP_YES);
         SetStringVALUE("Integer entry for private key usage/capability: 2(decrypt) +4(sign) +8(signRecover) +32(unwrap) +512(nonRepudiation)");
     }
-    child_array ~= text2;
+    child_array ~= text3;
 
 /*  Matrix("matrixRsaAttributes") is designed to work in "normal" mode !
 IupMatrix
@@ -455,6 +479,38 @@ private Vbox create_sanityCheck_tab() {
     return vbox;
 }
 
+
+private Vbox create_importExport_tab() {
+    Control[]  child_array;
+
+    auto text1 = new Text("importExport_text");
+    with (text1) {
+        SetAttribute(IUP_SIZE, "800");
+        SetAttribute(IUP_MULTILINE, IUP_YES);
+        SetAttribute(IUP_VISIBLELINES, "16");
+        SetAttribute(IUP_WORDWRAP, IUP_YES);
+    }
+    child_array ~= text1;
+
+    auto btn_exportArchive = new Button("exportArchive",  __("exportArchive"));
+    btn_exportArchive.SetCallback(IUP_ACTION, &btn_exportArchive_cb);
+//    btn_exportArchive.SetAttribute(IUP_TIP, __("The action performed depends on the radio button setting"));
+    child_array ~= btn_exportArchive;
+//    Control[] child_array3;
+//    child_array3 ~= btn_RSA;
+/* * /
+    auto btn_RSA_checkPRKDF_PUKDF = new Button("btn_RSA_checkPRKDF_PUKDF",  __("for debugging only: btn_RSA_checkPRKDF_PUKDF")); // this(string CN, const(char)* title)
+    btn_RSA_checkPRKDF_PUKDF.SetCallback(IUP_ACTION, &btn_RSA_checkPRKDF_PUKDF_cb);
+    child_array3 ~= btn_RSA_checkPRKDF_PUKDF;
+/ * */
+//    child_array ~= new Hbox(child_array3, FILL_TYPE.FILL_FRONT_AND_BACK);
+
+    auto vbox = new Vbox(child_array, FILL_TYPE.FILL_BETWEEN);
+    vbox.SetAttribute(ICTL_TABTITLE, "Import/Export");
+    return vbox;
+}
+
+
 Dialog create_dialog_dlg0() {
     /* Example of i18n usage */
     auto btn_exit    = new Button(  __("Exit")); // __("Beenden")
@@ -464,7 +520,7 @@ Dialog create_dialog_dlg0() {
     auto hbox = new Hbox([ btn_exit ], FILL_TYPE.FILL_FRONT_AND_BACK_AND_BETWEEN);
 
     Control[] child_array = [create_cryptoki_slot_tokeninfo_tab/*, create_opensc_conf_tab*/, create_filesystem_tab, create_GenerateKeyPair_RSA_tab /*, create_ssh_tab*/
-        /*,create_sanityCheck_tab*/];
+        /*,create_sanityCheck_tab*/ , create_importExport_tab ];
     auto tabs = new Tabs("tabCtrl", child_array);
 //  tabs.SetAttribute(ICTL_TABTYPE, ICTL_TOP); // Default is "TOP"
 

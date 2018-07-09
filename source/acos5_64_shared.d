@@ -28,12 +28,14 @@ module acos5_64_shared;
 
 import core.stdc.config : c_ulong;
 import std.algorithm.comparison : /*min, max, clamp, equal, mismatch,*/ among;
+import std.conv : hexString;
 
 import libopensc.opensc;// "dependencies" : "opensc": "==0.15.14",   : sc_card,SC_ALGORITHM_DES, SC_ALGORITHM_3DES, SC_ALGORITHM_AES; // to much to make sense listing // sc_format_path, SC_ALGORITHM_RSA, sc_print_path, sc_file_get_acl_entry
 import libopensc.types;  // to much to make sense listing // sc_path, sc_atr, sc_file, sc_serial_number, SC_MAX_PATH_SIZE, SC_PATH_TYPE_PATH, sc_apdu, SC_AC_OP_GENERATE;
 import libopensc.errors; // to much to make sense listing ?
 import libopensc.log;
 import libopensc.iso7816;
+
 
 alias  ub2  = ubyte[2];
 alias  ub8  = ubyte[8];
@@ -46,6 +48,25 @@ alias  uba  = ubyte[];
 enum ubyte MAX_FCI_GET_RESPONSE_LEN = 86; //[EnumMembers!ISO7816_TAG_FCP_    ].fold!((a, b) => a + 2+TAG_FCP_len(b))(-12) +
 										  //[EnumMembers!ISO7816_RFU_TAG_FCP_].fold!((a, b) => a + 2+TAG_FCP_len(b))(0); // Σ:86 //2(6F) [+4(80)] +8(82)+4(83) [+18(84)]+3(88)+3(8A)+10(8C)  [+4(8D) +34(AB)]
 //pragma(msg, "compiling...MAX_FCI_GET_RESPONSE_LEN is: ", MAX_FCI_GET_RESPONSE_LEN);
+
+immutable ubyte[/*33*/][5] seFIPS = [
+	cast(immutable ubyte[/*33*/])hexString!"80 01 01 A4 06 83 01 01 95 01 80 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+	cast(immutable ubyte[/*33*/])hexString!"80 01 02 A4 06 83 01 01 95 01 80 B4 09 80 01 02 83 01 02 95 01 30 B8 09 80 01 02 83 01 02 95 01 30",
+	cast(immutable ubyte[/*33*/])hexString!"80 01 03 A4 06 83 01 81 95 01 08 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+	cast(immutable ubyte[/*33*/])hexString!"80 01 04 A4 06 83 01 81 95 01 08 B4 09 80 01 02 83 01 02 95 01 30 B8 09 80 01 02 83 01 02 95 01 30",
+	cast(immutable ubyte[/*33*/])hexString!"80 01 05 B4 09 80 01 02 83 01 02 95 01 30 B8 09 80 01 02 83 01 02 95 01 30 00 00 00 00 00 00 00 00",
+];
+
+immutable ubyte[/*48*/][1] se64K0 = [
+	cast(immutable ubyte[/*48*/])hexString!"80 01 01 A4 06 83 01 01 95 01 08 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+];
+
+immutable ubyte[/*48*/][4] se64K1 = [
+	cast(immutable ubyte[/*48*/])hexString!"80 01 01 A4 06 83 01 81 95 01 08 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+	cast(immutable ubyte[/*48*/])hexString!"80 01 02 B4 09 83 01 01 95 01 30 80 01 02 B8 09 83 01 01 95 01 30 80 01 02 A4 06 83 01 81 95 01 08 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+	cast(immutable ubyte[/*48*/])hexString!"80 01 03 A4 06 83 01 01 95 01 08 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+	cast(immutable ubyte[/*48*/])hexString!"80 01 04 A4 09 83 01 01 83 01 81 95 01 08 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+];
 
 nothrow extern(C) {
 alias  ft_cm_7_3_1_14_get_card_info =  int function(sc_card* card,
@@ -70,15 +91,15 @@ alias  ft_uploadHexfile =  int function(sc_card* card,
 	size_t count,
 	c_ulong flags);
 
-//alias  ft_construct_sc_security_env =  uba function(int mode, const(sc_security_env)* psec_env, CRT_TAG crtt, Usage usage=Usage.None,
-//	ubyte id_pin_key_local_global_or_key_session=0xFF/*None*/, ubyte algo=0xFF/*None, or infer*/, uba keyFile_RSA=null, uba iv=null);
-
-//alias  ft_cry_mse_7_4_2_1_22_set =  int function(sc_card* card, scope const ubyte[] tlv_crt) @trusted;
-
 alias  ft_cry_____7_4_4___46_generate_keypair_RSA =  int function(sc_card* card, scope const ubyte[] lv_key_len_type_data) /*@safe*/;
 
+alias  ft_control_generate_key =  int function(bool, bool=false, bool=true);
+
+//alias  ft_aa_7_2_6_82_external_authentication = int function(sc_card* card, ubyte KeyID, scope sc_remote_data* rdata=null) @trusted;
+//alias  ft_getTreeTypeFSy = tnTypePtry[] function();
 } // nothrow extern(C)
 
+/+
 enum CRT_TAG : ubyte {
 	HT      = 0xAA,   // Hash Template                 : AND:      Algorithm
 	AT      = 0xA4,   // Authentication Template       : AND: UQB, Pin_Key,
@@ -121,6 +142,7 @@ enum Usage {
 	Local_Key1,
 }
 //mixin FreeEnumMembers!Usage;
++/
 
 enum EFDB : ubyte { // enum File Descriptor Byte, as acos knows them
 	// DF types:
@@ -152,6 +174,12 @@ ubyte iEF_FDB_to_structure(EFDB FDB) {
 		return 0; // the result for MF/DF
 }
 
+ushort /*bitLen*/ decode_key_RSA_ModulusBitLen(const ubyte acosCode) pure nothrow @nogc @safe
+{
+    assert(acosCode%2==0 && acosCode>=4 && acosCode<=32);
+	return  acosCode*128;
+}
+
 enum SM_Extend : ubyte {
 	SM_NONE,
 	SM_CCT,            // Cryptographic Checksum Template
@@ -160,20 +188,19 @@ enum SM_Extend : ubyte {
 //mixin FreeEnumMembers!SM_Extend;
 
 enum card_info_type : ubyte[3] {
-	Serial_Number                = [ 0,0, 6], // 6 is for ACOSV2 only; for ACOSV3 (Nano) it will be replaced by 8
-	count_files_under_current_DF = [ 1,0, 0],
-	File_Information             = [ 2,0, 8], // the P2 value must be replaced as desired
-	Get_Free_Space               = [ 4,0, 2],
-	Identify_Self                = [ 5,0, 0],
-	Card_OS_Version              = [ 6,0, 8],
-/+ available ony since ACOSV3: +/
-	ROM_Manufacture_Date         = [ 7,0, 4],
-	ROM_SHA1                     = [ 8,0,20],
-	Operation_Mode_Byte_Setting  = [ 9,0, 0],
-	Verify_FIPS_Compliance       = [10,0, 0],
-	Get_Pin_Authentication_State = [11,0, 1],
-	Get_Key_Authentication_State = [12,0, 1],
-/+ +/
+	Serial_Number                = [ 0, 0,  6], // 6 is for ACOSV2 etc. only; for ACOS5-64 V3 (Nano) in FIPS-mode it will be replaced by 8
+	count_files_under_current_DF = [ 1, 0,  0],
+	File_Information             = [ 2, 0,  8], // the P2 value must be replaced as desired
+	Get_Free_Space               = [ 4, 0,  2],
+	Identify_Self                = [ 5, 0,  0],
+	Card_OS_Version              = [ 6, 0,  8],
+	/* available ony since ACOS5-64 V3: */
+	ROM_Manufacture_Date         = [ 7, 0,  4],
+	ROM_SHA1                     = [ 8, 0, 20],
+	Operation_Mode_Byte_Setting  = [ 9, 0,  0],
+	Verify_FIPS_Compliance       = [10, 0,  0],
+	Get_Pin_Authentication_State = [11, 0,  1],
+	Get_Key_Authentication_State = [12, 0,  1],
 }
 
 struct fci_se_info { // former cache_current_df_se_info
@@ -196,8 +223,23 @@ struct fci_se_info { // former cache_current_df_se_info
 	ubyte        MRL;  /* if applicable: Max. Record Length */
 }
 
-ushort /*bitLen*/ decode_key_RSA_ModulusBitLen(const ubyte acosCode) pure nothrow @nogc @safe
-{
-    assert(acosCode%2==0 && acosCode>=4 && acosCode<=32);
-	return  acosCode*128;
+/+
+struct fsData {
+    ub8   fi; //fileInfo;
+    ub16  path;
+
+    fsData dup() nothrow { return this; }
 }
+
+alias  TreeTypeFSy = tree_k_ary.Tree!fsData; // 8 bytes + length of pathlen_max considered (, here SC_MAX_PATH_SIZE = 16) + 8 bytes SAC (file access conditions)
+alias  tnTypePtry  = TreeTypeFSy.nodeType*;
+alias  sitTypeFSy  = TreeTypeFSy.sibling_iterator; // sibling iterator type
+alias   itTypeFSy  = TreeTypeFSy.pre_order_iterator; // iterator type
+
+//bool        doCheckPKCS15 = true;
+//tnTypePtry   appdf;
+//tnTypePtry   prkdf;
+//tnTypePtry   pukdf;
+//itTypeFSy    iter_begin;
++/
+

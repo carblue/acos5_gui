@@ -1,5 +1,5 @@
 PKCS15 {iso(1) member-body(2) us(840) rsadsi(113549) pkcs(1)
-         pkcs-15(15) modules(1) pkcs-15(1)} 
+         pkcs-15(15) modules(1) pkcs-15(1)}
 
 DEFINITIONS IMPLICIT TAGS ::=
 
@@ -127,24 +127,32 @@ CredentialIdentifier ::= SEQUENCE { --  {KEY-IDENTIFIER : IdentifierSet}
 ReferencedValue ::= CHOICE { -- ReferencedValue {Type} ::= CHOICE {
     path	Path
 --    url		URL
-} -- (CONSTRAINED BY { 'path' or 'url' shall point to an object of type Type}) 
+} -- (CONSTRAINED BY { 'path' or 'url' shall point to an object of type Type})
 
 Path ::= SEQUENCE {
     path 	OCTET STRING,
     index  	INTEGER (0..pkcs15-ub-index) OPTIONAL,
     length 	[0] INTEGER (0..pkcs15-ub-index) OPTIONAL
-} -- ( WITH COMPONENTS {..., index PRESENT, length PRESENT}| 
+} -- ( WITH COMPONENTS {..., index PRESENT, length PRESENT}|
   --   WITH COMPONENTS {..., index ABSENT, length ABSENT})
 
 ObjectValue ::= CHOICE { -- ObjectValue { Type } ::= CHOICE {
     indirect 	        ReferencedValue -- {Type},
---    direct 	        [0] Type,
+--    direct 	        [0] EXPLICIT  Type,
 --    indirect-protected	[1] ReferencedValue {EnvelopedData {Type}},
 --    direct-protected	[2] EnvelopedData {Type}
 } -- (CONSTRAINED BY { if indirection is being used, then it is
     -- expected that the reference points either to a (possibly
-    -- enveloped) object of type Type or (key case) to a card- 
+    -- enveloped) object of type Type or (key case) to a card-
     -- specific key file })
+
+ObjectValueRSAPublicKeyChoice ::= CHOICE { -- ObjectValue { Type } ::= CHOICE {
+    indirect            ReferencedValue, -- {Type},
+    direct              [0] EXPLICIT RSAPublicKeyChoice -- Type,
+--    indirect-protected	[1] ReferencedValue {EnvelopedData {Type}},
+--    direct-protected	[2] EnvelopedData {Type}
+} -- (CONSTRAINED BY { if indirection is being used, then it is
+
 
 PathOrObjects ::= CHOICE { -- {ObjectType}
     path  	Path
@@ -163,7 +171,7 @@ CommonObjectAttributes ::= SEQUENCE {
 --    accessControlRules	SEQUENCE SIZE (1..MAX) OF AccessControlRule OPTIONAL
 } --(CONSTRAINED BY { authId should be present in the IC card case if
     -- flags.private is set. It must equal an authID in one AuthRecord
-    -- in the AODF }) 
+    -- in the AODF })
 
 CommonObjectFlags ::= BIT STRING {
     private		(0),
@@ -186,9 +194,9 @@ CommonObjectFlags ::= BIT STRING {
 --    authId	Identifier,
 --    not    	[0] SecurityCondition,
 --    and    	[1] SEQUENCE SIZE (2..pkcs15-ub-securityConditions)
---                OF SecurityCondition, 
+--                OF SecurityCondition,
 --    or     	[2] SEQUENCE SIZE (2..pkcs15-ub-securityConditions)
---                OF SecurityCondition, 
+--                OF SecurityCondition,
 --    ...  For future extensions
 --}
 
@@ -245,7 +253,7 @@ CommonSecretKeyAttributes ::= SEQUENCE {
 }
 
 CommonCertificateAttributes ::= SEQUENCE {
-    iD 		Identifier, 
+    iD 		Identifier,
     authority	BOOLEAN DEFAULT FALSE,
     identifier 	CredentialIdentifier OPTIONAL, -- {{KeyIdentifiers}}
     certHash	[0] OOBCertHash OPTIONAL,
@@ -278,7 +286,7 @@ pkcs-1 OBJECT IDENTIFIER ::= {
 rsaEncryption OBJECT IDENTIFIER ::=  { pkcs-1 1 }
 
 --
--- When the following OIDs are used in an AlgorithmIdentifier the parameters 
+-- When the following OIDs are used in an AlgorithmIdentifier the parameters
 -- MUST be present and MUST be NULL.
 --
 md2WithRSAEncryption         OBJECT IDENTIFIER ::= { pkcs-1 2 }
@@ -319,7 +327,7 @@ CommonDataObjectAttributes ::= SEQUENCE {
     applicationOID 	OBJECT IDENTIFIER OPTIONAL
 --    iD				Identifier OPTIONAL,
 --    ...  For future extensions
-    } -- (WITH COMPONENTS {..., applicationName PRESENT}| 
+    } -- (WITH COMPONENTS {..., applicationName PRESENT}|
       --  WITH COMPONENTS {..., applicationOID PRESENT})
 
 CommonAuthenticationObjectAttributes ::= SEQUENCE {
@@ -343,24 +351,24 @@ PrivateRSAKeyAttributes ::= SEQUENCE {
     modulusLength 	INTEGER -- modulus length in bits, e.g. 1024
 --    keyInfo  		KeyInfo {NULL, PublicKeyOperations} OPTIONAL,
 --    ...  For future extensions
-} 
+}
 
 PublicRSAKeyAttributes ::= SEQUENCE {
-    value			ObjectValue, -- {RSAPublicKeyChoice}
+    value			ObjectValueRSAPublicKeyChoice, -- {RSAPublicKeyChoice}
     modulusLength 	INTEGER -- modulus length in bits, e.g. 1024
 --    keyInfo		KeyInfo {NULL, PublicKeyOperations} OPTIONAL,
 --    ...  For future extensions
-} 
+}
 
 RSAPublicKeyChoice ::= CHOICE { -- sc_card_operations.read_public_key must deliver this
     raw	 RSAPublicKey
---    spki [1] SubjectPublicKeyInfo, See X.509. Must contain a public RSA key 
+--    spki [1] SubjectPublicKeyInfo, See X.509. Must contain a public RSA key
 --    ...
 }
 
 RSAPublicKey ::= SEQUENCE {
     modulus           INTEGER,  -- n
-    publicExponent    INTEGER   -- e 
+    publicExponent    INTEGER   -- e
 }
 
 GenericSecretKeyAttributes ::= SEQUENCE {
@@ -454,6 +462,22 @@ IrisScan ::= SEQUENCE {
 --    ...  For future extensions
 }
 
+ExternalAuthObjectAttributes ::= CHOICE {
+    authKeyAttributes   AuthKeyAttributes,
+    certBasedAttributes [0] CertBasedAuthenticationAttributes
+--    ...  For future extensions
+}
+
+AuthKeyAttributes ::= SEQUENCE {
+    derivedKey  BOOLEAN DEFAULT TRUE,
+    authKeyId   Identifier
+--    ...  For future extensions
+}
+
+CertBasedAuthenticationAttributes ::= SEQUENCE {
+    cha     OCTET STRING
+--    ...  For future extensions
+}
 
 PrivateKeyObjectRSA ::= SEQUENCE { -- new name 'PrivateKeyObjectRSA' created for PKCS15Object {CommonKeyAttributes, CommonPrivateKeyAttributes, PrivateRSAKeyAttributes}
     commonObjectAttributes	CommonObjectAttributes,
@@ -494,10 +518,24 @@ AuthenticationObjectPin  ::= SEQUENCE {  -- new name 'AuthenticationObjectPin' c
     pinAttributes							[1] EXPLICIT PinAttributes
 }
 
-AuthenticationObjectBiometric  ::= SEQUENCE {  -- new name 'AuthenticationObjectPin' created for PKCS15Object { CommonAuthenticationObjectAttributes, NULL, BiometricAttributes}
+AuthenticationObjectBiometric  ::= SEQUENCE {  -- new name 'AuthenticationObjectBiometric' created for PKCS15Object { CommonAuthenticationObjectAttributes, NULL, BiometricAttributes}
     commonObjectAttributes					CommonObjectAttributes,
     commonAuthenticationObjectAttributes	CommonAuthenticationObjectAttributes,
     biometricAttributes						[1] EXPLICIT BiometricAttributes
+}
+
+
+
+AuthenticationObjectAuthKey  ::= SEQUENCE {  -- new name 'AuthenticationObjectAuthKey' created for PKCS15Object { CommonAuthenticationObjectAttributes, NULL, AuthKeyAttributes}
+    commonObjectAttributes					CommonObjectAttributes,
+    commonAuthenticationObjectAttributes	CommonAuthenticationObjectAttributes,
+    authKeyAttributes						[1] EXPLICIT AuthKeyAttributes
+}
+
+AuthenticationObjectExternal  ::= SEQUENCE {  -- new name 'AuthenticationObjectExternal' created for PKCS15Object { CommonAuthenticationObjectAttributes, NULL, ExternalAuthObjectAttributes}
+    commonObjectAttributes					CommonObjectAttributes,
+    commonAuthenticationObjectAttributes	CommonAuthenticationObjectAttributes,
+    externalAuthObjectAttributes			[1] EXPLICIT ExternalAuthObjectAttributes
 }
 
 PrivateKeyType ::= CHOICE {
@@ -524,7 +562,7 @@ SecretKeyType ::= CHOICE {
 --    rc4key			[1] SecretKeyObject {GenericSecretKeyAttributes},
     desKey			[2] EXPLICIT  SecretKeyObject, -- {GenericSecretKeyAttributes},
     des2Key			[3] EXPLICIT  SecretKeyObject, -- {GenericSecretKeyAttributes},
-    des3Key			[4]  SecretKeyObject, -- {GenericSecretKeyAttributes}, 
+    des3Key			[4]  SecretKeyObject, -- {GenericSecretKeyAttributes},
 --    castKey			[5] SecretKeyObject {GenericSecretKeyAttributes},
 --    cast3Key		[6] SecretKeyObject {GenericSecretKeyAttributes},
 --    cast128Key		[7] SecretKeyObject {GenericSecretKeyAttributes},
@@ -542,7 +580,7 @@ SecretKeyType ::= CHOICE {
 CertificateType ::= CHOICE {
     x509Certificate  	CertificateObjectX509 -- CertificateObject { X509CertificateAttributes},
 --    x509AttributeCertificate [0] CertificateObject
---                        {X509AttributeCertificateAttributes}, 
+--                        {X509AttributeCertificateAttributes},
 --    spkiCertificate 	[1] CertificateObject {SPKICertificateAttributes},
 --    pgpCertificate  	[2] CertificateObject {PGPCertificateAttributes},
 --    wtlsCertificate 	[3] CertificateObject {WTLSCertificateAttributes},
@@ -561,9 +599,9 @@ DataType ::= CHOICE {
 AuthenticationType ::= CHOICE {
     pinAuthObj          AuthenticationObjectPin,      -- pin AuthenticationObject { PinAttributes },
 --    ...,
-    biometricAuthObj    [0] AuthenticationObjectBiometric -- AuthenticationObject {BiometricAttributes},
---    authKey  [1] AuthenticationObject {AuthKeyAttributes},
---    external [2] AuthenticationObject {ExternalAuthObjectAttributes}
+    biometricAuthObj    [0] AuthenticationObjectBiometric, -- AuthenticationObject {BiometricAttributes},
+    authKeyAuthObj      [1] AuthenticationObjectAuthKey -- {AuthKeyAttributes},
+--    externalAuthObj     [2] EXPLICIT AuthenticationObjectExternal {ExternalAuthObjectAttributes}
 }
 
 PKCS15Objects ::= CHOICE {
@@ -606,7 +644,7 @@ TokenInfo ::= SEQUENCE {
     issuerId		[3] Label OPTIONAL,
     holderId		[4] Label OPTIONAL,
     lastUpdate		[5] LastUpdate OPTIONAL,
-    preferredLanguage	PrintableString OPTIONAL, -- In accordance with IETF RFC 1766 
+    preferredLanguage	PrintableString OPTIONAL, -- In accordance with IETF RFC 1766
     profileIndication   [6] SEQUENCE OF ProfileIndication OPTIONAL
 } -- (CONSTRAINED BY {  Each AlgorithmInfo.reference value must be unique })
 
@@ -652,7 +690,7 @@ AlgorithmInfo ::= SEQUENCE {
 
 --PKCS15-OPAQUE ::= TYPE-IDENTIFIER
 
-PublicKeyOperations ::= Operations 
+PublicKeyOperations ::= Operations
 
 Operations ::= BIT STRING {
         compute-checksum  (0), -- H/W computation of checksum
@@ -668,7 +706,7 @@ Operations ::= BIT STRING {
 --pkcs15-alg-null      PKCS15-ALGORITHM ::= {
 --        PARAMETERS NULL OPERATIONS {{generate-key}} ID -1}
 
---AlgorithmSet PKCS15-ALGORITHM ::= { 
+--AlgorithmSet PKCS15-ALGORITHM ::= {
 --        pkcs15-alg-null,
 --        ...  See PKCS #11 for values for the &id field (and parameters)
 --        }

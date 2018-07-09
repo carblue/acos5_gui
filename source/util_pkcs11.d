@@ -26,6 +26,7 @@ import core.stdc.stdlib : EXIT_SUCCESS, EXIT_FAILURE, exit; // , malloc, free;
 
 import std.string : toStringz, fromStringz;
 import std.stdio : write, writeln, writefln, stdout, stderr;
+import std.exception;
 
 import pkcs11;
 
@@ -33,17 +34,17 @@ CK_SLOT_ID[10]  slotIds;
 CK_ULONG        slotCount;
 
 
-void pkcs11_check_return_value(CK_RV rv, string message)
+void pkcs11_check_return_value(CK_RV rv, string message) nothrow
 {
     if (rv != CKR_OK) {
-        writefln("Error at %s: %s", message, rv);
-        stdout.flush();
+        assumeWontThrow(writefln("Error at %s: %s", message, rv));
+        assumeWontThrow(stdout.flush());
 //        exit(EXIT_FAILURE);
     }
 }
 
 /* returns the first "satisfying" CK_SLOT_ID */
-CK_SLOT_ID pkcs11_get_slot()
+CK_SLOT_ID pkcs11_get_slot() nothrow
 {
     CK_RV           rv;
 //    CK_SLOT_ID[10]  slotIds;// = malloc(CK_SLOT_ID.sizeof * slotCount);
@@ -53,7 +54,7 @@ CK_SLOT_ID pkcs11_get_slot()
     // size query
     pkcs11_check_return_value(rv= C_GetSlotList(CK_TRUE, null, &slotCount), "get slot list");
     if (slotCount == 0  ||  slotCount > slotIds.length) {
-        stderr.writeln("Error; could not find any slots or more than 10 slots with a token present found (dev: adjust array size)");
+        assumeWontThrow(writeln("Error: Could not find any slots or more than 10 slots with a token present found (dev: adjust array size)"));
 //        stderr.writeln("Error; could not find any slots (or too many slots)");
         exit(EXIT_FAILURE);
     }
@@ -64,6 +65,41 @@ CK_SLOT_ID pkcs11_get_slot()
 
     CK_SLOT_ID  slotId = slotIds[0];
 //    free(slotIds);
-    writefln("slot count: %s", slotCount);
+    assumeWontThrow(writefln("slot count: %s", slotCount));
     return slotId;
 }
+
+CK_SESSION_HANDLE  pkcs11_start_session (CK_SLOT_ID slotId) nothrow {
+	CK_RV              rv;
+	CK_SESSION_HANDLE  session;
+	rv = C_OpenSession(slotId,
+		CKF_SERIAL_SESSION | CKF_RW_SESSION,
+		null,
+		null,
+		&session);
+	pkcs11_check_return_value(rv, "open session");
+	return session;
+}
+
+void  pkcs11_login (CK_SESSION_HANDLE session, CK_BYTE[] pin) nothrow {
+	CK_RV rv;
+	if (pin.length) {
+		rv = C_Login(session, CKU_USER, pin.ptr, pin.length);
+		pkcs11_check_return_value(rv, "log in");
+	}
+}
+
+void  pkcs11_logout (CK_SESSION_HANDLE session) nothrow {
+	CK_RV rv;
+	rv = C_Logout(session);
+	if (rv != CKR_USER_NOT_LOGGED_IN) {
+		pkcs11_check_return_value(rv, "log out");
+	}
+}
+
+void  pkcs11_end_session (CK_SESSION_HANDLE session) nothrow {
+	CK_RV rv;
+	rv = C_CloseSession(session);
+	pkcs11_check_return_value(rv, "close session");
+}
+

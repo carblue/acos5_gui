@@ -112,6 +112,7 @@ struct Tree(T, Alloc=GCAllocator) {
 */
 //    this()                  { head_initialise_(); }                  // empty constructor
     this(/*const*/ ref T x) { head_initialise_(); set_head(x); }     // constructor setting given element as head
+//    this(/*const*/ nodeType*[2] xy) { head=xy[0]; feet=xy[1]; }     // constructor setting given element as head
 /+
         this(const /*ref*/ iterator_base other) {
             head_initialise_();
@@ -156,7 +157,7 @@ struct Tree(T, Alloc=GCAllocator) {
         }
         @property bool empty() const  nothrow { return posSomeRoot.opEquals(posEnd); }
         void popFront()  nothrow { ++posSomeRoot; }
-        @property T front() /*const*/  nothrow { assert(posSomeRoot.node); return posSomeRoot.node.data; }
+        @property ref T front() /*const*/  nothrow { assert(posSomeRoot.node); return posSomeRoot.node.data; }
 
         nodeType* locate(alias pred, E)(E needle) nothrow /*@nogc*/ {
             foreach (nodeType* pointer, elem; this)
@@ -165,11 +166,14 @@ struct Tree(T, Alloc=GCAllocator) {
             return typeof(return).init;
         }
 
-        int opApply(int delegate(T) nothrow dg) /*nothrow*/ {
+        int opApply(int delegate(ref T) dg) nothrow {
             int result; /* continue as long as result==0 */
             for ( ; !empty(); popFront())
-                if ((result= dg(front())) != 0)
-                    break;
+                try // allow throwing foreach bodies
+                    if ((result= dg(front())) != 0)
+                        break;
+                catch (Exception e) { /* todo: handle exception */ }
+
             return result;
         }
 /+
@@ -181,11 +185,14 @@ struct Tree(T, Alloc=GCAllocator) {
             return result;
         }
 +/
-        int opApply(int delegate(nodeType*, T) nothrow dg) /*nothrow*/ {
+        int opApply(int delegate(nodeType*, ref T) dg) nothrow {
             int result; /* continue as long as result==0 */
             for ( ; !empty(); popFront())
-                if ((result= dg(posSomeRoot.node, front())) != 0)
-                    break;
+                try // allow throwing foreach bodies
+                    if ((result= dg(posSomeRoot.node, front())) != 0)
+                        break;
+                catch (Exception e) { /* todo: handle exception */ }
+
             return result;
         }
 /+
