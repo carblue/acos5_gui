@@ -7,13 +7,13 @@
 	"homepage": "https://github.com/carblue/acos5_64_gui",
 	"dependencies" : {
 		"iup": "~>3.25.0-beta.1",
-		"opensc": "~>0.18.0-beta.3",
+		"opensc": "~>0.18.0-beta.4",
 		"emsi_containers": "~>0.8.0-alpha.9",
 		"tasn1:wrapper": "~>0.0.5",
 		"pkcs11": "~>2.40.0-alpha.3"
 	},
 	"subConfigurations": {
-		"opensc": "toString",
+		"opensc": "toStringPrior",
 		"pkcs11": "derelict"
 	},
 	"systemDependencies": "IUP-Portable User Interface shared libraries installed, opensc installation v.0.17.0, libacos5_64.so (binary from this package's opensc_0.17.0 / +libphobos2.so.0.79 from a DMD installation) located in a common .so look-up path, opensc.conf configured appropriately; (not yet required: for gettext the exports available from libintl.so or GLib)",

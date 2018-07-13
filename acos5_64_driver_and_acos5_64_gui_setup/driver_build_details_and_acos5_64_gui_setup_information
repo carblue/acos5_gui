@@ -29,6 +29,12 @@ acos5-64-bionic_amd64-gdc_2_76_0-opensc_0_17.deb
 1 OpenSC version is supported currently, 0.17.0  (the driver depends on shared libopensc.so.5).
 
 More packages will follow, once packaging opensc_0_18 was done.
+ATTENTION: Compiling acos5_64_gui for OpenSC version 0.18.0 will require changing dub.json of this package:
+       "subConfigurations": {
+               "opensc": "toString",        <- this is for OpenSC version 0.18.0
+               "opensc": "toStringPrior",   <- this is for OpenSC version 0.17.0
+               ...
+       }
 
 While the libacos5_64.so included in .deb is meant to be used on any Linux 64 bit system, packaging it as .deb is an easy 1-click
 install for Debian/Ubuntu users and just an easy way for me to convey several infos in a compact way:
@@ -166,7 +172,7 @@ p11-kit is installed. The 'Typical Installation' described doesn't care for p11-
 
 Requirements are a libopensc.so.? and opensc-pkcs11.so installed/available afterwards !
 I assume, You now have an opensc version 0.18.0 binary installation (otherwise a 0.17.0 binary, which requires ommitting
-OPENSC_VERSION_LATEST from the bindings dub.json). Following the 'Typical Installation' will #define
+OPENSC_VERSION_LATEST from the bindings dub.json and changing from libopensc.so.6 to libopensc.so.5). Following the 'Typical Installation' will #define
 ENABLE_SM, ENABLE_OPENSSL  and NOT #define SIMCLIST_WITH_THREADS, SIMCLIST_DUMPRESTORE in the binary build.
 
 The driver/SM libacos5_64.so binaries available here depend on a specific version of opensc && compiler/phobos && openssl 1.1.0 !
