@@ -292,7 +292,6 @@ extern(C) int get_pin_callback(sc_profile* profile, int id, const(sc_pkcs15_auth
     }
 +/
 
-    // check whether auth is required for deleting private key file or public key file
     int       pinLocal = (info.attrs.pin.reference&0x80)==0x80;
     int       pinReference = info.attrs.pin.reference&0x7F; // strip the local flag
     pinbuf[0..9] = '\0';
@@ -681,43 +680,48 @@ else {
 //        return 0;
     } // disconnected from card now !
 `;
-}
+} // template connect_card
 //mixin(connect_card!(someString));
 
 
-int enum_dir(int depth, sitTypeFS pos_parent, ref PKCS15Path_FileType[] collector) nothrow
-{
+/* recursive invocation */
+int enum_dir(int depth, sitTypeFS pos_parent, ref PKCS15Path_FileType[] collector) nothrow {
     assert(pos_parent.node);
     assert(pos_parent.node.data.ptr);
 
-    ubyte   fdb  = pos_parent.node.data[0];
+    int     rv;
+    ubyte   markedFileType;
+    ubyte   fdb = pos_parent.node.data[0];
     assert(fdb.among(EnumMembers!EFDB)); // [ EnumMembers!A ]
     ushort  fid = ub22integral(pos_parent.node.data[2..4]);
     ub2     size_or_MRL_NOR = pos_parent.node.data[4..6];
 //    ubyte   lcsi = pos_parent.node.data[7];
-    AA["tree_fs"].SetStringId((fdb & 0x38) == 0x38? IUP_ADDBRANCH : IUP_ADDLEAF,  depth,
-        assumeWontThrow(format!" %04X  %s"(fid, file_type(depth, cast(EFDB)fdb, fid, size_or_MRL_NOR))));
-    int rv = (cast(iup.iup_plusD.Tree) AA["tree_fs"]).SetUserId(depth+1, pos_parent.node);
-    assert(rv);
-    AA["tree_fs"].SetAttributeId("TOGGLEVALUE", depth+1, pos_parent.node.data[7]==5? IUP_ON : IUP_OFF);
+    auto    tr  = cast(iup.iup_plusD.Tree) AA["tree_fs"]; //  Handle ht = AA["tree_fs"];
+    with (tr) {
+        SetStringId((fdb & 0x38) == 0x38? IUP_ADDBRANCH : IUP_ADDLEAF,  depth,
+            assumeWontThrow(format!" %04X  %s"(fid, file_type(depth, cast(EFDB)fdb, fid, size_or_MRL_NOR))));
+        rv = SetUserId(depth+1, pos_parent.node);
+        assert(rv);
+        SetAttributeId("TOGGLEVALUE", depth+1, pos_parent.node.data[7]==5? IUP_ON : IUP_OFF);
 
-    ubyte markedFileType = pos_parent.node.data[6];
-    if (markedFileType<0xFF) {
+        markedFileType = pos_parent.node.data[6];
+        if (markedFileType<0xFF) {
 ////assumeWontThrow(writefln("1_This node got PKCS#15-marked: 0x[ %(%02X %) ]", pos_parent.node.data));
-        with (AA["tree_fs"])
-        if (markedFileType.among(PKCS15_FILE_TYPE.PKCS15_DIR, PKCS15_FILE_TYPE.PKCS15_ODF, PKCS15_FILE_TYPE.PKCS15_TOKENINFO)) {
-            SetAttributeId(IUP_IMAGE,       depth+1, IUP_IMGPAPER);
-            string title = GetStringId (IUP_TITLE, depth+1);
+            if (markedFileType.among(PKCS15_FILE_TYPE.PKCS15_DIR, PKCS15_FILE_TYPE.PKCS15_ODF, PKCS15_FILE_TYPE.PKCS15_TOKENINFO)) {
+                SetAttributeId(IUP_IMAGE,       depth+1, IUP_IMGPAPER);
+                string title = GetStringId (IUP_TITLE, depth+1);
 //if (markedFileType==PKCS15_FILE_TYPE.PKCS15_ODF)
 //writeln("##### markedFileType==11, title: ", title);
 //if (markedFileType==PKCS15_FILE_TYPE.PKCS15_TOKENINFO)
 //writeln("##### markedFileType==12, title: ", title);
-            SetStringId (IUP_TITLE, depth+1, title~"    "~pkcs15_names[markedFileType][0]);
+                SetStringId (IUP_TITLE, depth+1, title~"    "~pkcs15_names[markedFileType][0]);
+            }
         }
-    }
 
-    if (fdb.among(EFDB.CHV_EF, EFDB.Sym_Key_EF, EFDB.Purse_EF, EFDB.SE_EF))
-        AA["tree_fs"].SetAttributeId(IUP_IMAGE,       depth+1, "IMGEMPTY" /*IUP_IMGEMPTY*/);
+        if (fdb.among(EFDB.CHV_EF, EFDB.Sym_Key_EF, EFDB.Purse_EF, EFDB.SE_EF))
+            SetAttributeId(IUP_IMAGE,       depth+1, "IMGEMPTY" /*IUP_IMGEMPTY*/);
+    } // with (tr)
+    // if it was a leaf (no DF/MF), that's all there is to it
 
     if ((fdb & 0x38) == 0x38) {
         sc_path path;
@@ -768,13 +772,13 @@ int enum_dir(int depth, sitTypeFS pos_parent, ref PKCS15Path_FileType[] collecto
                     info[1] = cast(ubyte)(pos_parent.node.data[1]+2);
                     info[8..8+info[1]] = collector[0].path[0..info[1]];
 
-    foreach (ub2 fid2; chunks(info[8..8+info[1]], 2)) {
-//        ubyte[MAX_FCI_GET_RESPONSE_LEN] rbuf;
-        fci_se_info  info2;
-        rv= acos5_64_short_select(card, &info2, fid2, false/*, rbuf*/);
-        info[24..32] = info2.sac[];
-//        assumeWontThrow(writefln("fci: 0X[ %(%02X %) ]", rbuf));
-    }
+                    foreach (ub2 fid2; chunks(info[8..8+info[1]], 2)) {
+                        // ubyte[MAX_FCI_GET_RESPONSE_LEN] rbuf;
+                        fci_se_info  info2;
+                        rv= acos5_64_short_select(card, &info2, fid2, false/*, rbuf*/);
+                        info[24..32] = info2.sac[];
+                        //assumeWontThrow(writefln("fci: 0X[ %(%02X %) ]", rbuf));
+                    }
 
                     collector = collector.remove(0);
                     assert(collector.empty);
@@ -803,22 +807,25 @@ assumeWontThrow(writefln("### expectedFileType(%s), detectedFileType(%s)", expec
                 }
             } // if (!collector.empty && collector[0].path.equal...
             fs.append_child(pos_parent, info);
-        }
-try
-        foreach_reverse (node, unUsed; fs.siblingRange(pos_parent.begin(), pos_parent.end())) {
-            assert(node);
-            int j = 8+pos_parent_pathLen;
-            node.data[8..j] = pos_parent.node.data[8..j];
-            node.data[j..j+2] = node.data[2..4];
-            node.data[1] = cast(ubyte)(pos_parent_pathLen+2);
-            assert(node.data[1] > 0  &&  node.data[1] <= 16  &&  node.data[1]%2 == 0);
-            if ((rv= enum_dir(depth + 1, new sitTypeFS(node), collector)) != SC_SUCCESS)
-                return rv;
-        }
-catch (Exception e) {}
-    }
+        } // foreach (ubyte fno; 0 .. cast(ubyte)SW1SW2)
+
+        try
+            foreach_reverse (node, unUsed; fs.siblingRange(pos_parent.begin(), pos_parent.end())) {
+                assert(node);
+                int j = 8+pos_parent_pathLen;
+                node.data[8..j] = pos_parent.node.data[8..j];
+                node.data[j..j+2] = node.data[2..4];
+                node.data[1] = cast(ubyte)(pos_parent_pathLen+2);
+                assert(node.data[1] > 0  &&  node.data[1] <= 16  &&  node.data[1]%2 == 0);
+                if ((rv= enum_dir(depth + 1, new sitTypeFS(node), collector)) != SC_SUCCESS)
+                    return rv;
+            }
+        catch (Exception e) {}
+    } // if ((fdb & 0x38) == 0x38)
+
     return 0;
-} // int enum_dir
+} // enum_dir
+
 
 /*
 enum_dir does already some PKCS#15-related processing (but only what fits in the workflow of enum_dir: It doesn't jump back to files already processed as tree nodes):
@@ -832,6 +839,7 @@ assuming, the files collected are children of e.g. 3F004100 as PKCS15_APPDF
 int post_process(/*sitTypeFS pos_parent,*/ ref PKCS15Path_FileType[] collector) nothrow {
     // unroll/read the DF files
     sitTypeFS parent = new sitTypeFS(appdf);
+    auto      tr  = cast(iup.iup_plusD.Tree) AA["tree_fs"]; //  Handle ht = AA["tree_fs"];
     try
     with (PKCS15_FILE_TYPE)
     foreach (tnTypePtr nodeFS, unUsed; fs.siblingRange(parent.begin(), parent.end())) {
@@ -852,7 +860,7 @@ writefln("### expectedFileType(%s), detectedFileType(%s)", expectedFileType, det
             collector = collector.remove(c_pos);
             if (expectedFileType<0xFF) {
 ////writefln("2_This node got PKCS#15-marked: 0x[ %(%02X %) ]", nodeFS.data);
-                with (cast(iup.iup_plusD.Tree) AA["tree_fs"]) {
+                with (tr) {
                     int nodeID = GetId(nodeFS);
                     SetAttributeId(IUP_IMAGE, nodeID, expectedFileType<=PKCS15_AODF || expectedFileType.among(PKCS15_ODF, PKCS15_TOKENINFO, PKCS15_UNUSED) ? IUP_IMGPAPER : IUP_IMGBLANK);
                     if (expectedFileType==detectedFileType) {
@@ -889,7 +897,7 @@ writefln("### expectedFileType(%s), detectedFileType(%s), path %(%02X %)", expec
 
             if (expectedFileType<0xFF) {
 ////writefln("3_This node got PKCS#15-marked: 0x[ %(%02X %) ]", nodeFS.data);
-                with (cast(iup.iup_plusD.Tree) AA["tree_fs"]) {
+                with (tr) {
                     int nodeID = GetId(nodeFS);
                     SetAttributeId(IUP_IMAGE, nodeID, expectedFileType<=PKCS15_AODF || expectedFileType.among(PKCS15_ODF, PKCS15_TOKENINFO, PKCS15_UNUSED) ? IUP_IMGPAPER : IUP_IMGBLANK);
                     if (expectedFileType==detectedFileType || nodeFS.data[0]==EFDB.RSA_Key_EF) {
@@ -905,27 +913,42 @@ writefln("### expectedFileType(%s), detectedFileType(%s), path %(%02X %)", expec
 //assumeWontThrow(writeln(collector));
     foreach (tnTypePtr nodeFS, unUsed; fs.preOrderRange(fs.begin(), fs.end()) ) {
         try
-        with (cast(iup.iup_plusD.Tree) AA["tree_fs"])
-        if (nodeFS.data[0]==EFDB.RSA_Key_EF) {
-            int nodeID = GetId(nodeFS);
-            string title = GetStringId (IUP_TITLE, nodeID);
-            if (title.endsWith!(a => a=='B'))
-                SetStringId (IUP_TITLE, nodeID, title~"    EF(RSA)");
-        }
+            with (tr)
+            if (nodeFS.data[0]==EFDB.RSA_Key_EF) {
+                int nodeID = GetId(nodeFS);
+                string title = GetStringId (IUP_TITLE, nodeID);
+                if (title.endsWith!(a => a=='B'))
+                    SetStringId (IUP_TITLE, nodeID, title~"    EF(RSA)");
+            }
         catch(Exception e) {}
     }
     return 0;
-}
+} // post_process
+
 
 /*
   calling acos5_64 exported function(s) directly requires a context/card handle from opensc
   will be logged to "/tmp/opensc-debug.log", section "acos5_64_gui"
-  populate the gui tree of card file system
+
+  populate the gui tree of card file system:  cast(iup.iup_plusD.Tree) AA["tree_fs"]
+  and populate the internal tree representation: fs = tree_k_ary.Tree!ub32(rootFS)
+  Both are 'connected' by void* userdata:
+  For each gui tree node id (except 0<==>"file system", this function get's called: (cast(iup.iup_plusD.Tree) AA["tree_fs"]).SetUserId(id, tree_k_ary.TreeNode!ub32 * (type alias: tnTypePtr));
+  For a known tree node id, use   auto pn = cast(tnTypePtr) (cast(iup.iup_plusD.Tree) AA["tree_fs"]).GetUserId(id);
+  THe gui tree node id can be retrieved from tnTypePtr by:
+    int GetId(void* userid) { return IupTreeGetId(_ih, userid); }
+
+
+alias  TreeTypeFS = tree_k_ary.Tree!ub32; // 8 bytes + length of pathlen_max considered (, here SC_MAX_PATH_SIZE = 16) + 8 bytes SAC (file access conditions)
+alias  tnTypePtr  = TreeTypeFS.nodeType*;
+
+  int SetUserId(int id, void* userid) { return IupTreeSetUserId(_ih, id, userid); }
+  void* GetUserId(int id) { return IupTreeGetUserId(_ih, id); }
+  int GetId(void* userid) { return IupTreeGetId(_ih, userid); }
 
   FIXME: overhaul the processing started by populate_tree_fs: It shouldn't depend on the order of files reported by cm_7_3_1_14_get_card_info(card, card_info_type.File_Information ...
 */
-int populate_tree_fs() nothrow
-{
+int populate_tree_fs() nothrow {
     int rv, id=1;
 
     with (AA["tree_fs"]) {
@@ -1138,11 +1161,15 @@ assumeWontThrow(writefln("### returned length from sc_read_record to short: Rece
         switch (expectedFileType) {
             case PKCS15_DIR:
                 if (doExtract) {
-                    if ((asn1_result= asn1_read_value(structure, pkcs15_names[expectedFileType][2], str, outLen)) != ASN1_SUCCESS)
+                    if ((asn1_result= asn1_read_value(structure, pkcs15_names[expectedFileType][2], str, outLen)) != ASN1_SUCCESS) {
+                        assumeWontThrow(writefln("### asn1_read_value: %(%02X %)", pn.data));
                         goto looptail;
+                    }
                     pkcs15Extracted ~= PKCS15Path_FileType(str[0..outLen].dup, PKCS15_APPDF);
-                    if ((asn1_result= asn1_read_value(structure, "aid", str, outLen)) != ASN1_SUCCESS)
+                    if ((asn1_result= asn1_read_value(structure, "aid", str, outLen)) != ASN1_SUCCESS) {
+                        assumeWontThrow(writefln("### asn1_read_value: %(%02X %)", pn.data));
                         goto looptail;
+                    }
                     if (outLen > SC_MAX_AID_SIZE)
                         assumeWontThrow(writeln("### aid is incorrect: It's longer than 16 bytes"));
                     else {
@@ -1164,8 +1191,10 @@ assumeWontThrow(writefln("### returned length from sc_read_record to short: Rece
             case PKCS15_PRKDF:
                 if (doExtract) {
                     PRKDF ~= PKCS15_ObjectTyp(sw[0], sw[1], buf[sw[0]..sw[1]], null, asn1_dup_node(structure, ""), null);
-                    if ((asn1_result= asn1_read_value(structure, pkcs15_names[PKCS15_RSAPrivateKey][2], str, outLen)) != ASN1_SUCCESS)
+                    if ((asn1_result= asn1_read_value(structure, pkcs15_names[PKCS15_RSAPrivateKey][2], str, outLen)) != ASN1_SUCCESS) {
+                        assumeWontThrow(writefln("### asn1_read_value: %(%02X %)", pn.data));
                         goto looptail;
+                    }
                     pkcs15Extracted ~= PKCS15Path_FileType(str[0..outLen].dup, PKCS15_RSAPrivateKey);
                 }
                 break;
@@ -1181,8 +1210,18 @@ assumeWontThrow(writefln("### returned length from sc_read_record to short: Rece
                             break;
                         default: assert(0);
                     }
-                    if ((asn1_result= asn1_read_value(structure, pkcs15_names[PKCS15_RSAPublicKey][2], str, outLen)) != ASN1_SUCCESS)
-                        goto looptail;
+                    if ((asn1_result= asn1_read_value(structure, pkcs15_names[PKCS15_RSAPublicKey][2], str, outLen)) != ASN1_SUCCESS) {
+                        if (asn1_result==ASN1_ELEMENT_NOT_FOUND) {
+                            assumeWontThrow(writefln("### asn1_read_value: No path found for an entry of  %(%02X %)", pn.data[8..8+pn.data[1]]));
+                            assumeWontThrow(writeln("### asn1_read_value: This is a known bug of opensc: It doesn't encode publicRSAKey.publicRSAKeyAttributes.value.indirect.path.path, but publicRSAKey.publicRSAKeyAttributes.value.direct.raw"));
+                            assumeWontThrow(writeln("### asn1_read_value: acos5_64_gui will crash when selecting the offended keyPairId; PuKDF must be corrected manually"));
+//                            outLen = pn.data[1];
+//                            str[0..outLen] = pn.data[8..8+outLen];
+//                            str[outLen-1] = 0x36;
+                        }
+//                        else
+                            goto looptail;
+                    }
                     pkcs15Extracted ~= PKCS15Path_FileType(str[0..outLen].dup, PKCS15_RSAPublicKey);
                 }
                 break;
@@ -1202,8 +1241,10 @@ assumeWontThrow(writefln("### returned length from sc_read_record to short: Rece
 
                             default: assert(0);
                         }
-                        if ((asn1_result= asn1_read_value(structure, pkcs15_names[PKCS15_Cert][2], str, outLen)) != ASN1_SUCCESS)
+                        if ((asn1_result= asn1_read_value(structure, pkcs15_names[PKCS15_Cert][2], str, outLen)) != ASN1_SUCCESS) {
+                            assumeWontThrow(writefln("### asn1_read_value: %(%02X %)", pn.data));
                             goto looptail;
+                        }
                         pkcs15Extracted ~= PKCS15Path_FileType(str[0..outLen].dup, PKCS15_Cert);
                 }
                 break;
@@ -1211,8 +1252,10 @@ assumeWontThrow(writefln("### returned length from sc_read_record to short: Rece
             case PKCS15_DODF:
                 if (doExtract) {
                     DODF  ~= PKCS15_ObjectTyp(sw[0], sw[1], buf[sw[0]..sw[1]], null, asn1_dup_node(structure, ""), null);
-                    if ((asn1_result= asn1_read_value(structure, pkcs15_names[PKCS15_Data][2], str, outLen)) != ASN1_SUCCESS)
+                    if ((asn1_result= asn1_read_value(structure, pkcs15_names[PKCS15_Data][2], str, outLen)) != ASN1_SUCCESS) {
+                        assumeWontThrow(writefln("### asn1_read_value: %(%02X %)", pn.data));
                         goto looptail;
+                    }
                     pkcs15Extracted ~= PKCS15Path_FileType(str[0..outLen].dup, PKCS15_Data);
                 }
                 break;

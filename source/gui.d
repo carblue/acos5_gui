@@ -29,7 +29,41 @@ import iup.iup_plusD;
 import libintl : _, __;
 
 import callbacks;
-import generateKeyPair_RSA;
+import generateKeyPair_RSA :
+r_AC_Delete_Create_RSADir,
+r_acos_internal,
+r_modulusBitsRSA,
+r_storeAsCRTRSAprivate,
+r_usageRSAprivateKeyACOS,
+r_keyPairLabel,
+r_keyPairId,
+r_fidRSADir,
+r_fidRSAprivate,
+r_fidRSApublic,
+
+r_sizeNewRSAprivateFile,
+r_sizeNewRSApublicFile,
+r_change_calcPrKDF,
+r_change_calcPuKDF,
+r_authIdRSAprivate,
+r_valuePublicExponent,
+r_statusInput,
+r_usageRSAprivateKeyPrKDF,
+r_keyPairModifiable,
+r_AC_Update_PrKDF_PuKDF,
+r_AC_Update_Delete_RSApublicFile,
+r_AC_Update_Delete_RSAprivateFile,
+
+matrixRsaAttributes_dropcheck_cb,
+matrixRsaAttributes_drop_cb,
+matrixRsaAttributes_dropselect_cb,
+matrixRsaAttributes_edition_cb,
+matrixRsaAttributes_togglevalue_cb,
+btn_RSA_cb,
+
+toggle_RSA_cb
+;
+
 import importExport;
 
 
@@ -271,6 +305,12 @@ private Vbox create_GenerateKeyPair_RSA_tab() {
     }
     child_array ~= text1;
 
+/*
+https://webserver2.tecgraf.puc-rio.br/iup/en/elem/iupradio.html
+A toggle that is a child of an IupRadio automatically receives a name when its is mapped into the native system.  (since 3.16)
+Currently IupFlatButton with TOGGLE=YES, IupToggle, and IupGLToggle are affected when inside a IupRadio.
+The IGNORERADIO can be used in any of these children types to disable this functionally. (since 3.21)
+*/
     auto toggle1 = new Toggle("toggle_RSA_PrKDF_PuKDF_change", __("PrKDF/PuKDF only: Change some administrative (PKCS#15) data, but no change concerning RSA key pair content (select by key pair id)"));
     child_array_toggles ~= toggle1;
     auto toggle2 = new Toggle("toggle_RSA_key_pair_delete", __("RSA key pair: Delete key pair files (select by key pair id)"));
@@ -279,7 +319,7 @@ private Vbox create_GenerateKeyPair_RSA_tab() {
     child_array_toggles ~= toggle3;
     auto toggle4 = new Toggle("toggle_RSA_key_pair_create_and_generate", __("RSA key pair: Create new RSA key pair files and generate RSA key pair content"));
     child_array_toggles ~= toggle4;
-    auto toggle5 = new Toggle("toggle_RSA_key_pair_try_sign", __("RSA key pair: Sign SHA1/SHA256 hash (select key pair id)"));
+    auto toggle5 = new Toggle("toggle_RSA_key_pair_try_sign", __("RSA key pair: Sign SHA1/SHA256 hash (select key pair id)  Use to test the signing capability for selected id, output to stdout"));
     child_array_toggles ~= toggle5;
 
     foreach (i,toggle; child_array_toggles) {
@@ -287,7 +327,13 @@ private Vbox create_GenerateKeyPair_RSA_tab() {
         toggle.SetCallback(IUP_ACTION, cast(Icallback) &toggle_RSA_cb);
     }
     child_array  ~= new Radio("radio_RSA", new Vbox(child_array_toggles, FILL_TYPE.FILL_FRONT_AND_BACK_AND_BETWEEN));
-
+/*
+https://webserver2.tecgraf.puc-rio.br/iup/en/elem/iupradio.html
+Attributes:
+EXPAND (non inheritable): The default value is "YES".
+VALUE (non inheritable): name identifier of the active toggle. The name is set by means of IupSetHandle. In Lua you can also use the element reference directly. When consulted if the toggles are not mapped into the native system the return value may be NULL or invalid.
+VALUE_HANDLE (non inheritable): Changes the active toggle. The value passed must be the handle of a child contained in the radio. When consulted if the toggles are not mapped into the native system the return value may be NULL or invalid. (since 3.0)
+*/
     auto text2 = new Text("hash_to_be_signed");
     with (text2) {
         SetAttribute(IUP_SIZE, "500");
@@ -332,8 +378,8 @@ So the existence of this callback defines the matrix operation mode.
         SetAttributeId2("",  0,                         2,   __("Stored where? (private key file should be unreadable)"));
         SetAttributeId2("",  r_acos_internal,           0,   __("Acos key generation settings"));
 
-        SetAttributeId2("",  r_sizeNewRSAModulusBits,   0,   __("Modulus bitLength"));
-        SetAttributeId2("",  r_sizeNewRSAModulusBits,   2,   __("keypair files, PrKDF, PuKDF"));
+        SetAttributeId2("",  r_modulusBitsRSA,          0,   __("Modulus bitLength"));
+        SetAttributeId2("",  r_modulusBitsRSA,          2,   __("keypair files, PrKDF, PuKDF"));
         SetAttributeId2("",  r_storeAsCRTRSAprivate,    0,   __("    Private key stored acc. ChineseRemainderTheorem ?"));
         SetAttributeId2("",  r_storeAsCRTRSAprivate,    2,   __("CRT contents do or don't exist in private key file"));
         SetAttributeId2("",  r_usageRSAprivateKeyACOS,  0,   __("    Private key core capability (4)sign, (2)decrypt, (6)sign+decrypt (enter as int, shown as text)"));
@@ -341,30 +387,24 @@ So the existence of this callback defines the matrix operation mode.
         SetAttributeId2("",  r_keyPairLabel,            0,   __("Key pair label"));
         SetAttributeId2("",  r_keyPairLabel,            2,   __("PrKDF, PuKDF"));
         SetAttributeId2("",  r_keyPairId,               0,   __("Key pair id (1 byte hex. 01..FF)"));
-//      SetAttributeId2("",  r_keyPairId,               1,   "4"); // => PrKDF/PuKDF
         SetAttributeId2("",  r_keyPairId,               2,   __("PrKDF, PuKDF"));
 
         SetAttributeId2("",  r_fidRSADir,               0,   __("File id of enclosing directory (2 bytes hex.)"));
-//      SetAttributeId2("",  r_fidRSADir,               1,   "16640"); // =>
         SetAttributeId2("",  r_fidRSADir,               2,   __("PrKDF, PuKDF"));
         SetAttributeId2("",  r_fidRSAprivate,           0,   __("File id of private key (2 bytes hex.)"));
-//      SetAttributeId2("",  r_fidRSAprivate,           1,   "16881"); // => PrKDF
         SetAttributeId2("",  r_fidRSAprivate,           2,   __("PrKDF, public key file"));
         SetAttributeId2("",  r_fidRSApublic,            0,   __("File id of public key (2 bytes hex.)"));
-//      SetAttributeId2("",  r_fidRSApublic,            1,   "16689"); // => PuKDF
         SetAttributeId2("",  r_fidRSApublic,            2,   __("PuKDF, private key file"));
-        SetAttributeId2("",  r_sizeNewRSAprivateFile,   0,   __("Private key file size (bytes) available / required"));
-//      SetAttributeId2("",  r_sizeNewRSAprivateFile,   1,   "? / 1585"); // <=
+        SetAttributeId2("",  r_sizeNewRSAprivateFile,   0,   __("Private key file size (bytes) required / available"));
         SetAttributeId2("",  r_sizeNewRSAprivateFile,   2,   __("Header (FCI) of private key file"));
-        SetAttributeId2("",  r_sizeNewRSApublicFile,    0,   __("Public key file size (bytes) available / required"));
-//      SetAttributeId2("",  r_sizeNewRSApublicFile,    1,   "? / 533");
+        SetAttributeId2("",  r_sizeNewRSApublicFile,    0,   __("Public key file size (bytes) required / available"));
         SetAttributeId2("",  r_sizeNewRSApublicFile,    2,   __("Header (FCI) of public key file"));
         SetAttributeId2("",  r_change_calcPrKDF,        0,   __("PrKDF change calc. (How many bytes more or less will be required to store the changes)")); //  / unused available A/A
         SetAttributeId2("",  r_change_calcPrKDF,        1,   "?");
         SetAttributeId2("",  r_change_calcPuKDF,        0,   __("PuKDF change calc. (How many bytes more or less will be required to store the changes)")); //  / does it fit into file size? A/A
         SetAttributeId2("",  r_change_calcPuKDF,        1,   "?");
-        SetAttributeId2("",  r_authIdRSAprivateFile,    0,   __("authId (that protects private key; 1 byte hex. 01..FF)"));
-        SetAttributeId2("",  r_authIdRSAprivateFile,    2,   __("PrKDF"));
+        SetAttributeId2("",  r_authIdRSAprivate,        0,   __("authId (that protects private key; 1 byte hex. 01..FF)"));
+        SetAttributeId2("",  r_authIdRSAprivate,        2,   __("PrKDF"));
         SetAttributeId2("",  r_valuePublicExponent,     0,   __("Public exponent e (a prime, default 0x10001; max 16 bytes hex., leading zero bytes trimmed)  0x"));
         SetAttributeId2("",  r_valuePublicExponent,     2,   __("public key file"));
         SetAttributeId2("",  r_statusInput,             0,   __("Status of input (whether all required info/limits are okay for the operation"));

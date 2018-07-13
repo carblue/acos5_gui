@@ -43,7 +43,7 @@ import std.algorithm.searching;
 import std.algorithm.comparison;
 import std.conv : to;
 import std.format : format;
-import std.exception : assumeWontThrow;//(expr, msg, file, line)
+import std.exception : assumeWontThrow;
 
 /*
 import deimos.openssl.crypto : CRYPTO_cleanup_all_ex_data;
@@ -74,17 +74,19 @@ import iup.iup_plusD;
 //import deimos.p11; "dependencies" : "p11:deimos": "~>0.0.3", // it's an alternative for "dependencies" : "pkcs11": "~>2.40.0-alpha.3"
 import pkcs11;
 
+import libtasn1;// : asn1_parser2tree, asn1_delete_structure, ASN1_SUCCESS;
+import tasn1_pkcs15 : tasn1_pkcs15_tab;
+
 import util_general;
 import gui : create_dialog_dlg0;
 import util_opensc : lh, card, populate_tree_fs, PKCS15_FILE_TYPE, util_connect_card, connect_card, PKCS15, errorDescription,
-    fs, itTypeFS, iter_begin, appdf, prkdf, pukdf, is_ACOSV3_opmodeV3_FIPS_140_2L3, is_ACOSV3_opmodeV3_FIPS_140_2L3_active, cm_7_3_1_14_get_card_info;
+    fs, itTypeFS, iter_begin, appdf, prkdf, pukdf, is_ACOSV3_opmodeV3_FIPS_140_2L3, is_ACOSV3_opmodeV3_FIPS_140_2L3_active, cm_7_3_1_14_get_card_info, tnTypePtr;
  //, acos5_64_short_select, uploadHexfile
-    /*, PRKDF, PUKDF, PUKDF_TRUSTED, SKDF, CDF, CDF_TRUSTED, CDF_USEFUL, DODF, AODF*/
+//    , PRKDF, PUKDF, PUKDF_TRUSTED, SKDF, CDF, CDF_TRUSTED, CDF_USEFUL, DODF, AODF;
 import util_pkcs11 : pkcs11_check_return_value, pkcs11_get_slot;
-import generateKeyPair_RSA;
 
-import libtasn1;// : asn1_parser2tree, asn1_delete_structure, ASN1_SUCCESS;
-import tasn1_pkcs15 : tasn1_pkcs15_tab;
+import generateKeyPair_RSA : initialize_PubObs_generateKeyPair_RSA;
+
 
 import acos5_64_shared;
 
@@ -152,7 +154,7 @@ version(I18N) {
 +/
 `;
     mixin (connect_card!(commands, "EXIT_FAILURE", "3", "exit(1);"));
-/*
+/* * /
     writeln("PRKDF.length:         ", PRKDF.length);
     writeln("PUKDF.length:         ", PUKDF.length);
     writeln("PUKDF_TRUSTED.length: ", PUKDF_TRUSTED.length);
@@ -163,80 +165,169 @@ version(I18N) {
     writeln("CDF_USEFUL.length:    ", CDF_USEFUL.length);
     writeln("DODF.length:          ", DODF.length);
     writeln("AODF.length:          ", AODF.length);
-*/
-/+ +/
+/ * */
+
     prkdf = fs.preOrderRange(iter_begin, fs.end()).locate!"a[6]==b"(PKCS15_FILE_TYPE.PKCS15_PRKDF);
     pukdf = fs.preOrderRange(iter_begin, fs.end()).locate!"a[6]==b"(PKCS15_FILE_TYPE.PKCS15_PUKDF);
 
-    /* initialze the publisher/observer system for GenerateKeyPair_RSA_tab */
-    // some variables are declared as publisher though they don't need to be, currently just for consistency, but that's not the most efficient way
-    valuePublicExponent     = new PubA16!_valuePublicExponent (r_valuePublicExponent,     AA["matrixRsaAttributes"]);
-    keyPairLabel            = new Pub!(_keyPairLabel,string)  (r_keyPairLabel,            AA["matrixRsaAttributes"]);
-    sizeNewRSAModulusBits   = new Pub!_sizeNewRSAModulusBits  (r_sizeNewRSAModulusBits,   AA["matrixRsaAttributes"]);
-    storeAsCRTRSAprivate    = new Pub!_storeAsCRTRSAprivate   (r_storeAsCRTRSAprivate,    AA["matrixRsaAttributes"]);
-    usageRSAprivateKeyACOS  = new Pub!_usageRSAprivateKeyACOS (r_usageRSAprivateKeyACOS,  AA["matrixRsaAttributes"]);
-    usageRSAprivateKeyPrKDF = new Pub!_usageRSAprivateKeyPrKDF(r_usageRSAprivateKeyPrKDF, AA["matrixRsaAttributes"]);
-    keyPairModifiable       = new Pub!_keyPairModifiable      (r_keyPairModifiable,       AA["matrixRsaAttributes"]);
-    authIdRSAprivateFile    = new Pub!_authIdRSAprivateFile   (r_authIdRSAprivateFile,    AA["matrixRsaAttributes"], true);
-    keyPairId               = new Pub!_keyPairId              (r_keyPairId,               AA["matrixRsaAttributes"], true);
-    fidRSADir               = new Pub!_fidRSADir              (r_fidRSADir,               AA["matrixRsaAttributes"], true);
-    fidRSAprivate           = new PubA2!_fidRSAprivate        (r_fidRSAprivate,           AA["matrixRsaAttributes"]);
-    fidRSApublic            = new PubA2!_fidRSApublic         (r_fidRSApublic,            AA["matrixRsaAttributes"]);
-    AC_Update_PrKDF_PuKDF           = new Pub!(_AC_Update_PrKDF_PuKDF,ubyte[2])           (r_AC_Update_PrKDF_PuKDF,           AA["matrixRsaAttributes"]);
-    AC_Update_Delete_RSAprivateFile = new Pub!(_AC_Update_Delete_RSAprivateFile,ubyte[2]) (r_AC_Update_Delete_RSAprivateFile, AA["matrixRsaAttributes"]);
-    AC_Update_Delete_RSApublicFile  = new Pub!(_AC_Update_Delete_RSApublicFile, ubyte[2]) (r_AC_Update_Delete_RSApublicFile,  AA["matrixRsaAttributes"]);
-    AC_Delete_Create_RSADir         = new Pub!(_AC_Delete_Create_RSADir,        ubyte[2]) (r_AC_Delete_Create_RSADir,         AA["matrixRsaAttributes"]);
+    initialize_PubObs_generateKeyPair_RSA();
 
-    usageRSApublicKeyPuKDF  = new Obs_usageRSApublicKeyPuKDF  (/*r_usageRSApublicKeyPuKDF,  AA["matrixRsaAttributes"]*/);
-    sizeNewRSAprivateFile   = new Obs_sizeNewRSAprivateFile   (r_sizeNewRSAprivateFile,   AA["matrixRsaAttributes"]);
-    sizeNewRSApublicFile    = new Obs_sizeNewRSApublicFile    (r_sizeNewRSApublicFile,    AA["matrixRsaAttributes"]);
-    statusInput             = new Obs_statusInput             (r_statusInput,             AA["matrixRsaAttributes"]);
-    change_calcPrKDF        = new Obs_change_calcPrKDF        (r_change_calcPrKDF,        AA["matrixRsaAttributes"]);
-    change_calcPuKDF        = new Obs_change_calcPuKDF        (r_change_calcPuKDF,        AA["matrixRsaAttributes"]);
-//// dependencies
-    fidRSAprivate          .connect(&sizeNewRSAprivateFile.watch); // just for show (sizeCurrentRSAprivateFile) reason
-    sizeNewRSAModulusBits  .connect(&sizeNewRSAprivateFile.watch);
-    storeAsCRTRSAprivate   .connect(&sizeNewRSAprivateFile.watch);
 
-    fidRSApublic           .connect(&sizeNewRSApublicFile.watch);  // just for show (sizeCurrentRSApublicFile) reason
-    sizeNewRSAModulusBits  .connect(&sizeNewRSApublicFile.watch);
+/+
+    // testing, that the 2 tree representations (AA["tree_fs"] and fs) are well connnected/synchronized and how to retrieve data via id or the other direction, via tnTypePtr nodeFS:
+    import std.string;
+    auto   tr = cast(iup.iup_plusD.Tree) AA["tree_fs"];
+    int cnt = tr.GetInteger("COUNT");
 
-    usageRSAprivateKeyPrKDF.connect(&usageRSApublicKeyPuKDF.watch);
+    writeln("tree node count: ", cnt);
+    foreach (id; 0..cnt) {
+        auto nodeFS = cast(tnTypePtr) tr.GetUserId(id);
+        writefln("%d  %s   %(%02X %)", id, tr.GetAttributeId("TITLE", id).fromStringz, nodeFS? nodeFS.data : ub32.init);
+    }
+tree node count: 40
+0   file system   00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+1   3F00  MF                                                                   3F 02 3F 00 00 00 FF 05   3F 00
+2   0001  iEF linear-fix, size 21 (1x21) B    Pin (global)                     0A 04 00 01 15 01 FF 05   3F 00 00 01
+3   0002  iEF linear-var, size max. 148 (4x37 max.) B    SymKeys (global)      0C 04 00 02 25 04 FF 05   3F 00 00 02
+4   0003  iEF linear-var, size max. 48 (1x48 max.) B    SecEnv of directory    1C 04 00 03 30 01 FF 05   3F 00 00 03
+5   2F00  wEF transparent, size 33 B    EF(DIR)                                01 04 2F 00 00 21 0A 05   3F 00 2F 00 00 00 00 00 00 00 00 00 00 00 00 00   00 01 FF 01 01 FF 01 FF
+6   4100  DF                                                                   38 04 41 00 00 00 0E 05   3F 00 41 00 00 00 00 00 00 00 00 00 00 00 00 00   01 01 01 01 00 FF 03 FF
+7   4101  iEF linear-fix, size 21 (1x21) B    Pin (local)                      0A 06 41 01 15 01 FF 05   3F 00 41 00 41 01
+8   4102  iEF linear-var, size max. 444 (12x37 max.) B    SymKeys (local)      0C 06 41 02 25 0C FF 05   3F 00 41 00 41 02
+9   4103  iEF linear-var, size max. 448 (8x56 max.) B    SecEnv of directory   1C 06 41 03 38 08 FF 05   3F 00 41 00 41 03
+10   4111  wEF transparent, size 128 B    EF(AODF)                             01 06 41 11 00 80 08 01   3F 00 41 00 41 11 00 00 00 00 00 00 00 00 00 00   00 00 FF 03 00 FF 03 FF
+11   4112  wEF transparent, size 768 B    EF(PrKDF)                            01 06 41 12 03 00 00 01   3F 00 41 00 41 12 00 00 00 00 00 00 00 00 00 00   00 00 FF 03 00 FF 03 FF
+12   4113  wEF transparent, size 1536 B    EF(PuKDF)                           01 06 41 13 06 00 01 01   3F 00 41 00 41 13 00 00 00 00 00 00 00 00 00 00   00 00 FF 03 00 FF 03 FF
+13   4114  wEF transparent, size 256 B    EF(SKDF)                             01 06 41 14 01 00 03 01   3F 00 41 00 41 14 00 00 00 00 00 00 00 00 00 00   00 00 FF 03 00 FF 03 FF
+14   4115  wEF transparent, size 256 B    EF(CDF)                              01 06 41 15 01 00 04 01   3F 00 41 00 41 15 00 00 00 00 00 00 00 00 00 00   00 00 FF 03 00 FF 03 FF
+15   4120  wEF transparent, size 1664 B    EF(Cert)                            01 06 41 20 06 80 0F 01   3F 00 41 00 41 20 00 00 00 00 00 00 00 00 00 00   00 01 FF 01 00 FF 01 FF
+16   41F4  iEF transparent, size 261 B    EF(RSA_PRIV)                         09 06 41 F4 01 05 10 05   3F 00 41 00 41 F4 00 00 00 00 00 00 00 00 00 00   FF 01 01 01 00 FF 01 FF
+17   4134  iEF transparent, size 277 B    EF(RSA_PUB)                          09 06 41 34 01 15 09 05   3F 00 41 00 41 34 00 00 00 00 00 00 00 00 00 00   00 01 00 01 00 FF 01 FF
+18   5032  wEF transparent, size 192 B    EF(TokenInfo)                        01 06 50 32 00 C0 0C 05   3F 00 41 00 50 32 00 00 00 00 00 00 00 00 00 00   00 00 FF 03 00 FF 03 FF
+19   5031  wEF transparent, size 108 B    EF(ODF)                              01 06 50 31 00 6C 0B 05   3F 00 41 00 50 31 00 00 00 00 00 00 00 00 00 00   00 00 FF 03 00 FF 03 FF
+20   5155  wEF linear-var, size max. 260 (2x130 max.) B                        04 06 51 55 82 02 FF 05   3F 00 41 00 51 55
+21   4129  wEF linear-fix, size 40 (2x20) B                                    02 06 41 29 14 02 FF 05   3F 00 41 00 41 29
+22   4131  iEF transparent, size 533 B    EF(RSA_PUB)                          09 06 41 31 02 15 09 05   3F 00 41 00 41 31 00 00 00 00 00 00 00 00 00 00   00 01 00 01 00 FF 01 FF
+23   41F1  iEF transparent, size 1285 B    EF(RSA_PRIV)                        09 06 41 F1 05 05 10 05   3F 00 41 00 41 F1 00 00 00 00 00 00 00 00 00 00   FF 01 01 01 00 FF 01 FF
+24   4132  iEF transparent, size 533 B    EF(RSA_PUB)                          09 06 41 32 02 15 09 05   3F 00 41 00 41 32 00 00 00 00 00 00 00 00 00 00   00 01 00 01 00 FF 01 FF
+25   41F2  iEF transparent, size 1285 B    EF(RSA_PRIV)                        09 06 41 F2 05 05 10 05   3F 00 41 00 41 F2 00 00 00 00 00 00 00 00 00 00   FF 01 01 01 00 FF 01 FF
+26   4133  iEF transparent, size 533 B    EF(RSA_PUB)                          09 06 41 33 02 15 09 05   3F 00 41 00 41 33 00 00 00 00 00 00 00 00 00 00   00 01 00 01 00 FF 01 FF
+27   41F3  iEF transparent, size 1285 B    EF(RSA_PRIV)                        09 06 41 F3 05 05 10 05   3F 00 41 00 41 F3 00 00 00 00 00 00 00 00 00 00   FF 01 01 01 00 FF 01 FF
+28   3908  wEF transparent, size 16 B                                          01 06 39 08 00 10 FF 05   3F 00 41 00 39 08
+29   4300  DF                                                                        38 06 43 00 00 00 FF 05 3F 00 41 00 43 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+30   4301  iEF linear-fix, size 21 (1x21) B    Pin (local)                           0A 08 43 01 15 01 FF 05 3F 00 41 00 43 00 43 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+31   4302  iEF linear-var, size max. 74 (2x37 max.) B    SymKeys (local)             0C 08 43 02 25 02 FF 05 3F 00 41 00 43 00 43 02 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+32   4303  iEF linear-var, size max. 168 (3x56 max.) B    SecEnv of directory        1C 08 43 03 38 03 FF 05 3F 00 41 00 43 00 43 03 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+33   4331  iEF transparent, size 533 B    EF(RSA)                                    09 08 43 31 02 15 FF 05 3F 00 41 00 43 00 43 31 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+34   4305  wEF transparent, size 16 B                                                01 08 43 05 00 10 FF 05 3F 00 41 00 43 00 43 05 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+35   43F1  iEF transparent, size 1285 B    EF(RSA)                                   09 08 43 F1 05 05 FF 05 3F 00 41 00 43 00 43 F1 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+36   3903  wEF linear-fix, size 32 (2x16) B                                    02 06 39 03 10 02 FF 05   3F 00 41 00 39 03
+37   3904  wEF linear-fix, size 32 (2x16) B                                    02 06 39 04 10 02 FF 05   3F 00 41 00 39 04
+38   3905  wEF linear-var, size max. 32 (2x16 max.) B                          04 06 39 05 10 02 FF 05   3F 00 41 00 39 05
+39   3906  wEF linear-var, size max. 32 (2x16 max.) B                          04 06 39 06 10 02 FF 05   3F 00 41 00 39 06
 
-    keyPairId              .connect(&change_calcPrKDF.watch); // THIS MUST BE the first entry for change_calcPrKDF ! If no keyPairId is selected, this MUST be the only one accessible
-    keyPairLabel           .connect(&change_calcPrKDF.watch);
-    authIdRSAprivateFile   .connect(&change_calcPrKDF.watch);
-    keyPairModifiable      .connect(&change_calcPrKDF.watch);
-    sizeNewRSAModulusBits  .connect(&change_calcPrKDF.watch);
-    usageRSAprivateKeyPrKDF.connect(&change_calcPrKDF.watch);
-//  fidRSAprivate          .connect(&change_calcPrKDF.watch);
+    foreach (id; 0..cnt)
+        with (tr) writefln("%d  %d  %d  %d  %d  %d  %d    %d  %d   %s   %s",  id, GetIntegerId("PARENT", id), GetIntegerId("PREVIOUS", id), GetIntegerId("NEXT", id),
+            GetIntegerId("FIRST", id), GetIntegerId("LAST", id),    GetIntegerId("DEPTH", id),
+            GetIntegerId("CHILDCOUNT", id), GetIntegerId("TOTALCHILDCOUNT", id),  GetAttributeId("KIND", id).fromStringz, GetAttributeId("TITLE", id).fromStringz);
 
-    keyPairId              .connect(&change_calcPuKDF.watch); // THIS MUST BE the first entry for change_calcPuKDF ! If no keyPairId is selected, this MUST be the only one accessible
-    keyPairLabel           .connect(&change_calcPuKDF.watch);
-//  authIdRSApublicFile    .connect(&change_calcPuKDF.watch);
-    keyPairModifiable      .connect(&change_calcPuKDF.watch);
-    sizeNewRSAModulusBits  .connect(&change_calcPuKDF.watch);
-    usageRSApublicKeyPuKDF .connect(&change_calcPuKDF.watch);
-//  fidRSApublic           .connect(&change_calcPuKDF.watch);
 
-    fidRSADir              .connect(&statusInput.watch);
-    fidRSAprivate          .connect(&statusInput.watch);
-    fidRSApublic           .connect(&statusInput.watch);
-    valuePublicExponent    .connect(&statusInput.watch);
+id   p
+0    0   0   0   0   0  0     1  39   BRANCH  file system
 
-//// values to start with
-    fidRSADir              .set(appdf is null? 0 : ub22integral(appdf.data[2..4]), true);
-    storeAsCRTRSAprivate   .set(true, true);
-    usageRSAprivateKeyACOS .set(4,   true); // this is only for acos-generation
-    AC_Update_PrKDF_PuKDF  .set([prkdf is null? 0xFF : prkdf.data[25], pukdf is null? 0xFF : pukdf.data[25]], true);
-    AC_Delete_Create_RSADir.set([appdf is null? 0xFF : appdf.data[24], appdf is null? 0xFF : appdf.data[25]], true);
-    toggle_RSA_cb(AA["toggle_RSA_PrKDF_PuKDF_change"].GetHandle, 1);
-/+ +/
+1    0   0   0   1   1  1     5  38   BRANCH  3F00  MF
+2    1   0   3   2   6  2     0   0   LEAF    0001  iEF linear-fix, size 21 (1x21) B    Pin (global)
+3    1   2   4   2   6  2     0   0   LEAF    0002  iEF linear-var, size max. 148 (4x37 max.) B    SymKeys (global)
+4    1   3   5   2   6  2     0   0   LEAF    0003  iEF linear-var, size max. 48 (1x48 max.) B    SecEnv of directory
+5    1   4   6   2   6  2     0   0   LEAF    2F00  wEF transparent, size 33 B    EF(DIR)
+
+6    1   5   0   2   6  2    27  33   BRANCH  4100  DF
+7    6   0   8   7  39  3     0   0   LEAF    4101  iEF linear-fix, size 21 (1x21) B    Pin (local)
+8    6   7   9   7  39  3     0   0   LEAF    4102  iEF linear-var, size max. 444 (12x37 max.) B    SymKeys (local)
+9    6   8  10   7  39  3     0   0   LEAF    4103  iEF linear-var, size max. 448 (8x56 max.) B    SecEnv of directory
+10   6   9  11   7  39  3     0   0   LEAF    4111  wEF transparent, size 128 B    EF(AODF)
+11   6  10  12   7  39  3     0   0   LEAF    4112  wEF transparent, size 768 B    EF(PrKDF)
+12   6  11  13   7  39  3     0   0   LEAF    4113  wEF transparent, size 1536 B    EF(PuKDF)
+13   6  12  14   7  39  3     0   0   LEAF    4114  wEF transparent, size 256 B    EF(SKDF)
+14   6  13  15   7  39  3     0   0   LEAF    4115  wEF transparent, size 256 B    EF(CDF)
+15   6  14  16   7  39  3     0   0   LEAF    4120  wEF transparent, size 1664 B    EF(Cert)
+16   6  15  17   7  39  3     0   0   LEAF    41F4  iEF transparent, size 261 B    EF(RSA_PRIV)
+17   6  16  18   7  39  3     0   0   LEAF    4134  iEF transparent, size 277 B    EF(RSA_PUB)
+18   6  17  19   7  39  3     0   0   LEAF    5032  wEF transparent, size 192 B    EF(TokenInfo)
+19   6  18  20   7  39  3     0   0   LEAF    5031  wEF transparent, size 108 B    EF(ODF)
+20   6  19  21   7  39  3     0   0   LEAF    5155  wEF linear-var, size max. 260 (2x130 max.) B
+21   6  20  22   7  39  3     0   0   LEAF    4129  wEF linear-fix, size 40 (2x20) B
+22   6  21  23   7  39  3     0   0   LEAF    4131  iEF transparent, size 533 B    EF(RSA_PUB)
+23   6  22  24   7  39  3     0   0   LEAF    41F1  iEF transparent, size 1285 B    EF(RSA_PRIV)
+24   6  23  25   7  39  3     0   0   LEAF    4132  iEF transparent, size 533 B    EF(RSA_PUB)
+25   6  24  26   7  39  3     0   0   LEAF    41F2  iEF transparent, size 1285 B    EF(RSA_PRIV)
+26   6  25  27   7  39  3     0   0   LEAF    4133  iEF transparent, size 533 B    EF(RSA_PUB)
+27   6  26  28   7  39  3     0   0   LEAF    41F3  iEF transparent, size 1285 B    EF(RSA_PRIV)
+28   6  27  29   7  39  3     0   0   LEAF    3908  wEF transparent, size 16 B
+29   6  28  36   7  39  3     6   6   BRANCH  4300  DF
+30  29   0  31  30  35  4     0   0   LEAF    4301  iEF linear-fix, size 21 (1x21) B    Pin (local)
+31  29  30  32  30  35  4     0   0   LEAF    4302  iEF linear-var, size max. 74 (2x37 max.) B    SymKeys (local)
+32  29  31  33  30  35  4     0   0   LEAF    4303  iEF linear-var, size max. 168 (3x56 max.) B    SecEnv of directory
+33  29  32  34  30  35  4     0   0   LEAF    4331  iEF transparent, size 533 B    EF(RSA)
+34  29  33  35  30  35  4     0   0   LEAF    4305  wEF transparent, size 16 B
+35  29  34   0  30  35  4     0   0   LEAF    43F1  iEF transparent, size 1285 B    EF(RSA)
+36   6  29  37   7  39  3     0   0   LEAF    3903  wEF linear-fix, size 32 (2x16) B
+37   6  36  38   7  39  3     0   0   LEAF    3904  wEF linear-fix, size 32 (2x16) B
+38   6  37  39   7  39  3     0   0   LEAF    3905  wEF linear-var, size max. 32 (2x16 max.) B
+39   6  38   0   7  39  3     0   0   LEAF    3906  wEF linear-var, size max. 32 (2x16 max.) B
+
+
+
+    foreach (tnTypePtr nodeFS, ref typeof(tnTypePtr.data) elem; fs.preOrderRange(fs.begin(), fs.end()))
+        writefln("%d  %(%02X %)", tr.GetId(nodeFS), elem);
+
+1   3F 02 3F 00 00 00 FF 05   3F 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+2   0A 04 00 01 15 01 FF 05   3F 00 00 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+3   0C 04 00 02 25 04 FF 05   3F 00 00 02 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+4   1C 04 00 03 30 01 FF 05   3F 00 00 03 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+5   01 04 2F 00 00 21 0A 05   3F 00 2F 00 00 00 00 00 00 00 00 00 00 00 00 00 00 01 FF 01 01 FF 01 FF
+6   38 04 41 00 00 00 0E 05   3F 00 41 00 00 00 00 00 00 00 00 00 00 00 00 00 01 01 01 01 00 FF 03 FF
+7   0A 06 41 01 15 01 FF 05   3F 00 41 00 41 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+8   0C 06 41 02 25 0C FF 05   3F 00 41 00 41 02 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+9   1C 06 41 03 38 08 FF 05   3F 00 41 00 41 03 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+10  01 06 41 11 00 80 08 01   3F 00 41 00 41 11 00 00 00 00 00 00 00 00 00 00 00 00 FF 03 00 FF 03 FF
+11  01 06 41 12 03 00 00 01   3F 00 41 00 41 12 00 00 00 00 00 00 00 00 00 00 00 00 FF 03 00 FF 03 FF
+12  01 06 41 13 06 00 01 01   3F 00 41 00 41 13 00 00 00 00 00 00 00 00 00 00 00 00 FF 03 00 FF 03 FF
+13  01 06 41 14 01 00 03 01   3F 00 41 00 41 14 00 00 00 00 00 00 00 00 00 00 00 00 FF 03 00 FF 03 FF
+14  01 06 41 15 01 00 04 01   3F 00 41 00 41 15 00 00 00 00 00 00 00 00 00 00 00 00 FF 03 00 FF 03 FF
+15  01 06 41 20 06 80 0F 01   3F 00 41 00 41 20 00 00 00 00 00 00 00 00 00 00 00 01 FF 01 00 FF 01 FF
+16  09 06 41 F4 01 05 10 05   3F 00 41 00 41 F4 00 00 00 00 00 00 00 00 00 00 FF 01 01 01 00 FF 01 FF
+17  09 06 41 34 01 15 09 05   3F 00 41 00 41 34 00 00 00 00 00 00 00 00 00 00 00 01 00 01 00 FF 01 FF
+18  01 06 50 32 00 C0 0C 05   3F 00 41 00 50 32 00 00 00 00 00 00 00 00 00 00 00 00 FF 03 00 FF 03 FF
+19  01 06 50 31 00 6C 0B 05   3F 00 41 00 50 31 00 00 00 00 00 00 00 00 00 00 00 00 FF 03 00 FF 03 FF
+20  04 06 51 55 82 02 FF 05   3F 00 41 00 51 55 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+21  02 06 41 29 14 02 FF 05   3F 00 41 00 41 29 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+22  09 06 41 31 02 15 09 05   3F 00 41 00 41 31 00 00 00 00 00 00 00 00 00 00 00 01 00 01 00 FF 01 FF
+23  09 06 41 F1 05 05 10 05   3F 00 41 00 41 F1 00 00 00 00 00 00 00 00 00 00 FF 01 01 01 00 FF 01 FF
+24  09 06 41 32 02 15 09 05   3F 00 41 00 41 32 00 00 00 00 00 00 00 00 00 00 00 01 00 01 00 FF 01 FF
+25  09 06 41 F2 05 05 10 05   3F 00 41 00 41 F2 00 00 00 00 00 00 00 00 00 00 FF 01 01 01 00 FF 01 FF
+26  09 06 41 33 02 15 09 05   3F 00 41 00 41 33 00 00 00 00 00 00 00 00 00 00 00 01 00 01 00 FF 01 FF
+27  09 06 41 F3 05 05 10 05   3F 00 41 00 41 F3 00 00 00 00 00 00 00 00 00 00 FF 01 01 01 00 FF 01 FF
+28  01 06 39 08 00 10 FF 05   3F 00 41 00 39 08 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+29  38 06 43 00 00 00 FF 05   3F 00 41 00 43 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+30  0A 08 43 01 15 01 FF 05   3F 00 41 00 43 00 43 01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+31  0C 08 43 02 25 02 FF 05   3F 00 41 00 43 00 43 02 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+32  1C 08 43 03 38 03 FF 05   3F 00 41 00 43 00 43 03 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+33  09 08 43 31 02 15 FF 05   3F 00 41 00 43 00 43 31 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+34  01 08 43 05 00 10 FF 05   3F 00 41 00 43 00 43 05 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+35  09 08 43 F1 05 05 FF 05   3F 00 41 00 43 00 43 F1 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+36  02 06 39 03 10 02 FF 05   3F 00 41 00 39 03 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+37  02 06 39 04 10 02 FF 05   3F 00 41 00 39 04 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+38  04 06 39 05 10 02 FF 05   3F 00 41 00 39 05 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+39  04 06 39 06 10 02 FF 05   3F 00 41 00 39 06 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
++/
+
+// some explanatory texts
     AA["fs_text_asn1"].SetAttributeVALUE("");
     AA["fs_text"].SetAttributeVALUE("");
     AA["fs_text"].SetString(IUP_APPEND, " ");
-    AA["fs_text"].SetString(IUP_APPEND, "The translation feature is used currently for the button text Exit only.\n");
-    AA["fs_text"].SetString(IUP_APPEND, "It translates to Beenden in german\n");
+    AA["fs_text"].SetString(IUP_APPEND, "The translation feature is used currently for the superfluous button text Exit only.\n");
+    AA["fs_text"].SetString(IUP_APPEND, "It translates to Beenden, if the locale is a german one and if de/LC_MESSAGES/acos5_64_gui.mo got pushed\n");
     AA["fs_text"].SetString(IUP_APPEND, `
 A remark upfront: While ACOS supports SFI (Short File Identifier), it's used neither by opensc, nor by the driver or this app. Only regular FID (File Identifier) 2 Bytes long are used !
 Also, pathes are used only as absolute pathes, thus beginning at root FID 0x3F00. A path may consist of max 8 FID components (opensc limitation), but it's recommended to use only max 5 FID components,

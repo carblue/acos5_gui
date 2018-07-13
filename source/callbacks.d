@@ -46,8 +46,8 @@ import libintl : _, __;
 import util_general;// : ub22integral;
 import acos5_64_shared;
 
-import util_opensc : lh, card, TreeTypeFS, acos5_64_short_select, readFile, decompose, PKCS15Path_FileType, PKCS15_FILE_TYPE, fs, sitTypeFS,
-    util_connect_card, connect_card, cm_7_3_1_14_get_card_info, is_ACOSV3_opmodeV3_FIPS_140_2L3, is_ACOSV3_opmodeV3_FIPS_140_2L3_active;
+import util_opensc : lh, card, acos5_64_short_select, readFile, decompose, PKCS15Path_FileType, PKCS15_FILE_TYPE,
+    util_connect_card, connect_card, cm_7_3_1_14_get_card_info, is_ACOSV3_opmodeV3_FIPS_140_2L3, is_ACOSV3_opmodeV3_FIPS_140_2L3_active, tnTypePtr;  /*fs, TreeTypeFS, sitTypeFS,*/
 //    aa_7_2_6_82_external_authentication;
 
 
@@ -57,7 +57,7 @@ ub8 map2DropDown = [1, 2, 3, 4, 5, 6, 7, 8];
 nothrow :
 
 
-void populate_list_op_file_possible(TreeTypeFS.nodeType* pn, ub2 fid, EFDB fdb, ub2 size_or_MRL_NOR, ubyte lcsi, ub8 sac) {
+void populate_list_op_file_possible(tnTypePtr pn, ub2 fid, EFDB fdb, ub2 size_or_MRL_NOR, ubyte lcsi, ub8 sac) {
     import std.string : empty;
 
     immutable string[7][6] textSCB_FileType = [
@@ -156,7 +156,7 @@ int selectbranchleaf_cb(Ihandle* /*ih*/, int id, int status)
         h.SetCallback(IUP_VALUECHANGED_CB, &list_op_file_possible_val_changed_cb);
         return IUP_DEFAULT;
     }
-    auto pn = cast(TreeTypeFS.nodeType*) (cast(iup.iup_plusD.Tree) AA["tree_fs"]).GetUserId(id);
+    auto pn = cast(tnTypePtr) (cast(iup.iup_plusD.Tree) AA["tree_fs"]).GetUserId(id);
 //    printf("selectbranchleaf_cb id(%d), status(%d), data(%s)\n", id, status, sc_dump_hex(pn.data.ptr, pn.data.length)); // selectbranchleaf_cb id(2), status(1), data(0A04000115010105 3F00 0001)
     // selectbranchleaf_cb id(5), status(1), data(01 04 2F00 00 21 00 05  3F00 2F00)
 
@@ -202,7 +202,7 @@ int selectbranchleaf_cb(Ihandle* /*ih*/, int id, int status)
 
 int executeleaf_cb(Ihandle* h, int id)
 {
-  auto pn = cast(TreeTypeFS.nodeType*) (cast(iup.iup_plusD.Tree) AA["tree_fs"]).GetUserId(id);
+////  auto pn = cast(tnTypePtr) (cast(iup.iup_plusD.Tree) AA["tree_fs"]).GetUserId(id);
 ////  printf("executeleaf_cb (%d) %s\n", id, sc_dump_hex(pn.data.ptr, pn.data.length));
 //  assumeWontThrow(writefln("0x [%(%0sX, %)]", pn.data[0..8]));
   return IUP_DEFAULT;
@@ -268,10 +268,11 @@ int toggle_auto_decode_asn1_cb(Ihandle* ih, int state)
 int btn_sanity_cb(Ihandle* ih)
 {
     enum string commands = `
-    AA["matrixsanity"].SetIntegerId2("", 1, 1, card.type);
-    AA["matrixsanity"].Update;
+    Handle h = AA["matrixsanity"];
+    h.SetIntegerId2("", 1, 1, card.type);
+    h.Update;
     with (card.version_)
-    AA["matrixsanity"].SetStringId2 ("", 2, 1, hw_major.to!string~" / "~hw_minor.to!string);
+    h.SetStringId2 ("", 2, 1, hw_major.to!string~" / "~hw_minor.to!string);
     int rv;
     if (card.type==16004) { //61
 		ushort   SW1SW2;
@@ -281,7 +282,7 @@ int btn_sanity_cb(Ihandle* ih)
 		assert(responseLen==0);
 		ubyte sw2 = cast(ubyte)SW1SW2;
 		assert(canFind([ 0,1,2,16 ], sw2));
-		with (AA["matrixsanity"])
+		with (h)
 		switch (sw2) {
 			case  0: SetStringId2 ("",   3, 1, "FIPS 140-2 Level 3–Compliant Mode"); break;
 			case  1: SetStringId2 ("",   3, 1, "Emulated 32K Mode"); break;
@@ -315,7 +316,7 @@ int btn_do_cb(Ihandle* ih)
         if ((rv= acos5_64_short_select(card, null, fid, false)) != SC_SUCCESS)
         return IUP_DEFAULT;
     }
-/+
+/*
     ub8 pw = [0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38];
     int tries_left;
     if ((rv= sc_verify(card, SC_AC.SC_AC_CHV, 129, pw.ptr, pw.length, &tries_left)) != SC_SUCCESS) {
@@ -324,7 +325,7 @@ int btn_do_cb(Ihandle* ih)
     }
     sc_path path2;
     sc_path_set(&path2, SC_PATH_TYPE.SC_PATH_TYPE_FILE_ID, path.ptr+4, path.length-4, 0, -1);
-+/
+*/
     if ((rv= sc_update_record(card, 2, newData.ptr, newData.length, 0)) != SC_SUCCESS) {
         mixin (log!(__FUNCTION__,  "sc_update_record failed with error code %d", "rv"));
         return IUP_DEFAULT;

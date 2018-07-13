@@ -1,32 +1,49 @@
-file: driver_build_details_and_important_setup_information
+file: driver_build_details_and_acos5_64_gui_setup_information
 
 driver libacos5_64.so
 =====================
 
+The driver is suitable for ACS ACOS5-64, hardware version V2 (Smart Card/CryptoMate64) and V3 (Smart Card/CryptoMate Nano),
+32K mode is not supported.
+The support for FIPS mode (V3) gets improved currently, while I didnt't succeed to setup a card in FIPS mode, that responses with
+FIPS compliance==okay. I stil get an undocumented (in ref. manual) error code 6F59; perhaps someone is willing to help here?
+
+The driver is not complete in the context of card initialization. Those commands will follow in parallel to ongoing development
+of acos5_gui.
+
+
 The driver-package(s) available here were built on an Ubuntu Bionic Beaver system (18.04), i.e. they have dependencies typical for
 that distro, notably openssl 1.1.0:
 
-acos5-64-bionic_amd64-dmd_2_80_0-opensc_0_17.deb
+acos5-64-bionic_amd64-dmd_2_81_0-opensc_0_17.deb
+acos5-64-bionic_amd64-ldc_2_80_1-opensc_0_17.deb
+acos5-64-bionic_amd64-gdc_2_76_0-opensc_0_17.deb
 
-1 D-Compiler suite is supported currently, DMD 2.080.0 (dependencies on shared phobos and druntime).
-  (Debian packaged LDC (1.8.0) just lacks std.range.slide, which comes with LDC-1.9.0; hopefully, the LDC project will once start
-  debian packaging for amd64 as well).
-1 OpenSC version is supported currently, 0.17.0  (dependencies on shared libopensc.so.5).
 
-More packages will follow, once a suitable LDC package is available and packaging opensc_0_18 was done.
+3 D-Compiler suites are supported currently, DMD 2.081.0 and LDC 1.10.0 (which corresponds to 2.080.1); the driver depends on
+  shared phobos and druntime. Debian packaged LDC (1.8.0) lacks a required phobos function, introduced since LDC-1.9.0.
+  Whatever libacos5_64.so You use, it was compiled WITHOUT rpath, thus expecting to find shared phobos and druntime in standard
+  library search path. libphobos2-ldc-shared80_1.10.0-1_amd64.deb is a repackaging of ldc2-1.10.0-linux-x86_64.tar.xz installing
+  the shared phobos and druntime that way, providing what acos5-64-bionic_amd64-ldc_2_80_1-opensc_0_17.deb depends on (referring
+  to the compiler).
+1 OpenSC version is supported currently, 0.17.0  (the driver depends on shared libopensc.so.5).
+
+More packages will follow, once packaging opensc_0_18 was done.
 
 While the libacos5_64.so included in .deb is meant to be used on any Linux 64 bit system, packaging it as .deb is an easy 1-click
 install for Debian/Ubuntu users and just an easy way for me to convey several infos in a compact way:
 1. Where the libacos5_64.so has to be placed in the system: Basically the only requirement is that it is placed within a standard
-   library search path for .so in a x86_64 system. The opensc.conf and acos5_64_gui will rely on finding the library without
+   library search path for .so in a x86_64 system. The opensc.conf and acos5_64_gui will rely on the library being found without
    providing a path !
 2. Where to place opensc.conf and it's content, suitable for acos5_64
-3. Coming soon:  Where to place acos5_64.profile and it's content, suitable for acos5_64
+3. Where to place acos5_64.profile and it's content, suitable for acos5_64
 4. The target architecture, dependency on other software and more is easily expressible, as shown in the control file
-
+5. Access rigths of libacos5_64.so.0.0.1 don't need to be root, thus if that's the case after installing from .deb,
+   do run chown on it for security reasons.
 
 For Debian-based systems, one of the .deb is all You need referring to the driver (apart from "keyset" explained in the end).
-They assume http://d-apt.sourceforge.net/ to be the source for DMD's shared phobos and druntime.
+They assume http://d-apt.sourceforge.net/ or libphobos2-ldc-shared80_1.10.0-1_amd64.deb to be the source for DMD's or LDC's shared
+phobos and druntime.
 opensc_0_17 is available from Debian for Ubuntu Bionic (effectively 2 pack., opensc and opensc-pkcs11 make up a release version).
 opensc_0_18 will soon be available from https://github.com/carblue/opensc, packaged from compiled sources, also split into 2 .deb
 like in the 0.17 version)
@@ -36,6 +53,9 @@ BE AWARE, that this new opensc.conf switches on logging, and does switch off all
 mentioned in opensc.conf.
 YOU MAY WANT to change opensc.conf to Your needs, at least switching off logging again if everything works as expected. In the
 beginning, it's recommended to have the logging feature enabled for troubleshooting.
+The log file will reveal pins entered for hardware version ACOS5 V2.0 (CryptoMate64) which lacks SM for pins. Secure Messaging for
+pins is possible since hardware version ACOS5-64 V3.0 (CryptoMate Nano) but only effective if configured for instruction 0x20 that
+way via SAE, or if in FIPS mode.
 The original opensc.conf from OpenSC, generated on Ubuntu Bionic Beaver from configure invocation
 $ ./configure --prefix=/usr --sysconfdir=/etc/opensc --libdir=/usr/lib/x86_64-linux-gnu
 is there as file opensc.conf.orig17 or opensc.conf.orig18
@@ -51,24 +71,40 @@ In this case, overwrite /etc/opensc/opensc.conf only if the existing (original) 
 opensc.conf.orig17 match exactly, otherwise perform the required changes manually or even better use diff and patch.
 
 
-Key sizes for Secure Messaging (3DES) will be 24 byte=192 bit, thus the
-keyset_..._02_enc  and keyset_..._02_mac with 24 byte keys will be used.
-The Graph. User Interface application/popup 'Consent for signing' is (basically) enabled.
+Key sizes for Secure Messaging (3DES) will be 24 byte=192 bit, thus from opensc.conf the
+keyset_..._02_enc  and keyset_..._02_mac with 24 byte keys will be used for non-FIPS, and
+keyset_..._01_enc  and keyset_..._01_mac with 24 byte keys will be used for FIPS mode.
 
 
-$ ldd libacos5_64.so  (from acos5-64-bionic_amd64-dmd_2_80_0-opensc_0_17.deb)
-        linux-vdso.so.1 (0x00007ffd8ebe3000)
-        libcrypto.so.1.1 => /usr/lib/x86_64-linux-gnu/libcrypto.so.1.1 (0x00007f83a4cdf000)
-        libopensc.so.5 => /usr/lib/x86_64-linux-gnu/libopensc.so.5 (0x00007f83a4914000)
-        libphobos2.so.0.80 => /usr/lib/x86_64-linux-gnu/libphobos2.so.0.80 (0x00007f83a414e000)
-        libpthread.so.0 => /lib/x86_64-linux-gnu/libpthread.so.0 (0x00007f83a3f2f000)
-        libgcc_s.so.1 => /lib/x86_64-linux-gnu/libgcc_s.so.1 (0x00007f83a3d17000)
-        libc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x00007f83a3926000)
-        /lib64/ld-linux-x86-64.so.2 (0x00007f83a53a2000)
-        libdl.so.2 => /lib/x86_64-linux-gnu/libdl.so.2 (0x00007f83a3722000)
-        libz.so.1 => /lib/x86_64-linux-gnu/libz.so.1 (0x00007f83a3505000)
-        libm.so.6 => /lib/x86_64-linux-gnu/libm.so.6 (0x00007f83a3167000)
-        librt.so.1 => /lib/x86_64-linux-gnu/librt.so.1 (0x00007f83a2f5f000)
+$ ldd libacos5_64.so  (from acos5-64-bionic_amd64-dmd_2_81_0-opensc_0_17.deb)
+        linux-vdso.so.1 (0x00007ffdfe76d000)
+        libcrypto.so.1.1 => /usr/lib/x86_64-linux-gnu/libcrypto.so.1.1 (0x00007f1d5ee16000)
+        libopensc.so.5 => /usr/lib/x86_64-linux-gnu/libopensc.so.5 (0x00007f1d5ea4b000)
+        libphobos2.so.0.81 => /usr/lib/x86_64-linux-gnu/libphobos2.so.0.81 (0x00007f1d5e27f000)
+        libgcc_s.so.1 => /lib/x86_64-linux-gnu/libgcc_s.so.1 (0x00007f1d5e067000)
+        libc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x00007f1d5dc76000)
+        /lib64/ld-linux-x86-64.so.2 (0x00007f1d5f4d7000)
+        libdl.so.2 => /lib/x86_64-linux-gnu/libdl.so.2 (0x00007f1d5da72000)
+        libpthread.so.0 => /lib/x86_64-linux-gnu/libpthread.so.0 (0x00007f1d5d853000)
+        libz.so.1 => /lib/x86_64-linux-gnu/libz.so.1 (0x00007f1d5d636000)
+        libm.so.6 => /lib/x86_64-linux-gnu/libm.so.6 (0x00007f1d5d298000)
+        librt.so.1 => /lib/x86_64-linux-gnu/librt.so.1 (0x00007f1d5d090000)
+
+
+$ ldd libacos5_64.so  (from acos5-64-bionic_amd64-ldc_2_80_1-opensc_0_17.deb)
+        linux-vdso.so.1 (0x00007ffd2bb18000)
+        libcrypto.so.1.1 => /usr/lib/x86_64-linux-gnu/libcrypto.so.1.1 (0x00007f2fa1aef000)
+        libopensc.so.5 => /usr/lib/x86_64-linux-gnu/libopensc.so.5 (0x00007f2fa1724000)
+        libphobos2-ldc-shared.so.80 => /usr/lib/x86_64-linux-gnu/libphobos2-ldc-shared.so.80 (0x00007f2fa12a8000)
+        libdruntime-ldc-shared.so.80 => /usr/lib/x86_64-linux-gnu/libdruntime-ldc-shared.so.80 (0x00007f2fa2274000)
+        libpthread.so.0 => /lib/x86_64-linux-gnu/libpthread.so.0 (0x00007f2fa1089000)
+        libgcc_s.so.1 => /lib/x86_64-linux-gnu/libgcc_s.so.1 (0x00007f2fa0e71000)
+        libc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x00007f2fa0a80000)
+        /lib64/ld-linux-x86-64.so.2 (0x00007f2fa2190000)
+        libdl.so.2 => /lib/x86_64-linux-gnu/libdl.so.2 (0x00007f2fa087c000)
+        libz.so.1 => /lib/x86_64-linux-gnu/libz.so.1 (0x00007f2fa065f000)
+        libm.so.6 => /lib/x86_64-linux-gnu/libm.so.6 (0x00007f2fa02c1000)
+        librt.so.1 => /lib/x86_64-linux-gnu/librt.so.1 (0x00007f2fa00b9000)
 
 -------------------------------------------------------------------------------------------------------------
 
@@ -77,15 +113,16 @@ $ ldd libacos5_64.so  (from acos5-64-bionic_amd64-dmd_2_80_0-opensc_0_17.deb)
 setup information for acos5_gui
 ===============================
 
-Basic requirements are the DUB package manager and the DMD D compiler from  https://dlang.org/download.html
-or http://d-apt.sourceforge.net/
+Basic requirements are the DUB package manager and the DMD or LDC D compiler from  https://dlang.org/download.html
+or http://d-apt.sourceforge.net/ or see above the ldc package
 
 IUP
 ===
 Soon a Debian package will be available from https://github.com/carblue/iup, a (re_)packaging of iup-3.25
 
 Alternatively:
-Starting point for the binary downloads is e.g.  http://webserver2.tecgraf.puc-rio.br/iup/en/download.html
+Starting point for the binary downloads is e.g.  http://webserver2.tecgraf.puc-rio.br/iup/en/download.html or
+http://webserver2.tecgraf.puc-rio.br/iup/en/download_tips.html
 This will point to some  sourceforge.net site. The kernel-matching-one of iup-???_64_lib.tar.gz in folder
 Linux Libraries is what You want (for Bionic Beaver kernel 4.15, the files for kernel 4.4 do work as well).
 There is a suitable script file 'install' inside.
@@ -107,7 +144,7 @@ Don't select greater fonts, otherwise the application window migth exceed the sc
 OpenSC
 ======
 It's recommended to read at least the README.md of dependency package/D-binding 'opensc' because of the tight dependency
-on the specific opensc binary on Your system that will be used !!
+on the specific opensc binary on Your system that will be used (by driver and acos5_64_gui) !!
 Required is one of
 libopensc.so.5 in opensc version 0.17.0
 libopensc.so.6 in opensc version 0.18.0
@@ -144,17 +181,21 @@ patch -b /etc/opensc/opensc.conf etc_opensc_opensc_conf.patch
 That does the essential configuration, such that the driver 'acos5_64' implemented by libacos5_64.so will be loaded as an external
 driver and an external SM module (same binary used for driver and SecureMessaging module).
 The problem with the false positive recognition of ATR of Card/CryptoMate64 in acos5 internal driver is dealt with by excluding
-all internal drivers except acos5_64, default:
+all internal drivers except acos5_64, default (change to card_drivers = acos5_64, internal;   for ACOS5-64 V3):
 There may be better ways to workaround that problem.
 
 Review the settings done by etc_opensc_opensc_conf.patch, escpecially 3 points require special attention, partially manual editing:
 1. Where the binary libacos5_64.so is located: The easiest (least to specify) way, is to place it in a directory
    that is part of the system's library search path, e.g. /usr/local/lib/libacos5_64.so
    Don't forget a  sudo ldconfig  then. (Update: System's library search path is the default now in .deb packages provided !)
-2. If You want/Your card/token uses Secure Messaging, then 2 correct keyset_* must exist:
+
+2. If You want/Your card/token uses Secure Messaging (in FIPS mode, SM definitely is used !), then 2 correct keyset_* must exist:
    keyset_..._02_enc (which corresponds to record #2 with key reference 0x82 on card) and keyset_..._02_mac  (which corresponds to
    record #1 with key reference 0x81 on card), all are 24 byte keys according to SESSIONKEYSIZE24 set.
-   keyset* and corresponding key on card must be the same, i.e. You are using 2 recommendedly different, 24 byte keys, that both
+   TODO expalin: For FIPS mode, the above is different, keyset_..._01* will be used (as security officer key and encryption key),
+   no session keys used  etc.
+
+   keyset* and corresponding keys on card must be the same, i.e. You are using 2 recommendedly different, 24 byte keys, that both
    opensc.conf and the card know about:
    These keys are used, one for Internal Authentication, the other for External Authentication, which are initial steps in
    establishing a 'secure channel' for Secure Messaging.
@@ -163,12 +204,15 @@ Review the settings done by etc_opensc_opensc_conf.patch, escpecially 3 points r
    Upon successful Int. and Ext. Authentication, 2 SessionKeys and an InitialVector (SendSequenceCounter) for 3DES will be derived
    (as explained in the ACOS5-64 Reference Manual available from ACS). One SessionKey is for encryption/decryption, the other for
    MAC-generation, both applicable as short-lifetime keys only within Secure Messaging.
+   TODO expalin: For FIPS mode, the above is different
+
    In total there are 3 options:
    (a) no Secure Messaging takes place,
    (b) SM-sign: Secure Messaging for Authenticity, MAC-generation and check only, no encrypted command (payload) data /
                 decrypted response data
    (c) SM-enc:  Secure Messaging for Authenticity and Confidentiality, MAC-generation and check as well as encryption/decryption
                 of command (payload) data / response data
+   TODO expalin: For FIPS mode, the above is different: There is no (b) option
 
    Not all commands need/support SM and the support also depends on the hardware (V2 / V3 (Nano)). Whether and which kind of SM
    applies, depends on the SCB SecurityConditionByte (which may point to some SecurityEnvironmentFile record).
@@ -215,7 +259,7 @@ Review the settings done by etc_opensc_opensc_conf.patch, escpecially 3 points r
    don't shield the user from every complex aspect of SM. Lastly the user, You decide about relevant aspects by deciding about the
    SecurityConditionByte s during file/directory creation.
    What acos5_64_gui currently does, is showing Header/meta infos (FCI) for file and it's directory, which exposes all relevant
-   SCB s.
+   SCB s and SAE content.
 
    Put Key operations aren't yet provided by acos5_64_gui, but nevertheless, You have to lookup the "Symmetric Key Record Format"
    in the ACOS5-64 reference manual anyway: There are decisions to make about Retry(Error) / Usage Counter as well.
@@ -242,8 +286,9 @@ hexString!"00 44 00 00 02  4102"         <= without activation, the symetric key
         # For my card, the relevant part ASN.1-decoded is:   name: aid  type: OCT_STR  value: 41434f53504b43532d313576312e3030
 
 
+(Update: This feature/user_consent is switched off currently, it doesn't work any more:)
 3. The driver is compiled with ENABLE_ACOS5_64_UI set, which means, the driver basically is prepared to launch a pinentry program
-   and respect Your decision taken (it's still experimental, not always working properly (depending on opensc-version?)
+   and respect Your decision taken (it's still experimental, not always working properly (depending on pinentry-qt-version?)
    ssh -T git@github.com  returns this error  pinentry-qt: Assuan processing failed: Datenübergabe unterbrochen (broken pipe)):
 
    The launch will take place when a RSA private key shall be used for operation 'Sign' or 'Decrypt'. There is actually no pin asked
