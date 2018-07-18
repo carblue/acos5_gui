@@ -69,15 +69,6 @@ immutable ubyte[/*48*/][4] se64K1 = [
 ];
 
 nothrow extern(C) {
-alias  ft_cm_7_3_1_14_get_card_info =  int function(sc_card* card,
-	const card_info_type  type,
-	const ubyte           fileAtPos_PinRef_KeyRef,
-	out ushort            SW1SW2,
-	out ubyte             responseLen,
-	out ubyte[]           response, //=null,
-	c_ulong               apdu_flags=0 //, scope ubyte[]         command_bytes=null
-	) /*@nogc nothrow pure*/ @safe;
-
 alias  ft_acos5_64_short_select =  int function(sc_card* card,
     fci_se_info* info,
     ub2 fid,
@@ -91,12 +82,25 @@ alias  ft_uploadHexfile =  int function(sc_card* card,
 	size_t count,
 	c_ulong flags);
 
-alias  ft_cry_____7_4_4___46_generate_keypair_RSA =  int function(sc_card* card, scope const ubyte[] lv_key_len_type_data) /*@safe*/;
+alias  ft_cm_7_3_1_14_get_card_info =  int function(sc_card* card,
+	const card_info_type  type,
+	const ubyte           fileAtPos_PinRef_KeyRef,
+	out ushort            SW1SW2,
+	out ubyte             responseLen,
+	out ubyte[]           response, //=null,
+	c_ulong               apdu_flags=0 //, scope ubyte[]         command_bytes=null
+	) /*@nogc nothrow pure*/ @safe;
 
-alias  ft_control_generate_key =  int function(bool, bool=false, bool=true);
+alias  ft_cry_pso_7_4_3_8_2A_asym_encrypt_RSA =  int function(sc_card* card,
+    const scope ubyte[] indata,
+    scope ubyte[] encrypted_RSA) @trusted;
+
+alias  ft_cry_____7_4_4___46_generate_keypair_RSA =  int function(sc_card* card, const scope ubyte[] lv_key_len_type_data) /*@safe*/;
+
+alias  ft_ctrl_generate_keypair_RSA =  int function(bool, bool=false, bool=true);
 
 //alias  ft_aa_7_2_6_82_external_authentication = int function(sc_card* card, ubyte KeyID, scope sc_remote_data* rdata=null) @trusted;
-//alias  ft_getTreeTypeFSy = tnTypePtry[] function();
+//alias  ft_cry_mse_7_4_2_1_22_set =  int function(sc_card* card, const scope ubyte[] tlv_crt) @trusted;
 } // nothrow extern(C)
 
 /+

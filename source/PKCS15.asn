@@ -557,7 +557,7 @@ PublicKeyType ::= CHOICE {
 }
 
 SecretKeyType ::= CHOICE {
-    genericSecretKey	SecretKeyObject, -- {GenericSecretKeyAttributes},
+--    genericSecretKey	SecretKeyObject, {GenericSecretKeyAttributes},
 --    rc2key			[0] SecretKeyObject {GenericSecretKeyAttributes},
 --    rc4key			[1] SecretKeyObject {GenericSecretKeyAttributes},
     desKey			[2] EXPLICIT  SecretKeyObject, -- {GenericSecretKeyAttributes},

@@ -3,7 +3,6 @@ module importExport;
 import core.runtime : Runtime;
 import std.stdio;
 import std.conv: to;
-import std.digest: toHexString;
 import std.exception : assumeWontThrow;
 import std.algorithm.comparison : /*min, max, clamp, equal, mismatch,*/ among;
 import std.range : iota, chunks;
@@ -19,7 +18,7 @@ import iup.iup_plusD;
 
 //import libintl : _, __;
 //
-import util_general;// : ub22integral;
+import util_general;// : ub22integral, ubaIntegral2string;
 import acos5_64_shared;
 
 import util_opensc : lh, card, TreeTypeFS, acos5_64_short_select, readFile, decompose, PKCS15Path_FileType, PKCS15_FILE_TYPE, fs, sitTypeFS,
@@ -63,25 +62,25 @@ int btn_exportArchive_cb(Ihandle* ih) {
             }
 
             if (rbuf[0] == ISO7816_TAG_FCI)
-                rbuf[0] =  ISO7816_TAG_FCP_.ISO7816_TAG_FCP;
+                rbuf[0] =  /*ISO7816_TAG_FCP_.*/ISO7816_TAG_FCP;
             ubyte len = rbuf[1];
 
             exportData ed;
             foreach (d,T,L,V; tlv_Range_mod(rbuf[2..2+len])) {
-                if      (T == ISO7816_TAG_FCP_.ISO7816_TAG_FCP_SIZE)
+                if      (T == /*ISO7816_TAG_FCP_.*/ISO7816_TAG_FCP_SIZE)
                     ed.fileSize = ub22integral(V[0..2]);
-                else if (T == ISO7816_TAG_FCP_.ISO7816_TAG_FCP_TYPE) {
+                else if (T == /*ISO7816_TAG_FCP_.*/ISO7816_TAG_FCP_TYPE) {
                     ed.fdb = V[0];
                     if (iEF_FDB_to_structure(cast(EFDB)ed.fdb)&6  &&  L.among(5,6)) { // then it's a record-based fdb
-                        ed.NOR = V[L-1];
                         ed.MRL = V[3];
+                        ed.NOR = V[L-1];
                     }
                 }
-                else if (T == ISO7816_TAG_FCP_.ISO7816_TAG_FCP_FID)
+                else if (T == /*ISO7816_TAG_FCP_.*/ISO7816_TAG_FCP_FID)
                     ed.fid = V[0..2];
-                else if (T == ISO7816_TAG_FCP_.ISO7816_TAG_FCP_DF_NAME)
+                else if (T == /*ISO7816_TAG_FCP_.*/ISO7816_TAG_FCP_DF_NAME)
                     ed.df_name[0..L] = V[0..L];
-                else if (T == ISO7816_TAG_FCP_.ISO7816_TAG_FCP_LCS) {
+                else if (T == /*ISO7816_TAG_FCP_.*/ISO7816_TAG_FCP_LCS) {
                     ed.lcsi = V[0];
                     V[0] = 1;
                 }
@@ -102,7 +101,7 @@ int btn_exportArchive_cb(Ihandle* ih) {
             string tail = "  " ~ ed.lcsi.to!string;
             if (ed.NOR)
                 foreach (i; 1..1+ed.NOR) {
-                    fileName = toHexString(e[8..8+e[1]]) ~ "_" ~ i.to!string;
+                    fileName = ubaIntegral2string(e[8..8+e[1]]) ~ "_" ~ i.to!string;
                     f_toc_files_active.writeln(" " ~ fileName ~ tail);
                     auto buf = new ubyte[ed.MRL];
                     // possible fdb:
@@ -121,7 +120,7 @@ assumeWontThrow(writefln("### unreadable: ed.fid: %(%02X %)", ed.fid));
                     list_archiv_files ~= fileName;
                 }
             else {
-                fileName = toHexString(e[8..8+e[1]]);
+                fileName = ubaIntegral2string(e[8..8+e[1]]);
                 f_toc_files_active.writeln( (is_DFMF(ed.fdb)? "#" : " ") ~ fileName ~ tail);
                 if (!is_DFMF(ed.fdb)) {
                     auto buf = new ubyte[ed.fileSize];
@@ -146,7 +145,7 @@ assumeWontThrow(writefln("### unreadable: ed.fid: %(%02X %)", ed.fid));
             }
             if (ed.saeRemoveLen)
                 rbuf[1] -= ed.saeRemoveLen;
-            f_commands_create.writeln(toHexString(rbuf[0..len+2-ed.saeRemoveLen]));
+            f_commands_create.writeln(ubaIntegral2string(rbuf[0..len+2-ed.saeRemoveLen]));
         } // foreach (const ref e; fs.preOrderRange(fs.begin(), fs.end()))
         assumeWontThrow(writeln(list_archiv_files));
 `;
@@ -155,3 +154,4 @@ assumeWontThrow(writefln("### unreadable: ed.fid: %(%02X %)", ed.fid));
     catch (Exception e) { /* todo: handle exception */ }
     return IUP_DEFAULT;
 }
+

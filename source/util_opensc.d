@@ -60,7 +60,7 @@ module util_opensc;
 import core.sys.posix.dlfcn;
 
 import core.runtime : Runtime;
-import core.stdc.stdlib : EXIT_SUCCESS, EXIT_FAILURE, exit, getenv, strtol, free, calloc; //, div_t, div, malloc, free;
+import core.stdc.stdlib : EXIT_SUCCESS, EXIT_FAILURE, exit, getenv, free, calloc; //, div_t, div, malloc, free;
 import core.stdc.config : c_long, c_ulong;
 import core.stdc.string;
 import std.stdio;
@@ -74,7 +74,6 @@ import std.algorithm.iteration : /*filter,*/ uniq;
 import std.algorithm.mutation : remove;
 import std.traits : EnumMembers;
 import std.typecons : Tuple;
-import std.digest : toHexString;
 import std.range : iota, slide, chunks/*, enumerate*/;
 import std.base64 : Base64;
 
@@ -187,13 +186,14 @@ struct PKCS15Path_FileType {
     ubyte[]           path;
     PKCS15_FILE_TYPE  pkcs15FileType;
 
-    import mixin_templates_opensc;
 
-version(ENABLE_TOSTRING)
+version(ENABLE_TOSTRING) {
+    import mixin_templates_opensc;
     void toString(scope void delegate(const(char)[]) sink, FormatSpec!char fmt) const
     {
         mixin(frame_noPointer_OneArrayFormatx_noUnion!("path", "path.length", "path.length"));
     }
+}
 } // struct PKCS15Path_FileType
 
 /*
@@ -251,11 +251,14 @@ __gshared void*               lh; // library handle
 bool  is_ACOSV3_opmodeV3_FIPS_140_2L3;
 bool  is_ACOSV3_opmodeV3_FIPS_140_2L3_active;
 
-ft_cm_7_3_1_14_get_card_info  cm_7_3_1_14_get_card_info;
 ft_acos5_64_short_select      acos5_64_short_select;
 ft_uploadHexfile              uploadHexfile;
+ft_cm_7_3_1_14_get_card_info  cm_7_3_1_14_get_card_info;
 
+//ft_cry_mse_7_4_2_1_22_set               cry_mse_7_4_2_1_22_set;
+ft_cry_pso_7_4_3_8_2A_asym_encrypt_RSA  cry_pso_7_4_3_8_2A_asym_encrypt_RSA;
 ft_cry_____7_4_4___46_generate_keypair_RSA  cry_____7_4_4___46_generate_keypair_RSA;
+
 
 
 sc_pkcs15init_callbacks  my_pkcs15init_callbacks = { &get_pin_callback, null };
@@ -296,7 +299,7 @@ extern(C) int get_pin_callback(sc_profile* profile, int id, const(sc_pkcs15_auth
     int       pinReference = info.attrs.pin.reference&0x7F; // strip the local flag
     pinbuf[0..9] = '\0';
 
-    int rv = IupGetParam(toStringz("Pin requested for authorization (SCB "/*~toHexString!(Order.increasing,LetterCase.upper)([ubyte(scbs[0])])*/~")"),
+    int rv = IupGetParam(toStringz("Pin requested for authorization (SCB)"),
                     null/* &param_action*/, null/* void* user_data*/, /*format*/
                     "&Pin local (User)? If local==No, then it's the Security Officer Pin:%b[No,Yes]\n" ~
                     "&Pin reference (1-31; selects the record# in pin file):%i\n" ~
@@ -308,15 +311,27 @@ extern(C) int get_pin_callback(sc_profile* profile, int id, const(sc_pkcs15_auth
 }
 
 
+
+int getIdentifier(const ref PKCS15_ObjectTyp ot, string nodeName, bool new_=false) nothrow {
+    /* Identifier ::= OCTET STRING (SIZE (0..255)) */
+    ubyte[2]  str;
+    int outLen;
+    int asn1_result;
+    if ((asn1_result= asn1_read_value(new_? ot.structure_new : ot.structure, nodeName, str, outLen)) != ASN1_SUCCESS) {
+        assumeWontThrow(writefln("### asn1_read_value %s: %s", nodeName, asn1_strerror2(asn1_result)));
+        return -1;
+    }
+    assert(outLen==1);
+    return str[0];
+}
+
+
     /* add space after name:, type: and value:
        pretty-print BIT STRING
     */
 string someScanner(int mode, const(char)[] line)
 {
-    import core.stdc.stdlib : strtoull;
-    import core.bitop : bitswap;
     import std.string : indexOf;
-    import std.math : pow;
 
     string res;
     try {
@@ -337,11 +352,27 @@ string someScanner(int mode, const(char)[] line)
                 auto valueRegBITSTRING = regex(r".*value(?:\((\d+)\)){1}: ([0-9A-Fa-f]{2,16}){1}.*");
                 res = replaceFirst(res, valueRegcolon, "$& ");
                 auto m = matchFirst(res, valueRegBITSTRING);
+/*
+    import core.stdc.stdlib : strtoull;
+    import core.bitop : bitswap;
+    import std.math : pow;
                 if (!m.empty && to!int(m[1])<=64 && m[2].length<=16) {
                     ulong tmp = bitswap( strtoull(m[2].toStringz,null,16) << 8*(8-m[2].length/2));
                     res ~= "  ->  ";
                     foreach (i; 0..to!int(m[1]))
                         res ~= (tmp & pow(2,i))? "1" : "0";
+                }
+*/
+                if (!m.empty) {
+                    ubyte[] m2 = string2ubaIntegral(m[2]);
+                    size_t cnt, cntMax = min(to!size_t(m[1]), m2.length*8);
+                    res ~= "  ->  ";
+                    foreach (b; m2)
+                    foreach (i; 0..8) {
+                        if (++cnt>cntMax)
+                            break;
+                        res ~=  b & 1<<7-i? "1" : "0";
+                    }
                 }
             }
         }
@@ -498,6 +529,7 @@ int is_string_valid_atr(const(char)* atr_str)
             }
             else   {
                 import core.stdc.errno;
+                import core.stdc.stdlib : strtol;
 
                 const(char)*   endptr  = null;
                 const(char)**  endptrptr = &endptr;
@@ -548,17 +580,9 @@ autofound:
     lh = assumeWontThrow(Runtime.loadLibrary("libacos5_64.so")); // this works without path (at least on Linux), as it is loaded already; nowadays libacos5_64.so is stored within standard so. library search path
 ////    assumeWontThrow(writeln("Library libacos5_64.so handle: ", lh));
     assert(lh);
+    char* error;
 
     // some exported functions to call directly into libacos5_64.so
-    cm_7_3_1_14_get_card_info = cast(ft_cm_7_3_1_14_get_card_info) dlsym(lh, "cm_7_3_1_14_get_card_info");
-    char* error = dlerror();
-    if (error)
-    {
-        printf("dlsym error cm_7_3_1_14_get_card_info: %s\n", error);
-        exit(1);
-    }
-////    printf("cm_7_3_1_14_get_card_info() function is found\n");
-
     acos5_64_short_select = cast(ft_acos5_64_short_select) dlsym(lh, "acos5_64_short_select");
     error = dlerror();
     if (error)
@@ -576,6 +600,33 @@ autofound:
         exit(1);
     }
 ////    printf("uploadHexfile() function is found\n");
+
+    cm_7_3_1_14_get_card_info = cast(ft_cm_7_3_1_14_get_card_info) dlsym(lh, "cm_7_3_1_14_get_card_info");
+    error = dlerror();
+    if (error)
+    {
+        printf("dlsym error cm_7_3_1_14_get_card_info: %s\n", error);
+        exit(1);
+    }
+////    printf("cm_7_3_1_14_get_card_info() function is found\n");
+/*
+    cry_mse_7_4_2_1_22_set = cast(ft_cry_mse_7_4_2_1_22_set) dlsym(lh, "cry_mse_7_4_2_1_22_set");
+    error = dlerror();
+    if (error)
+    {
+        printf("dlsym error cry_mse_7_4_2_1_22_set: %s\n", error);
+        exit(1);
+    }
+////    printf("cry_mse_7_4_2_1_22_set() function is found\n");
+*/
+    cry_pso_7_4_3_8_2A_asym_encrypt_RSA = cast(ft_cry_pso_7_4_3_8_2A_asym_encrypt_RSA) dlsym(lh, "cry_pso_7_4_3_8_2A_asym_encrypt_RSA");
+    error = dlerror();
+    if (error)
+    {
+        printf("dlsym error cry_pso_7_4_3_8_2A_asym_encrypt_RSA: %s\n", error);
+        exit(1);
+    }
+////    printf("cry_pso_7_4_3_8_2A_asym_encrypt_RSA() function is found\n");
 
     cry_____7_4_4___46_generate_keypair_RSA = cast(ft_cry_____7_4_4___46_generate_keypair_RSA) dlsym(lh, "cry_____7_4_4___46_generate_keypair_RSA");
     error = dlerror();
@@ -1292,6 +1343,7 @@ looptail: // jump target, if asn1_read_value failed, saving some code duplicatio
 
 string RSA_public_openssh_formatted(ub2 fid, scope const ubyte[] rsa_raw_acos5_64) nothrow
 {
+    import std.digest : toHexString;
     import std.digest.md;
     import std.digest.sha;
 
@@ -1302,14 +1354,14 @@ string RSA_public_openssh_formatted(ub2 fid, scope const ubyte[] rsa_raw_acos5_6
                            0,0,0,0];
     bool valid = rsa_raw_acos5_64[4] == 3;
     ushort modLenBytes = decode_key_RSA_ModulusBitLen(rsa_raw_acos5_64[1])/8;
-    prolog = "\nThis is a "~(valid?"":"in")~"valid "~to!string(modLenBytes*8)~" bit public RSA key with file id 0x " ~ toHexString!(Order.increasing,LetterCase.upper)(fid)~
-        " (it's partner private key file id is 0x " ~ toHexString!(Order.increasing,LetterCase.upper)(rsa_raw_acos5_64[2..4]) ~ ") :\n\n";
+    prolog = "\nThis is a "~(valid?"":"in")~"valid "~to!string(modLenBytes*8)~" bit public RSA key with file id 0x " ~ ubaIntegral2string(fid)~ // !(Order.increasing,LetterCase.upper)
+        " (it's partner private key file id is 0x " ~ ubaIntegral2string(rsa_raw_acos5_64[2..4]) ~ ") :\n\n";
     ptrdiff_t  e_len =  rsa_raw_acos5_64[5..21].countUntil!"a>0"; //16- rsa_raw_acos5_64[5..21].until!"a>0"[].length;
     assert(e_len != -1); // exponent MUST NOT be zero! e_len>=0 && e_len<=15
     e_len = 16 - e_len;
     pre_openssh[$-1] = cast(ubyte) e_len;
     assert(rsa_raw_acos5_64.length >= 21+modLenBytes);
-    pre_openssh ~= rsa_raw_acos5_64[21-e_len .. 21] ~ integral2ub!4(modLenBytes);
+    pre_openssh ~= rsa_raw_acos5_64[21-e_len .. 21] ~ integral2uba!4(modLenBytes);
     if (rsa_raw_acos5_64[21] & 0x80) {
         pre_openssh ~= 0;
         ++pre_openssh[$-2];
@@ -1319,18 +1371,23 @@ string RSA_public_openssh_formatted(ub2 fid, scope const ubyte[] rsa_raw_acos5_6
 
     auto md5 = new MD5Digest();
     ubyte[] hashMD5 = md5.digest(pre_openssh);
-    string fingerprintMD5 = toHexString!(LetterCase.lower)(hashMD5);
+    string fingerprintMD5 = toHexString!(LetterCase.lower)(hashMD5); // ubaIntegral2string(hashMD5) will output LetterCase.upper
 //    assumeWontThrow(writeln(fingerprintMD5)); // "2d 0d 76 4f 21 ea fb e1 27 98 f0 14 8b 56 35 0c"
     auto sha256 = new SHA256Digest();
     ubyte[] hashSHA256 = sha256.digest(pre_openssh);
     string fingerprintSHA256 = assumeUnique(Base64.encode(hashSHA256));
 
-    return prolog~"ssh-rsa "~result~ "  comment_file_" ~ toHexString!(Order.increasing,LetterCase.upper)(fid) ~
+    return prolog~"ssh-rsa "~result~ "  comment_file_" ~ ubaIntegral2string(fid) ~
         "\n\nThe fingerprint (MD5) is: "~fingerprintMD5~"\n\nThe fingerprint (SHA256) base64-encoded is: "~fingerprintSHA256;
 }
 
 
-//new modify bytes in playce but no change of length !
+/*
+  This is a slight variation of TLV_Range_array from acos5_64.util_general_opensc (which operates on const(ubyte)[] )
+  It allows to modify bytes in place but no change of length !
+  TODO check whether to collapse TLV_Range_array/TLV_Range_array_mod ; It's almost code duplication, except constructor and private field
+    maybe the constructor argument const or not will disambiguate?
+ */
 struct TLV_Range_array_mod { // TLV always built of ubytes
     ubyte[] arr;
 

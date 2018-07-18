@@ -33,7 +33,7 @@ import core.memory : GC;
 import core.runtime : Runtime;
 import core.stdc.config : c_long, c_ulong;
 //import core.stdc.string : strlen;
-import core.stdc.stdlib : EXIT_SUCCESS, EXIT_FAILURE, exit, getenv; //, div_t, div, malloc, free, strtol;
+import core.stdc.stdlib : EXIT_SUCCESS, EXIT_FAILURE, exit, getenv; //, div_t, div, malloc, free;
 import core.stdc.locale : setlocale, LC_ALL;
 //import core.stdc.stdio : printf;
 import std.stdio : write, writeln, writefln, stdout;
@@ -85,7 +85,8 @@ import util_opensc : lh, card, populate_tree_fs, PKCS15_FILE_TYPE, util_connect_
 //    , PRKDF, PUKDF, PUKDF_TRUSTED, SKDF, CDF, CDF_TRUSTED, CDF_USEFUL, DODF, AODF;
 import util_pkcs11 : pkcs11_check_return_value, pkcs11_get_slot;
 
-import generateKeyPair_RSA : initialize_PubObs_generateKeyPair_RSA;
+import key_asym : keyAsym_initialize_PubObs;
+import key_sym  : keySym_initialize_PubObs;
 
 
 import acos5_64_shared;
@@ -115,8 +116,48 @@ version(I18N) {
 
     IupOpenD();
     IupControlsOpen(); // without this, no Matrix etc. will be visible
-    version(Windows)  IupSetGlobal("UTF8MODE", IUP_YES);
 
+	Config config = new Config;
+//	IupSetAttribute(config, "APP_NAME", "acos5_64_gui"); // args_carray[0]); APP_NAME: ./acos5_64_gui
+	config.SetAttribute("APP_NAME", "acos5_64_gui");
+import std.file : getcwd; // mkdir
+	writeln("current working directory: ", getcwd());
+//version(Windows)	IupSetGlobal("UTF8MODE", "YES");
+    version(Windows)  IupSetGlobal("UTF8MODE", IUP_YES);
+/+ +/
+//entry in .acos5_64_gui
+//[C0C6406881C7]
+//idsap=0
+{
+    int rv;
+//Serial Number of Card (EEPROM): 'C0C6406881C7'
+int       users_idsap;
+with (config) {
+/* * /
+	if ((rv= SaveConfig) != 0) {
+		writeln("IupConfigSave return value: ", rv);
+		exit(EXIT_FAILURE);
+	}
+/ * */
+	if ((rv= LoadConfig) != 0) {
+		writeln("IupConfigLoad return value: ", rv);
+//		exit(EXIT_FAILURE);
+	}
+	else {
+//		users_idsap = IupConfigGetVariableInt(config, "users", "idsap");
+		users_idsap = config.GetVariableInt("C0C6406881C7", "idsap");
+		/*debug*/ writeln("\nConfigured idsap: ", users_idsap);
+	}
+}
+}
+/+
+	char* error = null;
+	if ((error = IupLoad("acos5_64_gui.led")) != null) {
+		IupMessage("LED Fehler", error);
+		exit(EXIT_FAILURE);
+	}
+	version(Windows) { /*	IupSetAttribute(IupGetHandle("wv_datum"), "FORMAT", "dd'.'MM'.'yyyy"); */ }
++/
     /* Shows dialog */
     create_dialog_dlg0.Show; // this does the mapping; it's here because some things can be done only after mapping
 
@@ -170,7 +211,8 @@ version(I18N) {
     prkdf = fs.preOrderRange(iter_begin, fs.end()).locate!"a[6]==b"(PKCS15_FILE_TYPE.PKCS15_PRKDF);
     pukdf = fs.preOrderRange(iter_begin, fs.end()).locate!"a[6]==b"(PKCS15_FILE_TYPE.PKCS15_PUKDF);
 
-    initialize_PubObs_generateKeyPair_RSA();
+    keyAsym_initialize_PubObs();
+    keySym_initialize_PubObs();
 
 
 /+
@@ -693,3 +735,24 @@ The checks may be grouped into these categories:
     IupClose();
     return EXIT_SUCCESS;
 }
+/*
+Workflow:
+
+Configuration file
+  If there is none, then this card/token wasn't seen before by acos5_64_gui: Be conservative and do basic checks including:
+    Is there a MF ?
+    Run sanityCheck, if yes
+    If no MF, then offer initialization, perhaps based on export/archive
+    Remember in Configuration file, thus no superfluous efforts required:
+      MF    exists yes/no
+      2F00  exists yes/no
+      appDF exists yes/no (at least 1)
+      sanityCheck has run (at least once)
+
+acos5_64_gui runMode:
+   - reduced
+   - full (no restrictions what to select from the user interface)
+
+   If the basic requiremnts for full runMode are not met
+
+*/
