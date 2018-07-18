@@ -27,17 +27,18 @@ import std.algorithm.comparison : among;
 import iup.iup_plusD;
 
 import libintl : _, __;
-
 import callbacks;
-import generateKeyPair_RSA :
+import importExport;
+
+import key_asym :
 r_AC_Delete_Create_RSADir,
 r_acos_internal,
-r_modulusBitsRSA,
-r_storeAsCRTRSAprivate,
-r_usageRSAprivateKeyACOS,
-r_keyPairLabel,
-r_keyPairId,
-r_fidRSADir,
+r_keyAsym_RSAmodulusLenBits,
+r_keyAsym_crtModeGenerate,
+r_keyAsym_usageGenerate,
+r_keyAsym_Label,
+r_keyAsym_Id,
+r_keyAsym_fidAppDir,
 r_fidRSAprivate,
 r_fidRSApublic,
 
@@ -45,26 +46,26 @@ r_sizeNewRSAprivateFile,
 r_sizeNewRSApublicFile,
 r_change_calcPrKDF,
 r_change_calcPuKDF,
-r_authIdRSAprivate,
+r_keyAsym_authId,
 r_valuePublicExponent,
 r_statusInput,
-r_usageRSAprivateKeyPrKDF,
-r_keyPairModifiable,
+r_keyAsym_usagePrKDF,
+r_keyAsym_Modifiable,
 r_AC_Update_PrKDF_PuKDF,
 r_AC_Update_Delete_RSApublicFile,
 r_AC_Update_Delete_RSAprivateFile,
 
-matrixRsaAttributes_dropcheck_cb,
-matrixRsaAttributes_drop_cb,
-matrixRsaAttributes_dropselect_cb,
-matrixRsaAttributes_edition_cb,
-matrixRsaAttributes_togglevalue_cb,
+matrixKeyAsym_dropcheck_cb,
+matrixKeyAsym_drop_cb,
+matrixKeyAsym_dropselect_cb,
+matrixKeyAsym_edition_cb,
+matrixKeyAsym_togglevalue_cb,
 btn_RSA_cb,
 
 toggle_RSA_cb
 ;
 
-import importExport;
+import key_sym; // matrixKeySym_dropcheck_cb
 
 
 private Hbox create_cryptoki_slot_tokeninfo_tab() {
@@ -293,7 +294,7 @@ ssh -I /path/to/opensc-pkcs11.so -T git@github.com
     return vbox;
 }
 
-private Vbox create_GenerateKeyPair_RSA_tab() {
+private Vbox create_KeyASym_tab() {
     Control[]  child_array, child_array_toggles;
 
     auto text1 = new Text("gkpRSA_text");
@@ -326,7 +327,7 @@ The IGNORERADIO can be used in any of these children types to disable this funct
         toggle.SetAttributeVALUE(i==0? IUP_ON : IUP_OFF);
         toggle.SetCallback(IUP_ACTION, cast(Icallback) &toggle_RSA_cb);
     }
-    child_array  ~= new Radio("radio_RSA", new Vbox(child_array_toggles, FILL_TYPE.FILL_FRONT_AND_BACK_AND_BETWEEN));
+    child_array  ~= new Radio("radioKeyAsym", new Vbox(child_array_toggles, FILL_TYPE.FILL_FRONT_AND_BACK_AND_BETWEEN));
 /*
 https://webserver2.tecgraf.puc-rio.br/iup/en/elem/iupradio.html
 Attributes:
@@ -350,14 +351,14 @@ VALUE_HANDLE (non inheritable): Changes the active toggle. The value passed must
     }
     child_array ~= text3;
 
-/*  Matrix("matrixRsaAttributes") is designed to work in "normal" mode !
+/*  Matrix("matrixKeyAsym") is designed to work in "normal" mode !
 IupMatrix
 It has two modes of operation: normal and callback mode.
 In normal mode, string values are stored in attributes for each cell.
 In callback mode these attributes are ignored and the cells are filled with strings returned by the "VALUE_CB" callback.
 So the existence of this callback defines the matrix operation mode.
 */
-    auto matrix = new Matrix("matrixRsaAttributes");
+    auto matrix = new Matrix("matrixKeyAsym");
     with (matrix) {
         SetInteger(IUP_NUMLIN,         r_AC_Delete_Create_RSADir);
         SetInteger(IUP_NUMLIN_VISIBLE, r_AC_Delete_Create_RSADir);
@@ -378,19 +379,19 @@ So the existence of this callback defines the matrix operation mode.
         SetAttributeId2("",  0,                         2,   __("Stored where? (private key file should be unreadable)"));
         SetAttributeId2("",  r_acos_internal,           0,   __("Acos key generation settings"));
 
-        SetAttributeId2("",  r_modulusBitsRSA,          0,   __("Modulus bitLength"));
-        SetAttributeId2("",  r_modulusBitsRSA,          2,   __("keypair files, PrKDF, PuKDF"));
-        SetAttributeId2("",  r_storeAsCRTRSAprivate,    0,   __("    Private key stored acc. ChineseRemainderTheorem ?"));
-        SetAttributeId2("",  r_storeAsCRTRSAprivate,    2,   __("CRT contents do or don't exist in private key file"));
-        SetAttributeId2("",  r_usageRSAprivateKeyACOS,  0,   __("    Private key core capability (4)sign, (2)decrypt, (6)sign+decrypt (enter as int, shown as text)"));
-        SetAttributeId2("",  r_usageRSAprivateKeyACOS,  2,   __("private key file"));
-        SetAttributeId2("",  r_keyPairLabel,            0,   __("Key pair label"));
-        SetAttributeId2("",  r_keyPairLabel,            2,   __("PrKDF, PuKDF"));
-        SetAttributeId2("",  r_keyPairId,               0,   __("Key pair id (1 byte hex. 01..FF)"));
-        SetAttributeId2("",  r_keyPairId,               2,   __("PrKDF, PuKDF"));
+        SetAttributeId2("",  r_keyAsym_RSAmodulusLenBits,          0,   __("Modulus bitLength"));
+        SetAttributeId2("",  r_keyAsym_RSAmodulusLenBits,          2,   __("keypair files, PrKDF, PuKDF"));
+        SetAttributeId2("",  r_keyAsym_crtModeGenerate, 0,   __("    Private key stored acc. ChineseRemainderTheorem ?"));
+        SetAttributeId2("",  r_keyAsym_crtModeGenerate, 2,   __("CRT contents do or don't exist in private key file"));
+        SetAttributeId2("",  r_keyAsym_usageGenerate,   0,   __("    Private key core capability (4)sign, (2)decrypt, (6)sign+decrypt (enter as int, shown as text)"));
+        SetAttributeId2("",  r_keyAsym_usageGenerate,   2,   __("private key file"));
+        SetAttributeId2("",  r_keyAsym_Label,            0,   __("Key pair label"));
+        SetAttributeId2("",  r_keyAsym_Label,            2,   __("PrKDF, PuKDF"));
+        SetAttributeId2("",  r_keyAsym_Id,               0,   __("Key pair id (1 byte hex. 01..FF)"));
+        SetAttributeId2("",  r_keyAsym_Id,               2,   __("PrKDF, PuKDF"));
 
-        SetAttributeId2("",  r_fidRSADir,               0,   __("File id of enclosing directory (2 bytes hex.)"));
-        SetAttributeId2("",  r_fidRSADir,               2,   __("PrKDF, PuKDF"));
+        SetAttributeId2("",  r_keyAsym_fidAppDir,               0,   __("File id of enclosing directory (2 bytes hex.)"));
+        SetAttributeId2("",  r_keyAsym_fidAppDir,               2,   __("PrKDF, PuKDF"));
         SetAttributeId2("",  r_fidRSAprivate,           0,   __("File id of private key (2 bytes hex.)"));
         SetAttributeId2("",  r_fidRSAprivate,           2,   __("PrKDF, public key file"));
         SetAttributeId2("",  r_fidRSApublic,            0,   __("File id of public key (2 bytes hex.)"));
@@ -403,19 +404,19 @@ So the existence of this callback defines the matrix operation mode.
         SetAttributeId2("",  r_change_calcPrKDF,        1,   "?");
         SetAttributeId2("",  r_change_calcPuKDF,        0,   __("PuKDF change calc. (How many bytes more or less will be required to store the changes)")); //  / does it fit into file size? A/A
         SetAttributeId2("",  r_change_calcPuKDF,        1,   "?");
-        SetAttributeId2("",  r_authIdRSAprivate,        0,   __("authId (that protects private key; 1 byte hex. 01..FF)"));
-        SetAttributeId2("",  r_authIdRSAprivate,        2,   __("PrKDF"));
+        SetAttributeId2("",  r_keyAsym_authId,        0,   __("authId (that protects private key; 1 byte hex. 01..FF)"));
+        SetAttributeId2("",  r_keyAsym_authId,        2,   __("PrKDF"));
         SetAttributeId2("",  r_valuePublicExponent,     0,   __("Public exponent e (a prime, default 0x10001; max 16 bytes hex., leading zero bytes trimmed)  0x"));
         SetAttributeId2("",  r_valuePublicExponent,     2,   __("public key file"));
         SetAttributeId2("",  r_statusInput,             0,   __("Status of input (whether all required info/limits are okay for the operation"));
         SetAttributeId2("",  r_statusInput,             1,  "No");
         SetRGBId2(IUP_BGCOLOR, r_statusInput, 1,  255, 0, 0);
-        SetAttributeId2("",  r_usageRSAprivateKeyPrKDF, 0,   __("Private key usage PrKDF (enter as int, 2.. max 558, shown as text)"));
-        SetAttributeId2("",  r_usageRSAprivateKeyPrKDF, 2,   __("PrKDF"));
+        SetAttributeId2("",  r_keyAsym_usagePrKDF, 0,   __("Private key usage PrKDF (enter as int, 2.. max 558, shown as text)"));
+        SetAttributeId2("",  r_keyAsym_usagePrKDF, 2,   __("PrKDF"));
 //        SetAttributeId2("",  r_usageRSApublicKeyPuKDF,  0,   __("Public key usage PuKDF (enter as int, 1.. max 209, shown as text)"));
 //        SetAttributeId2("",  r_usageRSApublicKeyPuKDF,  2,   __("PuKDF"));
-        SetAttributeId2("",  r_keyPairModifiable,       0,   __("Key pair is modifiable?"));
-        SetAttributeId2("",  r_keyPairModifiable,       2,   __("PrKDF, PuKDF"));
+        SetAttributeId2("",  r_keyAsym_Modifiable,       0,   __("Key pair is modifiable?"));
+        SetAttributeId2("",  r_keyAsym_Modifiable,       2,   __("PrKDF, PuKDF"));
 
         SetAttributeId2("",  r_AC_Update_PrKDF_PuKDF,   0,   __("Access Control condition for Update: PrKDF / PuKDF (SCB hex shown; 0x00 means unrestricted)"));
         SetAttributeId2("",  r_AC_Update_Delete_RSAprivateFile,0,   __("Access Control condition for Update / Delete: Private key file"));
@@ -423,12 +424,13 @@ So the existence of this callback defines the matrix operation mode.
         SetAttributeId2("",  r_AC_Delete_Create_RSADir,        0,   __("Access Control condition for Create / Delete: Enclosing DF"));
         SetAttribute(IUP_TOGGLECENTERED, IUP_YES);
 
-        SetCallback(IUP_DROPCHECK_CB,  cast(Icallback)&matrixRsaAttributes_dropcheck_cb);
-        SetCallback(IUP_DROP_CB,       cast(Icallback)&matrixRsaAttributes_drop_cb);
-        SetCallback(IUP_DROPSELECT_CB, cast(Icallback)&matrixRsaAttributes_dropselect_cb);
-        SetCallback(IUP_EDITION_CB,    cast(Icallback)&matrixRsaAttributes_edition_cb);
-        SetCallback(IUP_TOGGLEVALUE_CB,cast(Icallback)&matrixRsaAttributes_togglevalue_cb);
-//        SetCallback(IUP_CLICK_CB,      cast(Icallback)&matrixRsaAttributes_click_cb);
+
+        SetCallback(IUP_DROPCHECK_CB,  cast(Icallback)&matrixKeyAsym_dropcheck_cb);
+        SetCallback(IUP_DROP_CB,       cast(Icallback)&matrixKeyAsym_drop_cb);
+        SetCallback(IUP_DROPSELECT_CB, cast(Icallback)&matrixKeyAsym_dropselect_cb);
+        SetCallback(IUP_EDITION_CB,    cast(Icallback)&matrixKeyAsym_edition_cb);
+        SetCallback(IUP_TOGGLEVALUE_CB,cast(Icallback)&matrixKeyAsym_togglevalue_cb);
+//        SetCallback(IUP_CLICK_CB,      cast(Icallback)&matrixKeyAsym_click_cb);
     }
     child_array ~= matrix;
 
@@ -445,7 +447,142 @@ So the existence of this callback defines the matrix operation mode.
     child_array ~= new Hbox(child_array3, FILL_TYPE.FILL_FRONT_AND_BACK);
 
     auto vbox = new Vbox(child_array/*, FILL_TYPE.FILL_FRONT_AND_BACK_AND_BETWEEN*/);
-    vbox.SetAttribute(ICTL_TABTITLE, "GenerateKeyPair (RSA)");
+    vbox.SetAttribute(ICTL_TABTITLE, "KeyAsym (RSA)");
+    return vbox;
+}
+
+private Vbox create_KeySym_tab() {
+    Control[]  child_array, child_array_toggles;
+
+    auto toggle1 = new Toggle("toggle_sym_SKDF_change", __("SKDF only: Change some administrative (PKCS#15) data, but no change concerning key content (select by keyRef)"));
+    child_array_toggles ~= toggle1;
+    auto toggle2 = new Toggle("toggle_sym_update", __("Update/Write a key file record (excluding the special keys for Secure Messaging #1 amd #2)"));
+    child_array_toggles ~= toggle2;
+    auto toggle4 = new Toggle("toggle_sym_updateSMkeyHost", __("Update/Write record #1 for SM (keyHost for ExtAuth; some restrictions apply; the same must be in opensc as key...mac)"));
+    auto toggle3 = new Toggle("toggle_sym_updateSMkeyCard", __("Update/Write record #2 for SM (keyCard for IntAuth; some restrictions apply; the same must be in opensc as key...enc)"));
+    child_array_toggles ~= toggle3;
+    child_array_toggles ~= toggle4;
+
+    foreach (i,toggle; child_array_toggles) {
+        toggle.SetAttributeVALUE(i==0? IUP_ON : IUP_OFF);
+//        toggle.SetCallback(IUP_ACTION, cast(Icallback) &toggle_RSA_cb);
+    }
+    child_array  ~= new Radio("radioKeySym", new Vbox(child_array_toggles, FILL_TYPE.FILL_FRONT_AND_BACK_AND_BETWEEN));
+
+    auto matrix = new Matrix("matrixKeySym");
+    with (matrix) {
+        SetInteger(IUP_NUMLIN,         r_keySym_fidAppDir);
+        SetInteger(IUP_NUMLIN_VISIBLE, r_keySym_fidAppDir);
+        SetInteger(IUP_NUMCOL,          2);
+        SetInteger(IUP_NUMCOL_VISIBLE,  2);
+        SetAttribute(IUP_RESIZEMATRIX, IUP_YES);
+//      SetAttribute("LIMITEXPAND",  IUP_YES);
+        SetAttribute(IUP_READONLY,     IUP_NO);
+//      SetAttribute("FLATSCROLLBAR",     IUP_YES);
+//      SetAttribute("EDITNEXT",     "COL");
+        SetIntegerId(IUP_WIDTH,   0,    400);
+        SetIntegerId(IUP_WIDTH,   1,    130);
+        SetIntegerId(IUP_WIDTH,   2,    230);
+        SetInteger(IUP_HEIGHTDEF, 6);
+
+
+//        SetIntegerId(IUP_HEIGHT, r_keySym_IntAutStore, 0);
+
+        SetAttributeId2("",  0,                         0,   __("AES/3DES key and SKDF attributes"));
+        SetAttributeId2("",  0,                         1,   __("value"));
+        SetAttributeId2("",  0,                         2,   __("Stored where? (key file should be unreadable)"));
+
+        SetAttributeId2("",  r_keySym_global_local,     0,   __("Key file is local to an appDF? (0/No, then it's MF's global key file)  This identifies the key file  to work with"));
+        SetAttributeId2("",  r_keySym_global_local,     2,   "");
+
+        SetAttributeId2("",  r_keySym_Id,               0,   __("Key file's Id"));
+        SetAttributeId2("",  r_keySym_Id,               2,   "SKDF");
+
+//        SetAttributeId2("",  r_keySym_recordNo,         0,   __("Key file's record number  to work with (1-31 max.)  new/append/existing"));
+//        SetAttributeId2("",  r_keySym_recordNo,         1,   "1");
+////      SetAttributeId2("",  r_keySym_recordNo,         2,   ""));
+//        SetAttributeId2("",  r_keySym_keyRef,           0,   __("Key file's keyRef"));
+//        SetAttributeId2("",  r_keySym_keyRef,           2,   "SKDF");
+
+        SetAttributeId2("",  r_keySym_Label,            0,   __("label"));
+        SetAttributeId2("",  r_keySym_Label,            2,   "SKDF");
+
+        SetAttributeId2("",  r_keySym_Modifiable,       0,   __("keySym_Modifiable"));
+        SetAttributeId2("",  r_keySym_Modifiable,       2,   "SKDF");
+
+
+        SetAttributeId2("",  r_keySym_usageSKDF,               0,   __("keySym_usageSKDF"));
+        SetAttributeId2("",  r_keySym_usageSKDF,               2,   "SKDF");
+
+        SetAttributeId2("",  r_keySym_authId,           0,   __("keySym_authId"));
+        SetAttributeId2("",  r_keySym_authId,           2,   "SKDF");
+
+        SetAttributeId2("",  r_keySym_algoType,         0,   __("Algorithm type selection AES or one of DES, 3DES_128bit, 3DES_192bit"));
+        SetAttributeId2("",  r_keySym_algoType,         2,    "SKDF, keySym file");
+
+        SetAttributeId2("",  r_keySym_keyLenBits,        0,   __("Key bitLength"));
+//        SetAttributeId2("",  r_keySym_keyLenBits,        1,    "192");
+        SetAttributeId2("",  r_keySym_keyLenBits,        2,    "SKDF, keySym file");
+
+        SetAttributeId2("",  r_keySym_algoStore,       0,   __("keySym_algoStore"));
+        SetAttributeId2("",  r_keySym_algoStore,       1,    "0xab");
+        SetAttributeId2("",  r_keySym_algoStore,       2,    "SKDF, keySym file");
+
+        SetAttributeId2("",  r_keySym_ExtAutStore,           0,   __("keySym_ExtAutStore"));
+        SetAttributeId2("",  r_keySym_ExtAutStore,           1,    "1");
+        SetAttributeId2("",  r_keySym_ExtAutStore,           2,    "keySym file");
+
+        SetAttributeId2("",  r_keySym_ExtAut_ErrorCounterYN,     0,   __("keySym_ExtAut_ErrorCounterYN  No means no error limit in ExtAut, using symbolic value 0xFF"));
+        SetAttributeId2("",  r_keySym_ExtAut_ErrorCounterYN,     1,    "1");
+        SetAttributeId2("",  r_keySym_ExtAut_ErrorCounterYN,     2,    "keySym file");
+
+        SetAttributeId2("",  r_keySym_ExtAut_ErrorCounterValue,  0,   __("keySym_ExtAut_ErrorCounterValue 1..14"));
+        SetAttributeId2("",  r_keySym_ExtAut_ErrorCounterValue,  1,    "8");
+        SetAttributeId2("",  r_keySym_ExtAut_ErrorCounterValue,  2,    "keySym file");
+
+        SetAttributeId2("",  r_keySym_IntAutStore,           0,   __("keySym_IntAutStore"));
+        SetAttributeId2("",  r_keySym_IntAutStore,           1,    "1");
+        SetAttributeId2("",  r_keySym_IntAutStore,           2,    "keySym file");
+
+        SetAttributeId2("",  r_keySym_IntAut_UsageCounterYN,     0,   __("keySym_IntAut_UsageCounterYN"));
+        SetAttributeId2("",  r_keySym_IntAut_UsageCounterYN,     1,    "1");
+        SetAttributeId2("",  r_keySym_IntAut_UsageCounterYN,     2,    "keySym file");
+
+        SetAttributeId2("",  r_keySym_IntAut_UsageCounterValue,  0,   __("keySym_IntAut_UsageCounterValue"));
+        SetAttributeId2("",  r_keySym_IntAut_UsageCounterValue,  1,    "FFFE");
+        SetAttributeId2("",  r_keySym_IntAut_UsageCounterValue,  2,    "keySym file");
+
+        SetAttributeId2("",  r_keySym_valueStore,              0,   __("Key's value"));
+        SetAttributeId2("",  r_keySym_valueStore,              1,    "0102030405060708090A0B0C0D0E0F101112131415161718");
+        SetAttributeId2("",  r_keySym_valueStore,              2,    "keySym file");
+
+        SetAttributeId2("",  r_keySym_ByteStringStore,              0,   __("This will be written to file/record"));
+//        SetAttributeId2("",  r_keySym_ByteStringStore,              1,    "0102030405060708090A0B0C0D0E0F101112131415161718");
+        SetAttributeId2("",  r_keySym_ByteStringStore,              2,    "keySym file");
+
+        SetAttributeId2("",  r_keySym_fid,              0,   __("Id of keySym File selected"));
+//        SetAttributeId2("",  r_keySym_fid,              1,   "4102");
+//        SetAttributeId2("",  r_keySym_fid,     2,   __(""));
+
+        SetAttributeId2("",  r_keySym_fidAppDir,        0,   __("Id of enclosing DF (appDF or MF)"));
+//        SetAttributeId2("",  r_keySym_fidAppDir,        1,   "4100");
+//        SetAttributeId2("",  r_keySym_fidAppDir,     2,   __(""));
+
+
+        SetAttribute(IUP_TOGGLECENTERED, IUP_YES);
+
+        SetCallback(IUP_DROPCHECK_CB,  cast(Icallback)&matrixKeySym_dropcheck_cb);
+        SetCallback(IUP_DROP_CB,       cast(Icallback)&matrixKeySym_drop_cb);
+        SetCallback(IUP_DROPSELECT_CB, cast(Icallback)&matrixKeySym_dropselect_cb);
+        SetCallback(IUP_EDITION_CB,    cast(Icallback)&matrixKeySym_edition_cb);
+        SetCallback(IUP_TOGGLEVALUE_CB,cast(Icallback)&matrixKeySym_togglevalue_cb);
+
+//        SetCallback(IUP_CLICK_CB,      cast(Icallback)&matrixKeySym_click_cb);
+    }
+    child_array ~= matrix;
+
+    auto vbox = new Vbox(child_array/*, FILL_TYPE.FILL_FRONT_AND_BACK_AND_BETWEEN*/);
+    vbox.SetAttribute(ICTL_TABTITLE, "KeySym (AES/3DES)");
     return vbox;
 }
 
@@ -489,12 +626,12 @@ private Vbox create_sanityCheck_tab() {
         SetAttributeId2("",  3,   2,   __("Non-retrievable for ACOS5-64 V2.00"));
         SetAttribute(IUP_TOGGLECENTERED, IUP_YES);
 
-//        SetCallback(IUP_DROPCHECK_CB,  cast(Icallback)&matrixRsaAttributes_dropcheck_cb);
-//        SetCallback(IUP_DROP_CB,       cast(Icallback)&matrixRsaAttributes_drop_cb);
-//        SetCallback(IUP_DROPSELECT_CB, cast(Icallback)&matrixRsaAttributes_dropselect_cb);
-//        SetCallback(IUP_EDITION_CB,    cast(Icallback)&matrixRsaAttributes_edition_cb);
-//        SetCallback(IUP_TOGGLEVALUE_CB,cast(Icallback)&matrixRsaAttributes_togglevalue_cb);
-//        SetCallback(IUP_CLICK_CB,      cast(Icallback)&matrixRsaAttributes_click_cb);
+//        SetCallback(IUP_DROPCHECK_CB,  cast(Icallback)&matrixSanity_dropcheck_cb);
+//        SetCallback(IUP_DROP_CB,       cast(Icallback)&matrixSanity_drop_cb);
+//        SetCallback(IUP_DROPSELECT_CB, cast(Icallback)&matrixSanity_dropselect_cb);
+//        SetCallback(IUP_EDITION_CB,    cast(Icallback)&matrixSanity_edition_cb);
+//        SetCallback(IUP_TOGGLEVALUE_CB,cast(Icallback)&matrixSanity_togglevalue_cb);
+//        SetCallback(IUP_CLICK_CB,      cast(Icallback)&matrixSanity_click_cb);
     }
     child_array ~= matrix;
 
@@ -559,8 +696,16 @@ Dialog create_dialog_dlg0() {
 
     auto hbox = new Hbox([ btn_exit ], FILL_TYPE.FILL_FRONT_AND_BACK_AND_BETWEEN);
 
-    Control[] child_array = [create_cryptoki_slot_tokeninfo_tab/*, create_opensc_conf_tab*/, create_filesystem_tab, create_GenerateKeyPair_RSA_tab /*, create_ssh_tab*/
-        /*,create_sanityCheck_tab*/ , create_importExport_tab ];
+    Control[] child_array = [
+        create_cryptoki_slot_tokeninfo_tab,
+        create_filesystem_tab,
+        create_KeyASym_tab,
+        create_KeySym_tab,
+        create_importExport_tab,
+//      create_ssh_tab,
+//      create_sanityCheck_tab,
+//      create_opensc_conf_tab,
+    ];
     auto tabs = new Tabs("tabCtrl", child_array);
 //  tabs.SetAttribute(ICTL_TABTYPE, ICTL_TOP); // Default is "TOP"
 

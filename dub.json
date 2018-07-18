@@ -13,7 +13,7 @@
 		"pkcs11": "~>2.40.0-alpha.3"
 	},
 	"subConfigurations": {
-		"opensc": "toStringPrior",
+		"opensc": "deimosPrior",
 		"pkcs11": "derelict"
 	},
 	"systemDependencies": "IUP-Portable User Interface shared libraries installed, opensc installation v.0.17.0, libacos5_64.so (binary from this package's opensc_0.17.0 / +libphobos2.so.0.79 from a DMD installation) located in a common .so look-up path, opensc.conf configured appropriately; (not yet required: for gettext the exports available from libintl.so or GLib)",
