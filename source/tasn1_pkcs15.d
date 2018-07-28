@@ -1,4 +1,4 @@
-/* generated from PKCS15.asn with: asn1Parser -o tasn1_pkcs15.d  PKCS15.asn
+/* generated from PKCS15.asn with: asn1Parser -o tasn1_pkcs15.c -n tasn1_pkcs15_tab  PKCS15.asn
  * or asn1_parser2array ("PKCS15.asn".ptr, "tasn1_pkcs15.c".ptr, "tasn1_pkcs15_tab".ptr, error_desc.ptr);
  * to be translated to D and used with function asn1_array2tree when PKCS15.asn is in it's final state */
 
@@ -416,15 +416,14 @@ const(asn1_static_node)[] tasn1_pkcs15_tab = [
   { "PublicKeyType", 1610612754, null },
   { "publicRSAKey", 2, "PublicKeyObjectRSA".ptr },
   { "SecretKeyType", 1610612754, null },
-  { "genericSecretKey", 1073741826, "SecretKeyObject".ptr },
   { "desKey", 1610620930, "SecretKeyObject".ptr },
-  { null, 2056, "2".ptr },
+  { null, 4104, "2".ptr },
   { "des2Key", 1610620930, "SecretKeyObject".ptr },
-  { null, 2056, "3".ptr },
+  { null, 4104, "3".ptr },
   { "des3Key", 1610620930, "SecretKeyObject".ptr },
   { null, 4104, "4".ptr },
   { "aesKey", 536879106, "SecretKeyObject".ptr },
-  { null, 2056, "15".ptr },
+  { null, 4104, "15".ptr },
   { "CertificateType", 1610612754, null },
   { "x509Certificate", 2, "CertificateObjectX509".ptr },
   { "DataType", 1610612754, null },

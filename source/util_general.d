@@ -49,6 +49,18 @@ else { // DigitalMars or LDC compiler
 
 /** This file shall not depend on any of the acos5_64 implementation files !! */
 
+size_t multipleGreaterEqual(size_t x, uint multiplier) pure nothrow @nogc @safe {
+/*
+Given any positive x, what is the nearest number n >= x that is a multiple of 'multiplier' ?
+multipleGreaterEqual( 0,  8)  == 0
+multipleGreaterEqual( 7,  8)  == 8
+multipleGreaterEqual( 8,  8)  == 8
+multipleGreaterEqual( 9,  8)  == 16
+
+*/
+    immutable rem = x%multiplier;
+    return  x+ (rem==0? 0 : multiplier-rem);
+}
 
 string ubaIntegral2string(const(ubyte)[] arr, uint radix=16) nothrow {
 	import std.conv : to, LetterCase;
@@ -60,7 +72,7 @@ string ubaIntegral2string(const(ubyte)[] arr, uint radix=16) nothrow {
 			if (arr.length<=8)
 				return ub82integral(arr).to!string(radix);
 			else
-				assert(0);
+			{	assert(0); }
 		default:  assert(0);
 	}
 }
@@ -161,23 +173,22 @@ Endianess is not relevant here !
 	return  (ubtwo[0] << 8) | ubtwo[1];
 }
 
-ulong ub82integral(scope const ubyte[] ubeight) pure nothrow @nogc @safe { // formerly ub22integralLastTwo
-// the representation in ubeight is bigEndian
+/**
+   converts a byte array, representing an unsigned integral number in network byte order (most significant byte first/big-endian) to an unsigned integral
+   For 64-bit processors, the max. length of the byte array may be 8, denoted by the param name ub8
+*/
+ulong ub82integral(scope const ubyte[] ubMax8) pure nothrow @nogc @safe { // formerly ub22integralLastTwo
 	import std.math : pow;
 	ulong result;
-	assert(ubeight.length && ubeight.length<=8);
-	foreach_reverse (i, b; ubeight)
-/*
-//	import std.exception : assumeWontThrow;
-//	import std.stdio : writeln;
-		assumeWontThrow(writeln(i, " ", b));
-3 0
-2 65  0x41
-1 0
-0 63  0x3F
-*/
-		result += b* pow(256, ubeight.length-1-i); // 0x 3F 00 41 00  == 1.056.981.248
-
+	if (ubMax8.length == 0)
+		return 0;
+	immutable lenM1 = ubMax8.length - 1;
+version(X86)
+{	assert(lenM1<=3); }
+else
+	assert(lenM1<=7);
+	foreach (i, b; ubMax8)
+		result += b* pow(256, lenM1-i); // 0x 3F 00 41 00  == 1.056.981.248
 	return  result;
 }
 
@@ -189,7 +200,7 @@ ulong bits_used(ubyte[] arr) @nogc nothrow pure @safe
 
 	if (!any(arr))
 		return 0;
-	ulong pos = countUntil!"a>0"(arr);
+	immutable pos = countUntil!"a>0"(arr);
 	return  1+ilogb(arr[pos]) + 8*(arr.length-pos-1);
 }
 
@@ -213,8 +224,18 @@ unittest {
 	assert(ub22integral(ub2) == 0x4103);
 	ubyte[4] ub4 = [0x3F, 0x00, 0x41, 0x00];
 	assert(ub82integral(ub4) == 0x3F004100);
+version(X86_64) {
+	ubyte[8] ub  = [0x3F, 0x00, 0x41, 0x00, 0x01, 0x02, 0xFE, 0xFF];
+	assert(ub82integral(ub) == 0x3F0041000102FEFF);
+//	assumeWontThrow(writeln("PASSED: ub82integral for ubyte[8]"));
+}
 	ubyte[8] ub8 = [0,0,0,0,0, 1, 0, 1];
 	assert(bits_used(ub8)==17);
+
+	assert(multipleGreaterEqual( 0,  8)  == 0);
+	assert(multipleGreaterEqual( 7,  8)  == 8);
+	assert(multipleGreaterEqual( 8,  8)  == 8);
+	assert(multipleGreaterEqual( 9,  8)  == 16);
 }
 
 pure nothrow /*@nogc*/ @safe
@@ -225,8 +246,8 @@ version(X86_64) {
 version(LittleEndian)
 	assert(equal(integral2uba!4(integralVal),                         [0xBB, 0xAA, 0x99, 0x88][]));
 
-	ubyte[2] P1P2_or_P2 = [0, 255];
-	ubyte[2] res = integral2uba!2(ub22integral(P1P2_or_P2) + 112)[];
+	ubyte[2] p1p2 = [0, 255];
+	ubyte[2] res = integral2uba!2(ub22integral(p1p2) + 112)[];
 	assert(equal(res[], [1,111]));
 }
 else version(X86) {

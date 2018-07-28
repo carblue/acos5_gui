@@ -188,7 +188,7 @@ struct PKCS15Path_FileType {
 
 
 version(ENABLE_TOSTRING) {
-    import mixin_templates_opensc;
+    import mixin_templates_opensc : frame_noPointer_OneArrayFormatx_noUnion;
     void toString(scope void delegate(const(char)[]) sink, FormatSpec!char fmt) const
     {
         mixin(frame_noPointer_OneArrayFormatx_noUnion!("path", "path.length", "path.length"));
@@ -202,7 +202,7 @@ version(ENABLE_TOSTRING) {
 //             The 8 bytes file information are: {FDB, DCB (replaced by length path), FILE ID, FILE ID, SIZE or MRL, SIZE or NOR, SFI (replaced by enum PKCS15_FILE_TYPE), LCSI};
              it's next 16 bytes are for storing a file path.
              it's last  8 bytes are SAC (as provided by acos5_64_short_select).
-             Note, that the SAC bytes appear in the order of fci_se_info.sac here, that is SCB-Read at index 24, SCB-Update at index 25, SCB-deleteself at index 30, SCB-unused at index 31
+             Note, that the SAC bytes appear in the order of FCISEInfo.sac here, that is SCB-Read at index 24, SCB-Update at index 25, SCB-deleteself at index 30, SCB-unused at index 31
              Some bytes of the file information ubyte[8] are replaced though with other content:
         [0]: FDB File Descriptor Byte, see also Reference Manual for values
         [1]: (originally DCB always zero), replaced by the Length of path ubyte[16] actually used (from the beginning, i.e. path[0..Length])
@@ -225,8 +225,6 @@ alias   itTypeFS  = TreeTypeFS.pre_order_iterator; // iterator type
 bool        doCheckPKCS15 = true;
 TreeTypeFS  fs;
 tnTypePtr   appdf;
-tnTypePtr   prkdf;
-tnTypePtr   pukdf;
 itTypeFS    iter_begin;
 //sitTypeFS   siter_app;  wrong: siter_app internally get's changed while using it
 
@@ -255,18 +253,19 @@ ft_acos5_64_short_select      acos5_64_short_select;
 ft_uploadHexfile              uploadHexfile;
 ft_cm_7_3_1_14_get_card_info  cm_7_3_1_14_get_card_info;
 
-//ft_cry_mse_7_4_2_1_22_set               cry_mse_7_4_2_1_22_set;
-ft_cry_pso_7_4_3_8_2A_asym_encrypt_RSA  cry_pso_7_4_3_8_2A_asym_encrypt_RSA;
+ft_cry_mse_7_4_2_1_22_set                   cry_mse_7_4_2_1_22_set;
+ft_cry_pso_7_4_3_8_2A_asym_encrypt_RSA      cry_pso_7_4_3_8_2A_asym_encrypt_RSA;
 ft_cry_____7_4_4___46_generate_keypair_RSA  cry_____7_4_4___46_generate_keypair_RSA;
-
-
+ft_cry_pso_7_4_3_6_2A_sym_encrypt           cry_pso_7_4_3_6_2A_sym_encrypt;
+ft_cry_pso_7_4_3_7_2A_sym_decrypt           cry_pso_7_4_3_7_2A_sym_decrypt;
+//ft_aa_7_2_6_82_external_authentication      aa_7_2_6_82_external_authentication;
 
 sc_pkcs15init_callbacks  my_pkcs15init_callbacks = { &get_pin_callback, null };
 
 /*
  * PIN retrieval (from frontend) callback
  */
-extern(C) int get_pin_callback(sc_profile* profile, int id, const(sc_pkcs15_auth_info)* info, const(char)* label, ubyte* pinbuf, size_t* pinsize) nothrow
+extern(C) int get_pin_callback(sc_profile* profile, int /*id*/, const(sc_pkcs15_auth_info)* info, const(char)* label, ubyte* pinbuf, size_t* pinsize) nothrow
 {
 /+
     if (profile && profile.card && profile.card.ctx) {
@@ -299,7 +298,7 @@ extern(C) int get_pin_callback(sc_profile* profile, int id, const(sc_pkcs15_auth
     int       pinReference = info.attrs.pin.reference&0x7F; // strip the local flag
     pinbuf[0..9] = '\0';
 
-    int rv = IupGetParam(toStringz("Pin requested for authorization (SCB)"),
+    immutable rv = IupGetParam(toStringz("Pin requested for authorization (SCB)"),
                     null/* &param_action*/, null/* void* user_data*/, /*format*/
                     "&Pin local (User)? If local==No, then it's the Security Officer Pin:%b[No,Yes]\n" ~
                     "&Pin reference (1-31; selects the record# in pin file):%i\n" ~
@@ -312,19 +311,31 @@ extern(C) int get_pin_callback(sc_profile* profile, int id, const(sc_pkcs15_auth
 
 
 
-int getIdentifier(const ref PKCS15_ObjectTyp ot, string nodeName, bool new_=false) nothrow {
+int getIdentifier(const ref PKCS15_ObjectTyp ot, string nodeName, bool new_=false, bool dolog=true) nothrow {
     /* Identifier ::= OCTET STRING (SIZE (0..255)) */
     ubyte[2]  str;
     int outLen;
     int asn1_result;
     if ((asn1_result= asn1_read_value(new_? ot.structure_new : ot.structure, nodeName, str, outLen)) != ASN1_SUCCESS) {
-        assumeWontThrow(writefln("### asn1_read_value %s: %s", nodeName, asn1_strerror2(asn1_result)));
+        if (dolog)
+            assumeWontThrow(writefln("### asn1_read_value %s: %s", nodeName, asn1_strerror2(asn1_result)));
         return -1;
     }
     assert(outLen==1);
     return str[0];
 }
 
+ubyte[] getPath(const ref PKCS15_ObjectTyp ot, string nodeName, bool new_=false, bool dolog=true) nothrow {
+    ubyte[16]  str;
+    int outLen;
+    int asn1_result;
+    if ((asn1_result= asn1_read_value(new_? ot.structure_new : ot.structure, nodeName, str, outLen)) != ASN1_SUCCESS) {
+        if (dolog)
+            assumeWontThrow(writefln("### asn1_read_value %s: %s", nodeName, asn1_strerror2(asn1_result)));
+        return null;
+    }
+    return str[0..outLen].dup;
+}
 
     /* add space after name:, type: and value:
        pretty-print BIT STRING
@@ -347,7 +358,7 @@ string someScanner(int mode, const(char)[] line)
         if (mode>ASN1_PRINT_NAME_TYPE) {
             pos = indexOf(res, "value");
             if (pos != -1) {
-                import std.regex;
+                import std.regex : regex, replaceFirst, matchFirst;
                 auto valueRegcolon     = regex(r"  value(?:\(\d+\)){0,1}:");
                 auto valueRegBITSTRING = regex(r".*value(?:\((\d+)\)){1}: ([0-9A-Fa-f]{2,16}){1}.*");
                 res = replaceFirst(res, valueRegcolon, "$& ");
@@ -365,7 +376,8 @@ string someScanner(int mode, const(char)[] line)
 */
                 if (!m.empty) {
                     ubyte[] m2 = string2ubaIntegral(m[2]);
-                    size_t cnt, cntMax = min(to!size_t(m[1]), m2.length*8);
+                    size_t cnt;
+                    immutable cntMax = min(to!size_t(m[1]), m2.length*8);
                     res ~= "  ->  ";
                     foreach (b; m2)
                     foreach (i; 0..8) {
@@ -418,7 +430,7 @@ Tuple!(string, string, string) decompose_str(EFDB fdb, ub2 size_or_MRL_NOR) noth
 
 
 // The 8 bytes are: {FDB, DCB (replaced by length path), FILE ID, FILE ID, SIZE or MRL, SIZE or NOR, SFI, LCSI};
-string file_type(int depth, EFDB fdb, ushort fid, ub2 size_or_MRL_NOR) nothrow { // acos5_64.d: enum EFDB : ubyte
+string file_type(int depth, EFDB fdb, ushort /*fid*/, ub2 size_or_MRL_NOR) nothrow { // acos5_64.d: enum EFDB : ubyte
 //    string msg = fid==0x2F00? "    DIR" : fid==0x5031? "    ODF" : fid==0x5032? "    TokenInfo" : fid==0x5033? "    UnusedSpace" : "";
     Tuple!(string, string, string) t = decompose_str(fdb, size_or_MRL_NOR);
     with (EFDB)
@@ -528,10 +540,10 @@ int is_string_valid_atr(const(char)* atr_str)
                 }
             }
             else   {
-                import core.stdc.errno;
+                import core.stdc.errno : errno;
                 import core.stdc.stdlib : strtol;
 
-                const(char)*   endptr  = null;
+                const(char)*   endptr;
                 const(char)**  endptrptr = &endptr;
                 uint num;
 
@@ -609,7 +621,7 @@ autofound:
         exit(1);
     }
 ////    printf("cm_7_3_1_14_get_card_info() function is found\n");
-/*
+/* */
     cry_mse_7_4_2_1_22_set = cast(ft_cry_mse_7_4_2_1_22_set) dlsym(lh, "cry_mse_7_4_2_1_22_set");
     error = dlerror();
     if (error)
@@ -618,7 +630,8 @@ autofound:
         exit(1);
     }
 ////    printf("cry_mse_7_4_2_1_22_set() function is found\n");
-*/
+/* */
+
     cry_pso_7_4_3_8_2A_asym_encrypt_RSA = cast(ft_cry_pso_7_4_3_8_2A_asym_encrypt_RSA) dlsym(lh, "cry_pso_7_4_3_8_2A_asym_encrypt_RSA");
     error = dlerror();
     if (error)
@@ -636,7 +649,7 @@ autofound:
         exit(1);
     }
 ////    printf("cry_____7_4_4___46_generate_keypair_RSA() function is found\n");
-/+
+/+ + /
     aa_7_2_6_82_external_authentication = cast(ft_aa_7_2_6_82_external_authentication) dlsym(lh, "aa_7_2_6_82_external_authentication");
     error = dlerror();
     if (error)
@@ -645,7 +658,25 @@ autofound:
         exit(1);
     }
 ////    printf("aa_7_2_6_82_external_authentication() function is found\n");
-+/
+/ + +/
+    cry_pso_7_4_3_6_2A_sym_encrypt = cast(ft_cry_pso_7_4_3_6_2A_sym_encrypt) dlsym(lh, "cry_pso_7_4_3_6_2A_sym_encrypt");
+    error = dlerror();
+    if (error)
+    {
+        printf("dlsym error cry_pso_7_4_3_6_2A_sym_encrypt: %s\n", error);
+        exit(1);
+    }
+////    printf("cry_pso_7_4_3_6_2A_sym_encrypt() function is found\n");
+
+    cry_pso_7_4_3_7_2A_sym_decrypt = cast(ft_cry_pso_7_4_3_7_2A_sym_decrypt) dlsym(lh, "cry_pso_7_4_3_7_2A_sym_decrypt");
+    error = dlerror();
+    if (error)
+    {
+        printf("dlsym error cry_pso_7_4_3_7_2A_sym_decrypt: %s\n", error);
+        exit(1);
+    }
+////    printf("cry_pso_7_4_3_7_2A_sym_decrypt() function is found\n");
+
     return 0;
 } // util_connect_card
 
@@ -709,7 +740,7 @@ else {
             ushort   SW1SW2;
             ubyte    responseLen;
             ubyte[]  response;
-            if ((rc= cm_7_3_1_14_get_card_info(card, card_info_type.Operation_Mode_Byte_Setting, 0, SW1SW2, responseLen, response)) != SC_SUCCESS) {
+            if ((rc= cm_7_3_1_14_get_card_info(card, CardInfoType.Operation_Mode_Byte_Setting, 0, SW1SW2, responseLen, response)) != SC_SUCCESS) {
                 assumeWontThrow(writeln("FAILED: cm_7_3_1_14_get_card_info: Operation_Mode_Byte_Setting"));
 //                return rc;
             }
@@ -719,7 +750,7 @@ else {
             if (is_ACOSV3_opmodeV3_FIPS_140_2L3) {
                 SW1SW2 = 0;
 
-                if ((rc= cm_7_3_1_14_get_card_info(card, card_info_type.Verify_FIPS_Compliance, 0, SW1SW2, responseLen, response)) != SC_SUCCESS) {
+                if ((rc= cm_7_3_1_14_get_card_info(card, CardInfoType.Verify_FIPS_Compliance, 0, SW1SW2, responseLen, response)) != SC_SUCCESS) {
                     assumeWontThrow(writeln("FAILED: cm_7_3_1_14_get_card_info: Verify_FIPS_Compliance"));
 //                    return rc;
                 }
@@ -776,7 +807,7 @@ int enum_dir(int depth, sitTypeFS pos_parent, ref PKCS15Path_FileType[] collecto
 
     if ((fdb & 0x38) == 0x38) {
         sc_path path;
-        int pos_parent_pathLen = pos_parent.node.data[1];
+        immutable pos_parent_pathLen = pos_parent.node.data[1];
         sc_path_set(&path, SC_PATH_TYPE.SC_PATH_TYPE_PATH, pos_parent.node.data.ptr+8, pos_parent_pathLen, 0, -1);
 
         if ((rv= sc_select_file(card, &path, null)) != SC_SUCCESS) {
@@ -787,14 +818,14 @@ int enum_dir(int depth, sitTypeFS pos_parent, ref PKCS15Path_FileType[] collecto
         ushort   SW1SW2;
         ubyte    responseLen;
         ubyte[]  response;
-        if ((rv= cm_7_3_1_14_get_card_info(card, card_info_type.count_files_under_current_DF, 0, SW1SW2, responseLen, response)) != SC_SUCCESS) {
+        if ((rv= cm_7_3_1_14_get_card_info(card, CardInfoType.count_files_under_current_DF, 0, SW1SW2, responseLen, response)) != SC_SUCCESS) {
             assumeWontThrow(writeln("FAILED: cm_7_3_1_14_get_card_info: count_files_under_current_DF"));
             return rv;
         }
         assert(responseLen==0);
         foreach (ubyte fno; 0 .. cast(ubyte)SW1SW2) { // x"90 xx" ; XX is count files
             ub32 info; // acos will deliver 8 bytes: [FDB, DCB(always 0), FILE ID, FILE ID, SIZE or MRL, SIZE or NOR, SFI, LCSI]
-            if ((rv= cm_7_3_1_14_get_card_info(card, card_info_type.File_Information, fno, SW1SW2, responseLen, response)) != SC_SUCCESS) {
+            if ((rv= cm_7_3_1_14_get_card_info(card, CardInfoType.File_Information, fno, SW1SW2, responseLen, response)) != SC_SUCCESS) {
                 assumeWontThrow(writeln("FAILED: cm_7_3_1_14_get_card_info: File_Information"));
                 return rv;
             }
@@ -806,27 +837,27 @@ int enum_dir(int depth, sitTypeFS pos_parent, ref PKCS15Path_FileType[] collecto
 //assumeWontThrow(writefln("branch: ?, %(%02X %)", collector[0].path));
                 if (depth==0 && info[0]==EFDB.Transparent_EF) { // EF.DIR
 //assumeWontThrow(writeln("branch: 1"));
-                    ubyte expectedFileType = info[6] = collector[0].pkcs15FileType;
+                    immutable expectedFileType = info[6] = collector[0].pkcs15FileType;
                     info[1] = 4;//cast(ubyte)(pos_parent.node.data[1]+2);
                     info[8..12] = collector[0].path[0..4];
                     collector = collector.remove(0);
                     ubyte detectedFileType = 0xFF;
-                    readFile_wrapped(info, pos_parent.node, expectedFileType, detectedFileType, true, collector);
+                    readFile_wrapped(info, pos_parent.node/*, expectedFileType*/, detectedFileType, true, collector);
 //assumeWontThrow(writefln("expectedFileType: %s, detectedFileType: %s, collector: ", expectedFileType, cast(PKCS15_FILE_TYPE)detectedFileType, collector));
                     assert(expectedFileType==detectedFileType);
                     // TODO mark previously appended childs, if required
                 }
                 else if (info[0]==EFDB.DF) { // EF.APP
 //assumeWontThrow(writeln("branch: 2"));
-                    ubyte expectedFileType = info[6] = collector[0].pkcs15FileType; // FIXME that assumes, there is 1 app only
+                    immutable expectedFileType = info[6] = collector[0].pkcs15FileType; // FIXME that assumes, there is 1 app only
                     assert(expectedFileType==PKCS15_FILE_TYPE.PKCS15_APPDF);
                     info[1] = cast(ubyte)(pos_parent.node.data[1]+2);
                     info[8..8+info[1]] = collector[0].path[0..info[1]];
 
                     foreach (ub2 fid2; chunks(info[8..8+info[1]], 2)) {
                         // ubyte[MAX_FCI_GET_RESPONSE_LEN] rbuf;
-                        fci_se_info  info2;
-                        rv= acos5_64_short_select(card, &info2, fid2, false/*, rbuf*/);
+                        FCISEInfo  info2;
+                        rv= acos5_64_short_select(card, fid2, &info2/*, rbuf*/);
                         info[24..32] = info2.sac[];
                         //assumeWontThrow(writefln("fci: 0X[ %(%02X %) ]", rbuf));
                     }
@@ -842,12 +873,12 @@ int enum_dir(int depth, sitTypeFS pos_parent, ref PKCS15Path_FileType[] collecto
                 else if (info[0]==EFDB.Transparent_EF && pos_parent.node.data[6]==PKCS15_FILE_TYPE.PKCS15_APPDF) { // EF.PKCS15_ODF
 //assumeWontThrow(writeln("branch: 3"));
 //assumeWontThrow(writeln(collector));
-                    ubyte expectedFileType = info[6] = collector[0].pkcs15FileType;
+                    immutable expectedFileType = info[6] = collector[0].pkcs15FileType;
                     info[1] = cast(ubyte)(pos_parent.node.data[1]+2);
                     info[8..8+info[1]] = collector[0].path[0..info[1]];
                     ubyte detectedFileType = 0xFF;
 //                    PKCS15Path_FileType[] pkcs15Extracted;
-                    readFile_wrapped(info, pos_parent.node, expectedFileType, detectedFileType, true, collector);
+                    readFile_wrapped(info, pos_parent.node/*, expectedFileType*/, detectedFileType, true, collector);
 //assumeWontThrow(writeln("detectedFileType: ", cast(PKCS15_FILE_TYPE)detectedFileType,", collector: ",collector));
                     collector = collector.remove(0);
 //                    assert(expectedFileType==detectedFileType);
@@ -894,7 +925,7 @@ int post_process(/*sitTypeFS pos_parent,*/ ref PKCS15Path_FileType[] collector) 
     try
     with (PKCS15_FILE_TYPE)
     foreach (tnTypePtr nodeFS, unUsed; fs.siblingRange(parent.begin(), parent.end())) {
-        ubyte len = nodeFS.data[1];
+        immutable len = nodeFS.data[1];
         assert(len>2 && len<=16 && len%2==0);
         ptrdiff_t  c_pos = countUntil!((a,b) => a.pkcs15FileType<=PKCS15_AODF && a.path.equal(b))(collector, nodeFS.data[8..8+len]);
 //assumeWontThrow(writefln("pos: %s,\t %(%02X %)", c_pos, nodeFS.data));
@@ -902,7 +933,7 @@ int post_process(/*sitTypeFS pos_parent,*/ ref PKCS15Path_FileType[] collector) 
             ubyte expectedFileType = nodeFS.data[6] = collector[c_pos].pkcs15FileType;
             assert(expectedFileType.among(EnumMembers!PKCS15_FILE_TYPE) && expectedFileType!=PKCS15_NONE);
             ubyte detectedFileType = 0xFF;
-            readFile_wrapped(nodeFS.data, nodeFS, expectedFileType, detectedFileType, expectedFileType.among(/*PKCS15_AODF, PKCS15_SKDF*/255)? false : true, collector);
+            readFile_wrapped(nodeFS.data, nodeFS/*, expectedFileType*/, detectedFileType, expectedFileType.among(/*PKCS15_AODF, PKCS15_SKDF*/255)? false : true, collector);
             assert(detectedFileType.among(EnumMembers!PKCS15_FILE_TYPE));
 //            assert(expectedFileType==detectedFileType); // TODO think about changing to e.g. throw an exception and inform user what exactly is wrong
 if (expectedFileType!=detectedFileType)
@@ -936,7 +967,7 @@ writefln("### expectedFileType(%s), detectedFileType(%s)", expectedFileType, det
             ubyte expectedFileType = nodeFS.data[6] = collector[c_pos].pkcs15FileType;
             assert(expectedFileType.among(EnumMembers!PKCS15_FILE_TYPE) && expectedFileType!=PKCS15_NONE);
             ubyte detectedFileType = 0xFF;
-            readFile_wrapped(nodeFS.data, nodeFS, expectedFileType, detectedFileType, false /*don't extract*/, collector);
+            readFile_wrapped(nodeFS.data, nodeFS/*, expectedFileType*/, detectedFileType, false /*don't extract*/, collector);
             assert(detectedFileType.among(EnumMembers!PKCS15_FILE_TYPE));
             // PKCS15_RSAPrivateKey should be undetectable by reading
             if (nodeFS.data[0]==EFDB.RSA_Key_EF && expectedFileType==PKCS15_RSAPrivateKey) detectedFileType = expectedFileType;
@@ -966,7 +997,7 @@ writefln("### expectedFileType(%s), detectedFileType(%s), path %(%02X %)", expec
         try
             with (tr)
             if (nodeFS.data[0]==EFDB.RSA_Key_EF) {
-                int nodeID = GetId(nodeFS);
+                immutable nodeID = GetId(nodeFS);
                 string title = GetStringId (IUP_TITLE, nodeID);
                 if (title.endsWith!(a => a=='B'))
                     SetStringId (IUP_TITLE, nodeID, title~"    EF(RSA)");
@@ -997,10 +1028,10 @@ alias  tnTypePtr  = TreeTypeFS.nodeType*;
   void* GetUserId(int id) { return IupTreeGetUserId(_ih, id); }
   int GetId(void* userid) { return IupTreeGetId(_ih, userid); }
 
-  FIXME: overhaul the processing started by populate_tree_fs: It shouldn't depend on the order of files reported by cm_7_3_1_14_get_card_info(card, card_info_type.File_Information ...
+  FIXME: overhaul the processing started by populate_tree_fs: It shouldn't depend on the order of files reported by cm_7_3_1_14_get_card_info(card, CardInfoType.File_Information ...
 */
 int populate_tree_fs() nothrow {
-    int rv, id=1;
+    int rv/*, id=1*/;
 
     with (AA["tree_fs"]) {
         SetAttribute(IUP_TITLE, " file system");  // 0  depends on ADDROOT's default==YES
@@ -1034,13 +1065,13 @@ int populate_tree_fs() nothrow {
 }
 
 
-void readFile_wrapped(ubyte[] info, tnTypePtr pn, const ubyte expectedFileType, ref ubyte detectedFileType, bool doExtract, ref PKCS15Path_FileType[] collector) nothrow {
+void readFile_wrapped(ubyte[] info, tnTypePtr pn/*, const ubyte /*expectedFileType*/, ref ubyte detectedFileType, bool doExtract, ref PKCS15Path_FileType[] collector) nothrow {
     assert(info[1]);
     int rv;
     foreach (ub2 fid2; chunks(info[8..8+info[1]], 2)) {
 //        ubyte[MAX_FCI_GET_RESPONSE_LEN] rbuf;
-        fci_se_info  info2;
-        rv= acos5_64_short_select(card, &info2, fid2, false/*, rbuf*/);
+        FCISEInfo  info2;
+        rv= acos5_64_short_select(card, fid2, &info2/*, rbuf*/);
         info[24..32] = info2.sac;
 //        assumeWontThrow(writefln("fci: 0X[ %(%02X %) ]", rbuf));
     }
@@ -1160,8 +1191,8 @@ assumeWontThrow(writefln("### returned length from sc_read_record to short: Rece
 //                assumeWontThrow(writefln([%(%02X %)]", chunk));
             if (buf[0] != 0  || !canFind(iota(4, 34, 2), buf[1]))
                 return;
-//assumeWontThrow(writeln(RSA_public_openssh_formatted(fid, buf)));
-            AA["fs_text_asn1"].SetStringVALUE(RSA_public_openssh_formatted(fid, buf));
+//assumeWontThrow(writeln(rsaPublicOpensshFormatted(fid, buf)));
+            AA["fs_text_asn1"].SetStringVALUE(rsaPublicOpensshFormatted(fid, buf));
             {
                 sc_path path;
                 sc_path_set(&path, SC_PATH_TYPE.SC_PATH_TYPE_PATH, pn.data.ptr+8, pn.data[1], 0, -1);
@@ -1341,19 +1372,19 @@ looptail: // jump target, if asn1_read_value failed, saving some code duplicatio
 } // readFile
 
 
-string RSA_public_openssh_formatted(ub2 fid, scope const ubyte[] rsa_raw_acos5_64) nothrow
+string rsaPublicOpensshFormatted(ub2 fid, scope const ubyte[] rsa_raw_acos5_64) nothrow
 {
-    import std.digest : toHexString;
-    import std.digest.md;
-    import std.digest.sha;
+    import std.digest : toHexString, LetterCase;
+    import std.digest.md : MD5Digest;
+    import std.digest.sha : SHA256Digest;
 
     if (rsa_raw_acos5_64[0] != 0  ||  rsa_raw_acos5_64[1] == 0) // no public key
         return "";
     string prolog;
     ubyte[] pre_openssh = [0,0,0,7, 0x73, 0x73, 0x68, 0x2D, 0x72, 0x73, 0x61,
                            0,0,0,0];
-    bool valid = rsa_raw_acos5_64[4] == 3;
-    ushort modLenBytes = decode_key_RSA_ModulusBitLen(rsa_raw_acos5_64[1])/8;
+    immutable valid = rsa_raw_acos5_64[4] == 3;
+    immutable modLenBytes = decode_key_RSA_ModulusBitLen(rsa_raw_acos5_64[1])/8;
     prolog = "\nThis is a "~(valid?"":"in")~"valid "~to!string(modLenBytes*8)~" bit public RSA key with file id 0x " ~ ubaIntegral2string(fid)~ // !(Order.increasing,LetterCase.upper)
         " (it's partner private key file id is 0x " ~ ubaIntegral2string(rsa_raw_acos5_64[2..4]) ~ ") :\n\n";
     ptrdiff_t  e_len =  rsa_raw_acos5_64[5..21].countUntil!"a>0"; //16- rsa_raw_acos5_64[5..21].until!"a>0"[].length;

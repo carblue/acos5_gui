@@ -560,8 +560,8 @@ SecretKeyType ::= CHOICE {
 --    genericSecretKey	SecretKeyObject, {GenericSecretKeyAttributes},
 --    rc2key			[0] SecretKeyObject {GenericSecretKeyAttributes},
 --    rc4key			[1] SecretKeyObject {GenericSecretKeyAttributes},
-    desKey			[2] EXPLICIT  SecretKeyObject, -- {GenericSecretKeyAttributes},
-    des2Key			[3] EXPLICIT  SecretKeyObject, -- {GenericSecretKeyAttributes},
+    desKey			[2]  SecretKeyObject, -- {GenericSecretKeyAttributes},
+    des2Key			[3]  SecretKeyObject, -- {GenericSecretKeyAttributes},
     des3Key			[4]  SecretKeyObject, -- {GenericSecretKeyAttributes},
 --    castKey			[5] SecretKeyObject {GenericSecretKeyAttributes},
 --    cast3Key		[6] SecretKeyObject {GenericSecretKeyAttributes},
@@ -573,7 +573,7 @@ SecretKeyType ::= CHOICE {
 --    juniperKey		[12] SecretKeyObject {GenericSecretKeyAttributes},
 --    rc6Key			[13] SecretKeyObject {GenericSecretKeyAttributes},
 --    otherKey		[14] OtherKey,
-    aesKey			[15] EXPLICIT  SecretKeyObject -- {GenericSecretKeyAttributes},
+    aesKey			[15] SecretKeyObject -- {GenericSecretKeyAttributes},
 --    ...  For future extensions
 }
 

@@ -54,7 +54,8 @@ CK_SLOT_ID pkcs11_get_slot() nothrow
     // size query
     pkcs11_check_return_value(rv= C_GetSlotList(CK_TRUE, null, &slotCount), "get slot list");
     if (slotCount == 0  ||  slotCount > slotIds.length) {
-        assumeWontThrow(writeln("Error: Could not find any slots or more than 10 slots with a token present found (dev: adjust array size)"));
+        assumeWontThrow(writeln("Error: Could not find any slots or more than 10 slots with a token present found "~
+            "(dev: adjust array size)"));
 //        stderr.writeln("Error; could not find any slots (or too many slots)");
         exit(EXIT_FAILURE);
     }
@@ -102,4 +103,3 @@ void  pkcs11_end_session (CK_SESSION_HANDLE session) nothrow {
 	rv = C_CloseSession(session);
 	pkcs11_check_return_value(rv, "close session");
 }
-

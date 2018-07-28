@@ -56,61 +56,61 @@ string gettextD(const(char)* str) @nogc nothrow pure @trusted { return assumeUni
    maximum minor revision number supported for a given major revision.  */
 ////#define __GNU_GETTEXT_SUPPORTED_REVISION(major) ((major) == 0 ? 1 : -1)
 
-extern(C) @nogc nothrow pure @trusted :
+extern(C) @nogc nothrow pure :
 
 /* Look up MSGID in the current default message catalog for the current
    LC_MESSAGES locale.  If not found, returns MSGID itself (the default
    text).  */
 const(char)*
-gettext (const(char)* __msgid); // __THROW __attribute_format_arg__ (1);
+gettext (const(char)* __msgid) @trusted; // __THROW __attribute_format_arg__ (1);
 
 /* Look up MSGID in the DOMAINNAME message catalog for the current
    LC_MESSAGES locale.  */
 const(char)*
-dgettext (const(char)* __domainname, const(char)* __msgid); // __THROW __attribute_format_arg__ (2);
+dgettext (const(char)* __domainname, const(char)* __msgid) @trusted; // __THROW __attribute_format_arg__ (2);
 const(char)*
-__dgettext (const(char)* __domainname, const(char)* __msgid); // __THROW __attribute_format_arg__ (2);
+__dgettext (const(char)* __domainname, const(char)* __msgid) @trusted; // __THROW __attribute_format_arg__ (2);
 
 /* Look up MSGID in the DOMAINNAME message catalog for the current CATEGORY
    locale.  */
 const(char)*
-dcgettext (const(char)* __domainname, const(char)* __msgid, int __category); // __THROW __attribute_format_arg__ (2);
+dcgettext (const(char)* __domainname, const(char)* __msgid, int __category) @trusted; // __THROW __attribute_format_arg__ (2);
 const(char)*
-__dcgettext (const(char)* __domainname, const(char)* __msgid, int __category); // __THROW __attribute_format_arg__ (2);
+__dcgettext (const(char)* __domainname, const(char)* __msgid, int __category) @trusted; // __THROW __attribute_format_arg__ (2);
 
 
 /* Similar to `gettext' but select the plural form corresponding to the
    number N.  */
 const(char)*
-ngettext (const(char)* __msgid1, const(char)* __msgid2, c_ulong __n); // __THROW __attribute_format_arg__ (1) __attribute_format_arg__ (2);
+ngettext (const(char)* __msgid1, const(char)* __msgid2, c_ulong __n) @trusted; // __THROW __attribute_format_arg__ (1) __attribute_format_arg__ (2);
 
 /* Similar to `dgettext' but select the plural form corresponding to the
    number N.  */
 const(char)*
-dngettext (const(char)* __domainname, const(char)* __msgid1, const(char)* __msgid2, c_ulong __n); // __THROW __attribute_format_arg__ (2) __attribute_format_arg__ (3);
+dngettext (const(char)* __domainname, const(char)* __msgid1, const(char)* __msgid2, c_ulong __n) @trusted; // __THROW __attribute_format_arg__ (2) __attribute_format_arg__ (3);
 
 /* Similar to `dcgettext' but select the plural form corresponding to the
    number N.  */
 const(char)*
 dcngettext (const(char)* __domainname, const(char)* __msgid1,
-    const(char)* __msgid2, c_ulong __n, int __category); //__THROW __attribute_format_arg__ (2) __attribute_format_arg__ (3);
+    const(char)* __msgid2, c_ulong __n, int __category) @trusted; //__THROW __attribute_format_arg__ (2) __attribute_format_arg__ (3);
 
 
 /* Set the current default message catalog to DOMAINNAME.
    If DOMAINNAME is null, return the current default.
    If DOMAINNAME is "", reset to the default of "messages".  */
 const(char)*
-textdomain (const(char)* __domainname); // __THROW;
+textdomain (const(char)* __domainname) @trusted; // __THROW;
 
 /* Specify that the DOMAINNAME message catalog will be found
    in DIRNAME rather than in the system locale data base.  */
 const(char)*
-bindtextdomain (const(char)* __domainname, const(char)* __dirname); // __THROW;
+bindtextdomain (const(char)* __domainname, const(char)* __dirname) @trusted; // __THROW;
 
 /* Specify the character encoding in which the messages from the
    DOMAINNAME message catalog will be returned.  */
 const(char)*
-bind_textdomain_codeset (const(char)* __domainname, const(char)* __codeset); // __THROW;
+bind_textdomain_codeset (const(char)* __domainname, const(char)* __codeset) @trusted; // __THROW;
 
 /+
 /* Optimized version of the function above.  */
@@ -143,7 +143,7 @@ bind_textdomain_codeset (const(char)* __domainname, const(char)* __codeset); // 
 else {
 
 pragma(inline, true)
-string gettextD(const(char)* __msgid) /*@nogc*/ @nogc nothrow pure @trusted { return assumeUnique(fromStringz(__msgid)); }
+string gettextD(const(char)* __msgid) /*@nogc*/ @nogc nothrow pure @trusted {return assumeUnique(fromStringz(__msgid));}
 
 pragma(inline, true)
 const(char)* gettext (const(char)* __msgid) @nogc nothrow pure @trusted { return __msgid; }

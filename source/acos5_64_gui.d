@@ -79,14 +79,14 @@ import tasn1_pkcs15 : tasn1_pkcs15_tab;
 
 import util_general;
 import gui : create_dialog_dlg0;
-import util_opensc : lh, card, populate_tree_fs, PKCS15_FILE_TYPE, util_connect_card, connect_card, PKCS15, errorDescription,
-    fs, itTypeFS, iter_begin, appdf, prkdf, pukdf, is_ACOSV3_opmodeV3_FIPS_140_2L3, is_ACOSV3_opmodeV3_FIPS_140_2L3_active, cm_7_3_1_14_get_card_info, tnTypePtr;
- //, acos5_64_short_select, uploadHexfile
+import util_opensc : lh, card, populate_tree_fs, PKCS15_FILE_TYPE, util_connect_card, connect_card, PKCS15,
+    errorDescription, fs, itTypeFS, iter_begin, appdf, is_ACOSV3_opmodeV3_FIPS_140_2L3,
+    is_ACOSV3_opmodeV3_FIPS_140_2L3_active, cm_7_3_1_14_get_card_info, tnTypePtr;
 //    , PRKDF, PUKDF, PUKDF_TRUSTED, SKDF, CDF, CDF_TRUSTED, CDF_USEFUL, DODF, AODF;
 import util_pkcs11 : pkcs11_check_return_value, pkcs11_get_slot;
 
-import key_asym : keyAsym_initialize_PubObs;
-import key_sym  : keySym_initialize_PubObs;
+import key_asym : keyAsym_initialize_PubObs, prkdf, pukdf;
+import key_sym  : keySym_initialize_PubObs,  skdf;
 
 
 import acos5_64_shared;
@@ -104,7 +104,7 @@ return "";
 
 //version(unittest) {}
 //else
-int main(string[] args) {
+int main(string[]) {
 
 version(I18N) {
     /* Setting the i18n environment */
@@ -117,47 +117,59 @@ version(I18N) {
     IupOpenD();
     IupControlsOpen(); // without this, no Matrix etc. will be visible
 
-	Config config = new Config;
-//	IupSetAttribute(config, "APP_NAME", "acos5_64_gui"); // args_carray[0]); APP_NAME: ./acos5_64_gui
-	config.SetAttribute("APP_NAME", "acos5_64_gui");
-import std.file : getcwd; // mkdir
-	writeln("current working directory: ", getcwd());
-//version(Windows)	IupSetGlobal("UTF8MODE", "YES");
+	  Config config = new Config;
+	  config.SetAttribute("APP_NAME", "acos5_64_gui");
+    // import std.file : getcwd;
+	  // writeln("current working directory: ", getcwd());
     version(Windows)  IupSetGlobal("UTF8MODE", IUP_YES);
-/+ +/
-//entry in .acos5_64_gui
-//[C0C6406881C7]
-//idsap=0
-{
-    int rv;
-//Serial Number of Card (EEPROM): 'C0C6406881C7'
-int       users_idsap;
-with (config) {
-/* * /
+
+    /*
+    Workflow:
+
+    entry in $HOME/.acos5_64_gui
+    [group]  group shall be the token serial no.
+    key=1
+    Configuration file
+      If there is none, then this card/token wasn't seen before by acos5_64_gui: Be conservative and do basic checks including:
+        Is there a MF ?
+        Run sanityCheck, if yes
+        If no MF, then offer initialization, perhaps based on export/archive
+        Remember in Configuration file, thus no superfluous efforts required:
+          MF    exists yes/no
+          2F00  exists yes/no
+          appDF exists yes/no (at least 1 shall exist, more can't be handled currently)
+          sanityCheck has run (at least once)
+
+    acos5_64_gui runMode:
+       - reduced
+       - full (no restrictions what to select from the user interface)
+
+       If the basic requiremnts for full runMode are not met, than
+
+    */
+
+    {
+        int rv;
+        //Serial Number of Card (EEPROM): 'C0C6406881C7'
+        int some; // some and more later placed globally
+        with (config) {
+/* once only to have the file generated
 	if ((rv= SaveConfig) != 0) {
 		writeln("IupConfigSave return value: ", rv);
 		exit(EXIT_FAILURE);
 	}
-/ * */
-	if ((rv= LoadConfig) != 0) {
-		writeln("IupConfigLoad return value: ", rv);
-//		exit(EXIT_FAILURE);
-	}
-	else {
-//		users_idsap = IupConfigGetVariableInt(config, "users", "idsap");
-		users_idsap = config.GetVariableInt("C0C6406881C7", "idsap");
-		/*debug*/ writeln("\nConfigured idsap: ", users_idsap);
-	}
-}
-}
-/+
-	char* error = null;
-	if ((error = IupLoad("acos5_64_gui.led")) != null) {
-		IupMessage("LED Fehler", error);
-		exit(EXIT_FAILURE);
-	}
-	version(Windows) { /*	IupSetAttribute(IupGetHandle("wv_datum"), "FORMAT", "dd'.'MM'.'yyyy"); */ }
-+/
+ */
+	           if ((rv= LoadConfig) != 0) {
+		             writeln("IupConfigLoad return value: ", rv);
+//		           exit(EXIT_FAILURE);
+	           }
+	           else {
+		              some = config.GetVariableInt("group", "key");
+		              /*debug*/ writeln("\nConfigured some: ", some);
+           	}
+        }
+    }
+
     /* Shows dialog */
     create_dialog_dlg0.Show; // this does the mapping; it's here because some things can be done only after mapping
 
@@ -182,9 +194,10 @@ with (config) {
         populate_tree_fs(); // populates PrKDF, PuKDF (and dropdown key pair id),
 /+
         import std.range : chunks;
+        import util_opensc : acos5_64_short_select, uploadHexfile;
         ubyte[6] certPath = [0x3F, 0x00, 0x41, 0x00, 0x41, 0x20];
         foreach (ubyte[2] fid2; chunks(certPath[], 2))
-            rc= acos5_64_short_select(card, null, fid2, false);
+            rc= acos5_64_short_select(card, fid2);
 //        ubyte[8] pin = [0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38];
 //        int tries_left;
 //        rc= sc_verify(card, SC_AC.SC_AC_CHV, 0x81, pin.ptr, pin.length, &tries_left);
@@ -210,6 +223,7 @@ with (config) {
 
     prkdf = fs.preOrderRange(iter_begin, fs.end()).locate!"a[6]==b"(PKCS15_FILE_TYPE.PKCS15_PRKDF);
     pukdf = fs.preOrderRange(iter_begin, fs.end()).locate!"a[6]==b"(PKCS15_FILE_TYPE.PKCS15_PUKDF);
+    skdf  = fs.preOrderRange(iter_begin, fs.end()).locate!"a[6]==b"(PKCS15_FILE_TYPE.PKCS15_SKDF);
 
     keyAsym_initialize_PubObs();
     keySym_initialize_PubObs();
@@ -640,37 +654,40 @@ The checks may be grouped into these categories:
         pkcs11_check_return_value(rv= C_GetInfo(&info), "get info");
 //        writeln("cryptokiVersion.major: ", info.cryptokiVersion.major);
 //        writeln("cryptokiVersion.minor: ", info.cryptokiVersion.minor);
-        AA["slot_token"].SetStringId2("",  1,  1, info.cryptokiVersion.major.to!string~"."~info.cryptokiVersion.minor.to!string);
+
+        Handle h = AA["slot_token"];
+
+        h.SetStringId2("",  1,  1, info.cryptokiVersion.major.to!string~"."~info.cryptokiVersion.minor.to!string);
 
         // TODO replace the pos-hack by blankPaddingTrimmed for all blank-padded strings
         ptrdiff_t pos = clamp(countUntil(info.manufacturerID[], [ubyte(32),ubyte(32)]), 0,32);
-        AA["slot_token"].SetStringId2("",  2,  1, cast(string)info.manufacturerID.ptr[0..pos]);
-        //    AA["slot_token"].SetIntegerId2("", 3,  1, cast(int)info.flags);
+        h.SetStringId2("",  2,  1, cast(string)info.manufacturerID.ptr[0..pos]);
+        //    h.SetIntegerId2("", 3,  1, cast(int)info.flags);
 
         pos = clamp(countUntil(info.libraryDescription[], [ubyte(32),ubyte(32)]), 0,32);
-        AA["slot_token"].SetStringId2("",  4,  1, cast(string)info.libraryDescription.ptr[0..pos]);
-        AA["slot_token"].SetStringId2("",  5,  1, info.libraryVersion.major.to!string~"."~info.libraryVersion.minor.to!string);
+        h.SetStringId2("",  4,  1, cast(string)info.libraryDescription.ptr[0..pos]);
+        h.SetStringId2("",  5,  1, info.libraryVersion.major.to!string~"."~info.libraryVersion.minor.to!string);
 
         CK_SLOT_ID  slotID = pkcs11_get_slot();
 //        writeln("slotID: ", slotID);
-        AA["slot_token"].SetIntegerId2("",  6,  1, cast(int)slotID);
+        h.SetIntegerId2("",  6,  1, cast(int)slotID);
 
         CK_SLOT_INFO  slotInfo;
         pkcs11_check_return_value(rv= C_GetSlotInfo(slotID, &slotInfo), "get slot info");
         pos = clamp(countUntil(slotInfo.slotDescription[], [ubyte(32),ubyte(32)]), 0,64);
 //        writeln ("slotDescription: ", (cast(char*)slotInfo.slotDescription.ptr)[0..pos]);
-        AA["slot_token"].SetStringId2("",  7,  1, cast(string)slotInfo.slotDescription.ptr[0..pos]);
+        h.SetStringId2("",  7,  1, cast(string)slotInfo.slotDescription.ptr[0..pos]);
         pos = clamp(countUntil(slotInfo.manufacturerID[], [ubyte(32),ubyte(32)]), 0,32);
 //        writeln ("manufacturerID:  ", (cast(char*)slotInfo.manufacturerID.ptr)[0..pos]);
-        AA["slot_token"].SetStringId2("",  8,  1, cast(string)slotInfo.manufacturerID.ptr[0..pos]);
+        h.SetStringId2("",  8,  1, cast(string)slotInfo.manufacturerID.ptr[0..pos]);
 //        writeln ("flags:           ", slotInfo.flags);
-        if (slotInfo.flags & CKF_TOKEN_PRESENT)     AA["slot_token"].SetIntegerId2("",  9,  1,  1);
-        if (slotInfo.flags & CKF_REMOVABLE_DEVICE)  AA["slot_token"].SetIntegerId2("", 10,  1,  1);
-        if (slotInfo.flags & CKF_HW_SLOT)           AA["slot_token"].SetIntegerId2("", 11,  1,  1);
+        if (slotInfo.flags & CKF_TOKEN_PRESENT)     h.SetIntegerId2("",  9,  1,  1);
+        if (slotInfo.flags & CKF_REMOVABLE_DEVICE)  h.SetIntegerId2("", 10,  1,  1);
+        if (slotInfo.flags & CKF_HW_SLOT)           h.SetIntegerId2("", 11,  1,  1);
 //        writefln("hardwareVersion: %s.%s", slotInfo.hardwareVersion.major, slotInfo.hardwareVersion.minor);
 //        writefln("firmwareVersion: %s.%s", slotInfo.firmwareVersion.major, slotInfo.firmwareVersion.minor);
-        AA["slot_token"].SetStringId2("", 12,  1, slotInfo.hardwareVersion.major.to!string~"."~slotInfo.hardwareVersion.minor.to!string~" / "~
-                                              slotInfo.firmwareVersion.major.to!string~"."~slotInfo.firmwareVersion.minor.to!string);
+        h.SetStringId2("", 12, 1, slotInfo.hardwareVersion.major.to!string~"."~slotInfo.hardwareVersion.minor.to!string~
+            " / " ~ slotInfo.firmwareVersion.major.to!string~"."~slotInfo.firmwareVersion.minor.to!string);
         CK_TOKEN_INFO tokenInfo;
         pkcs11_check_return_value(rv= C_GetTokenInfo(slotID, &tokenInfo), "get token info");
 
@@ -678,48 +695,49 @@ The checks may be grouped into these categories:
 //        writeln ("token.label:     ", (cast(char*)tokenInfo.label.ptr)[0..pos]);
 //writefln ("token.label: 0x[%(%02X %)]: ", tokenInfo.label); // token.label: 0x[55 73 65 72 20 28 0C 12 43 54 4D 36 34 5F 43 30 43 36 34 30 36 38 38 31 43 37 29 20 20 20 20 20]:
         pos = clamp(countUntil(tokenInfo.label[], [ubyte(32),ubyte(32)]), 0,32);
-        AA["slot_token"].SetStringId2("", 13,  1, cast(string)tokenInfo.label.ptr[0..pos]);
+        h.SetStringId2("", 13,  1, cast(string)tokenInfo.label.ptr[0..pos]);
 
         pos = clamp(countUntil(tokenInfo.manufacturerID[], [ubyte(32),ubyte(32)]), 0,32);
-        AA["slot_token"].SetStringId2("", 14,  1, cast(string)tokenInfo.manufacturerID.ptr[0..pos]);
+        h.SetStringId2("", 14,  1, cast(string)tokenInfo.manufacturerID.ptr[0..pos]);
         pos = clamp(countUntil(tokenInfo.model[], [ubyte(32),ubyte(32)]), 0,16);
-        AA["slot_token"].SetStringId2("", 15,  1, cast(string)tokenInfo.model.ptr[0..pos]);
+        h.SetStringId2("", 15,  1, cast(string)tokenInfo.model.ptr[0..pos]);
         pos = clamp(countUntil(tokenInfo.serialNumber[], [ubyte(32),ubyte(32)]), 0,16);
-        AA["slot_token"].SetStringId2("", 16,  1, cast(string)tokenInfo.serialNumber.ptr[0..pos]);
-        AA["slot_token"].SetIntegerId2("",17,  1, cast(int)tokenInfo.flags);
+        h.SetStringId2("", 16,  1, cast(string)tokenInfo.serialNumber.ptr[0..pos]);
+        h.SetIntegerId2("",17,  1, cast(int)tokenInfo.flags);
 
-        if (tokenInfo.flags & CKF_RNG)                   AA["slot_token"].SetIntegerId2("", 18,  1,  1);
-        if (tokenInfo.flags & CKF_WRITE_PROTECTED)       AA["slot_token"].SetIntegerId2("", 19,  1,  1);
-        if (tokenInfo.flags & CKF_LOGIN_REQUIRED)        AA["slot_token"].SetIntegerId2("", 20,  1,  1);
-        if (tokenInfo.flags & CKF_USER_PIN_INITIALIZED)  AA["slot_token"].SetIntegerId2("", 21,  1,  1);
+        if (tokenInfo.flags & CKF_RNG)                   h.SetIntegerId2("", 18,  1,  1);
+        if (tokenInfo.flags & CKF_WRITE_PROTECTED)       h.SetIntegerId2("", 19,  1,  1);
+        if (tokenInfo.flags & CKF_LOGIN_REQUIRED)        h.SetIntegerId2("", 20,  1,  1);
+        if (tokenInfo.flags & CKF_USER_PIN_INITIALIZED)  h.SetIntegerId2("", 21,  1,  1);
 
-        if (tokenInfo.flags & CKF_PROTECTED_AUTHENTICATION_PATH) AA["slot_token"].SetIntegerId2("", 22,  1,  1);
-        if (tokenInfo.flags & CKF_DUAL_CRYPTO_OPERATIONS)        AA["slot_token"].SetIntegerId2("", 23,  1,  1);
-        if (tokenInfo.flags & CKF_TOKEN_INITIALIZED)             AA["slot_token"].SetIntegerId2("", 24,  1,  1);
-        if (tokenInfo.flags & CKF_SECONDARY_AUTHENTICATION)      AA["slot_token"].SetIntegerId2("", 25,  1,  1);
+        if (tokenInfo.flags & CKF_PROTECTED_AUTHENTICATION_PATH) h.SetIntegerId2("", 22,  1,  1);
+        if (tokenInfo.flags & CKF_DUAL_CRYPTO_OPERATIONS)        h.SetIntegerId2("", 23,  1,  1);
+        if (tokenInfo.flags & CKF_TOKEN_INITIALIZED)             h.SetIntegerId2("", 24,  1,  1);
+        if (tokenInfo.flags & CKF_SECONDARY_AUTHENTICATION)      h.SetIntegerId2("", 25,  1,  1);
 
-        if (tokenInfo.flags & CKF_USER_PIN_COUNT_LOW)            AA["slot_token"].SetIntegerId2("", 26,  1,  1);
-        if (tokenInfo.flags & CKF_USER_PIN_FINAL_TRY)            AA["slot_token"].SetIntegerId2("", 27,  1,  1);
-        if (tokenInfo.flags & CKF_USER_PIN_LOCKED)               AA["slot_token"].SetIntegerId2("", 28,  1,  1);
-        if (tokenInfo.flags & CKF_USER_PIN_TO_BE_CHANGED)        AA["slot_token"].SetIntegerId2("", 29,  1,  1);
+        if (tokenInfo.flags & CKF_USER_PIN_COUNT_LOW)            h.SetIntegerId2("", 26,  1,  1);
+        if (tokenInfo.flags & CKF_USER_PIN_FINAL_TRY)            h.SetIntegerId2("", 27,  1,  1);
+        if (tokenInfo.flags & CKF_USER_PIN_LOCKED)               h.SetIntegerId2("", 28,  1,  1);
+        if (tokenInfo.flags & CKF_USER_PIN_TO_BE_CHANGED)        h.SetIntegerId2("", 29,  1,  1);
 
-        if (tokenInfo.flags & CKF_SO_PIN_COUNT_LOW)              AA["slot_token"].SetIntegerId2("", 30,  1,  1);
-        if (tokenInfo.flags & CKF_SO_PIN_FINAL_TRY)              AA["slot_token"].SetIntegerId2("", 31,  1,  1);
-        if (tokenInfo.flags & CKF_SO_PIN_LOCKED)                 AA["slot_token"].SetIntegerId2("", 32,  1,  1);
-        if (tokenInfo.flags & CKF_SO_PIN_TO_BE_CHANGED)          AA["slot_token"].SetIntegerId2("", 33,  1,  1);
+        if (tokenInfo.flags & CKF_SO_PIN_COUNT_LOW)              h.SetIntegerId2("", 30,  1,  1);
+        if (tokenInfo.flags & CKF_SO_PIN_FINAL_TRY)              h.SetIntegerId2("", 31,  1,  1);
+        if (tokenInfo.flags & CKF_SO_PIN_LOCKED)                 h.SetIntegerId2("", 32,  1,  1);
+        if (tokenInfo.flags & CKF_SO_PIN_TO_BE_CHANGED)          h.SetIntegerId2("", 33,  1,  1);
 
-        ////    if (tokenInfo.flags & CKF_ERROR_STATE)                   AA["slot_token"].SetIntegerId2("", 34,  1,  1); // since version 2.30 ?
+        ////    if (tokenInfo.flags & CKF_ERROR_STATE)                   h.SetIntegerId2("", 34,  1,  1); // since version 2.30 ?
 /+ +/
-        AA["slot_token"].SetStringId2("", 35,  1, tokenInfo.ulSessionCount.to!string~" / "~tokenInfo.ulMaxSessionCount.to!string);
-        AA["slot_token"].SetStringId2("", 36,  1, tokenInfo.ulRwSessionCount.to!string~" / "~tokenInfo.ulMaxRwSessionCount.to!string);
-        AA["slot_token"].SetStringId2("", 37,  1, tokenInfo.ulMinPinLen.to!string~" / "~tokenInfo.ulMaxPinLen.to!string);
+        h.SetStringId2("", 35,  1, tokenInfo.ulSessionCount.to!string~" / "~tokenInfo.ulMaxSessionCount.to!string);
+        h.SetStringId2("", 36,  1, tokenInfo.ulRwSessionCount.to!string~" / "~tokenInfo.ulMaxRwSessionCount.to!string);
+        h.SetStringId2("", 37,  1, tokenInfo.ulMinPinLen.to!string~" / "~tokenInfo.ulMaxPinLen.to!string);
 
-        ////    AA["slot_token"].SetStringId2("", 38,  1, (cast(float)tokenInfo.ulFreePublicMemory/1024).to!string~" / "~(cast(float)tokenInfo.ulTotalPublicMemory/1024).to!string);
-        ////    AA["slot_token"].SetStringId2("", 39,  1, (cast(float)tokenInfo.ulFreePrivateMemory/1024).to!string~" / "~(cast(float)tokenInfo.ulTotalPrivateMemory/1024).to!string);
-        AA["slot_token"].SetStringId2("", 40,  1, tokenInfo.hardwareVersion.major.to!string~"."~tokenInfo.hardwareVersion.minor.to!string~" / "~
-                                              tokenInfo.firmwareVersion.major.to!string~"."~tokenInfo.firmwareVersion.minor.to!string);
+        ////    h.SetStringId2("", 38,  1, (cast(float)tokenInfo.ulFreePublicMemory/1024).to!string~" / "~(cast(float)tokenInfo.ulTotalPublicMemory/1024).to!string);
+        ////    h.SetStringId2("", 39,  1, (cast(float)tokenInfo.ulFreePrivateMemory/1024).to!string~" / "~(cast(float)tokenInfo.ulTotalPrivateMemory/1024).to!string);
+        with (tokenInfo)
+        h.SetStringId2("", 40,  1, hardwareVersion.major.to!string~"."~hardwareVersion.minor.to!string~" / "~
+                                              firmwareVersion.major.to!string~"."~firmwareVersion.minor.to!string);
     //    pos = clamp(countUntil(tokenInfo.utcTime[], [ubyte(32),ubyte(32)]), 0,16);
-        AA["slot_token"].SetStringId2("", 41,  1, cast(string)tokenInfo.utcTime.ptr[0..16]);
+        h.SetStringId2("", 41,  1, cast(string)tokenInfo.utcTime.ptr[0..16]);
     } //  // scope for scope(exit)  PKCS11.unload();
 
     AA["dlg0"].Update;
@@ -735,24 +753,3 @@ The checks may be grouped into these categories:
     IupClose();
     return EXIT_SUCCESS;
 }
-/*
-Workflow:
-
-Configuration file
-  If there is none, then this card/token wasn't seen before by acos5_64_gui: Be conservative and do basic checks including:
-    Is there a MF ?
-    Run sanityCheck, if yes
-    If no MF, then offer initialization, perhaps based on export/archive
-    Remember in Configuration file, thus no superfluous efforts required:
-      MF    exists yes/no
-      2F00  exists yes/no
-      appDF exists yes/no (at least 1)
-      sanityCheck has run (at least once)
-
-acos5_64_gui runMode:
-   - reduced
-   - full (no restrictions what to select from the user interface)
-
-   If the basic requiremnts for full runMode are not met
-
-*/

@@ -47,8 +47,8 @@ import util_general;// : ub22integral;
 import acos5_64_shared;
 
 import util_opensc : lh, card, acos5_64_short_select, readFile, decompose, PKCS15Path_FileType, PKCS15_FILE_TYPE,
-    util_connect_card, connect_card, cm_7_3_1_14_get_card_info, is_ACOSV3_opmodeV3_FIPS_140_2L3, is_ACOSV3_opmodeV3_FIPS_140_2L3_active, tnTypePtr;  /*fs, TreeTypeFS, sitTypeFS,*/
-//    aa_7_2_6_82_external_authentication;
+    util_connect_card, connect_card, cm_7_3_1_14_get_card_info, is_ACOSV3_opmodeV3_FIPS_140_2L3, tnTypePtr,
+    is_ACOSV3_opmodeV3_FIPS_140_2L3_active;
 
 
 ub8 map2DropDown = [1, 2, 3, 4, 5, 6, 7, 8];
@@ -92,8 +92,8 @@ void populate_list_op_file_possible(tnTypePtr pn, ub2 fid, EFDB fdb, ub2 size_or
 
     int idx = index_textSCB_FileType(fdb);
     ubyte j;
-    bool suppress  = AA["toggle_op_file_possible_suppress"].GetStringVALUE()==IUP_ON;
-    bool auto_read = AA["toggle_auto_read"].GetStringVALUE()==IUP_ON;
+    immutable suppress  = AA["toggle_op_file_possible_suppress"].GetStringVALUE()==IUP_ON;
+    immutable auto_read = AA["toggle_auto_read"].GetStringVALUE()==IUP_ON;
     map2DropDown = ub8.init;
     /* Don't show superfluous operations e.g. like Activate, if the file is activated already*/
     foreach (i, b; sac) {
@@ -114,18 +114,18 @@ void populate_list_op_file_possible(tnTypePtr pn, ub2 fid, EFDB fdb, ub2 size_or
             map2DropDown[i] = ++j;
         }
     }
-    bool fileReadPossible = idx!=0 && map2DropDown[0]==1;
+    immutable fileReadPossible = idx!=0 && map2DropDown[0]==1;
     if (fileReadPossible || maxElement(map2DropDown[])==1)
         h.SetIntegerVALUE(1);
 
     h.SetCallback(IUP_VALUECHANGED_CB, &list_op_file_possible_val_changed_cb);
 //    assumeWontThrow(writeln(map2DropDown));
 
-    if (fileReadPossible && auto_read && (sac[0]==0 || sac[0]&0x40) || (is_ACOSV3_opmodeV3_FIPS_140_2L3 && sac[0].among(1,3)) ) {
-        ubyte expectedFileType = pn.data[6];
-        ubyte detectedFileType;
+    if (fileReadPossible && auto_read && (sac[0]==0 || sac[0]&0x40 || (is_ACOSV3_opmodeV3_FIPS_140_2L3 && sac[0].among(1,3) ) ) ) {
+        immutable expectedFileType = pn.data[6];
+        ubyte dummydetectedFileType;
         PKCS15Path_FileType[] dummyPkcs15Extracted;
-        readFile(pn, fid, fdb, sac[0], decompose(fdb, size_or_MRL_NOR).expand, expectedFileType, detectedFileType, dummyPkcs15Extracted);
+        readFile(pn, fid, fdb, sac[0], decompose(fdb, size_or_MRL_NOR).expand, expectedFileType, dummydetectedFileType, dummyPkcs15Extracted);
 //assumeWontThrow(writefln("expectedFileType: %s, detectedFileType: %s, dummyPkcs15Extracted: ", expectedFileType, cast(PKCS15_FILE_TYPE)detectedFileType, dummyPkcs15Extracted));
     }
 }
@@ -134,7 +134,7 @@ void populate_list_op_file_possible(tnTypePtr pn, ub2 fid, EFDB fdb, ub2 size_or
 extern(C) :
 
 
-int slot_token_dropcheck_cb(Ihandle* self, int lin, int col)
+int slot_token_dropcheck_cb(Ihandle* self, int /*lin*/, int /*col*/)
 {
   return IUP_IGNORE; // draw nothing
 }
@@ -160,8 +160,8 @@ int selectbranchleaf_cb(Ihandle* /*ih*/, int id, int status)
 //    printf("selectbranchleaf_cb id(%d), status(%d), data(%s)\n", id, status, sc_dump_hex(pn.data.ptr, pn.data.length)); // selectbranchleaf_cb id(2), status(1), data(0A04000115010105 3F00 0001)
     // selectbranchleaf_cb id(5), status(1), data(01 04 2F00 00 21 00 05  3F00 2F00)
 
-    fci_se_info info;
-//    fci_se_info info_df;
+    FCISEInfo info;
+//    FCISEInfo info_df;
     int rv;
 
     enum string commands = `
@@ -171,9 +171,9 @@ int selectbranchleaf_cb(Ihandle* /*ih*/, int id, int status)
         int i = 1;
         AA["fs_text"].SetString(IUP_APPEND, "Header/meta infos (FCI):");
         foreach (ub2 fid; chunks(pn.data[8..8+pn.data[1]], 2)) {
-            info = fci_se_info.init;
+            info = FCISEInfo.init;
             rbuf = typeof(rbuf).init;
-            rv= acos5_64_short_select(card, &info, fid, false, rbuf);
+            rv= acos5_64_short_select(card, fid, &info, rbuf);
             if (i.among(len2, len2==1? 1 : len2-1)) {
 //                info_df = info;
 //            assumeWontThrow(writeln(info)); //writefln("0x[%(%02X %)]", fid);
@@ -200,7 +200,7 @@ int selectbranchleaf_cb(Ihandle* /*ih*/, int id, int status)
 } // selectbranchleaf_cb
 
 
-int executeleaf_cb(Ihandle* h, int id)
+int executeleaf_cb(Ihandle* h, int /*id*/)
 {
 ////  auto pn = cast(tnTypePtr) (cast(iup.iup_plusD.Tree) AA["tree_fs"]).GetUserId(id);
 ////  printf("executeleaf_cb (%d) %s\n", id, sc_dump_hex(pn.data.ptr, pn.data.length));
@@ -209,14 +209,14 @@ int executeleaf_cb(Ihandle* h, int id)
 }
 
 
-int branchopen_cb(Ihandle* h, int id)
+int branchopen_cb(Ihandle* h, int /*id*/)
 {
 ////  printf("branchopen_cb (%d)\n", id);
   return IUP_DEFAULT;
 }
 
 
-int branchclose_cb(Ihandle* h, int id)
+int branchclose_cb(Ihandle* h, int /*id*/)
 {
 ////  printf("branchclose_cb (%d)\n", id);
   return IUP_DEFAULT;
@@ -238,28 +238,28 @@ int k_any_cb(Ihandle* h, int c)
 //  list.SetCallback(IUP_VALUECHANGED_CB, &list_op_file_possible_val_changed_cb);
 int list_op_file_possible_val_changed_cb(Ihandle* ih)
 {
-    Handle h = createHandle(ih);
-    int val = h.GetIntegerVALUE;
-////  printf("list_op_file_possible_val_changed_cb (%p), val(%d)\n", h, val);
+////    Handle h = createHandle(ih);
+////    int val = h.GetIntegerVALUE;
+////    printf("list_op_file_possible_val_changed_cb (%p), val(%d)\n", h, val);
   return IUP_DEFAULT;
 }
 
 
-int toggle_op_file_possible_suppress_cb(Ihandle* ih, int state)
+int toggle_op_file_possible_suppress_cb(Ihandle* ih, int /*state*/)
 {
 ////  printf("toggle_op_file_possible_suppress_cb (%d)\n", state);
   return IUP_DEFAULT;
 }
 
 
-int toggle_auto_read_cb(Ihandle* ih, int state)
+int toggle_auto_read_cb(Ihandle* ih, int /*state*/)
 {
 ////  printf("toggle_auto_read_cb (%d)\n", state);
   return IUP_DEFAULT;
 }
 
 
-int toggle_auto_decode_asn1_cb(Ihandle* ih, int state)
+int toggle_auto_decode_asn1_cb(Ihandle* ih, int /*state*/)
 {
 ////  printf("toggle_auto_decode_asn1_cb (%d)\n", state);
   return IUP_DEFAULT;
@@ -278,7 +278,7 @@ int btn_sanity_cb(Ihandle* ih)
 		ushort   SW1SW2;
 		ubyte    responseLen;
 		ubyte[]  response;
-		if ((rv= cm_7_3_1_14_get_card_info(card, card_info_type.Operation_Mode_Byte_Setting, 0, SW1SW2, responseLen, response)) < 0) return IUP_DEFAULT;
+		if ((rv= cm_7_3_1_14_get_card_info(card, CardInfoType.Operation_Mode_Byte_Setting, 0, SW1SW2, responseLen, response)) < 0) return IUP_DEFAULT;
 		assert(responseLen==0);
 		ubyte sw2 = cast(ubyte)SW1SW2;
 		assert(canFind([ 0,1,2,16 ], sw2));
@@ -295,43 +295,3 @@ int btn_sanity_cb(Ihandle* ih)
     mixin (connect_card!commands);
     return IUP_DEFAULT;
 } // btn_sanity_cb
-
-/+
-int btn_do_cb(Ihandle* ih)
-{
-    enum string commands = `
-    int rv;
-/*
-    if ((rv= aa_7_2_6_82_external_authentication(card, 0x01)) != SC_SUCCESS) {
-        mixin (log!(__FUNCTION__,  "external_authentication failed with error code %d", "rv"));
-        return IUP_DEFAULT;
-    }
-*/
-//    auto newData = cast(immutable(ubyte)[])hexString!"C18808323436383335373988083335373938363432";
-//    auto newData = cast(immutable(ubyte)[])hexString!"8101881498CDFDC8688F20233113D9203DE06EAEEF8C548319321FE60000";
-    auto newData = cast(immutable(ubyte)[])hexString!"0102030405060708090A0B0C0D0E0F10";
-    auto path    = cast(immutable(ubyte)[])hexString!"3F 00 41 00 39 06";
-
-    foreach (ub2 fid; chunks(path, 2)) {
-        if ((rv= acos5_64_short_select(card, null, fid, false)) != SC_SUCCESS)
-        return IUP_DEFAULT;
-    }
-/*
-    ub8 pw = [0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38];
-    int tries_left;
-    if ((rv= sc_verify(card, SC_AC.SC_AC_CHV, 129, pw.ptr, pw.length, &tries_left)) != SC_SUCCESS) {
-        mixin (log!(__FUNCTION__,  "sc_verify failed with error code %d", "rv"));
-        return IUP_DEFAULT;
-    }
-    sc_path path2;
-    sc_path_set(&path2, SC_PATH_TYPE.SC_PATH_TYPE_FILE_ID, path.ptr+4, path.length-4, 0, -1);
-*/
-    if ((rv= sc_update_record(card, 2, newData.ptr, newData.length, 0)) != SC_SUCCESS) {
-        mixin (log!(__FUNCTION__,  "sc_update_record failed with error code %d", "rv"));
-        return IUP_DEFAULT;
-    }
-`;
-//    mixin (connect_card!commands);
-    return IUP_DEFAULT;
-}
-+/

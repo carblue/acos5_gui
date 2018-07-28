@@ -44,11 +44,12 @@ alias  ub24 = ubyte[24];
 alias  ub32 = ubyte[32];
 alias  uba  = ubyte[];
 
-
+/// The maximum length of response bytes possible for 'get response' after a 'select' command
 enum ubyte MAX_FCI_GET_RESPONSE_LEN = 86; //[EnumMembers!ISO7816_TAG_FCP_    ].fold!((a, b) => a + 2+TAG_FCP_len(b))(-12) +
 										  //[EnumMembers!ISO7816_RFU_TAG_FCP_].fold!((a, b) => a + 2+TAG_FCP_len(b))(0); // Σ:86 //2(6F) [+4(80)] +8(82)+4(83) [+18(84)]+3(88)+3(8A)+10(8C)  [+4(8D) +34(AB)]
 //pragma(msg, "compiling...MAX_FCI_GET_RESPONSE_LEN is: ", MAX_FCI_GET_RESPONSE_LEN);
 
+//// mandytory SE file contents in FIPS mode
 immutable ubyte[/*33*/][5] seFIPS = [
 	cast(immutable ubyte[/*33*/])hexString!"80 01 01 A4 06 83 01 01 95 01 80 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
 	cast(immutable ubyte[/*33*/])hexString!"80 01 02 A4 06 83 01 01 95 01 80 B4 09 80 01 02 83 01 02 95 01 30 B8 09 80 01 02 83 01 02 95 01 30",
@@ -57,10 +58,12 @@ immutable ubyte[/*33*/][5] seFIPS = [
 	cast(immutable ubyte[/*33*/])hexString!"80 01 05 B4 09 80 01 02 83 01 02 95 01 30 B8 09 80 01 02 83 01 02 95 01 30 00 00 00 00 00 00 00 00",
 ];
 
+//// some temporary SE file contents in non-FIPS mode(64K), global SE file
 immutable ubyte[/*48*/][1] se64K0 = [
 	cast(immutable ubyte[/*48*/])hexString!"80 01 01 A4 06 83 01 01 95 01 08 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
 ];
 
+//// some temporary SE file contents in non-FIPS mode(64K), local SE file
 immutable ubyte[/*48*/][4] se64K1 = [
 	cast(immutable ubyte[/*48*/])hexString!"80 01 01 A4 06 83 01 81 95 01 08 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
 	cast(immutable ubyte[/*48*/])hexString!"80 01 02 B4 09 83 01 01 95 01 30 80 01 02 B8 09 83 01 01 95 01 30 80 01 02 A4 06 83 01 81 95 01 08 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
@@ -70,10 +73,9 @@ immutable ubyte[/*48*/][4] se64K1 = [
 
 nothrow extern(C) {
 alias  ft_acos5_64_short_select =  int function(sc_card* card,
-    fci_se_info* info,
-    ub2 fid,
-    bool skip_seid_retrieval,
-    ubyte[] outbuf = null);
+	ub2 fid,
+	FCISEInfo* info = null,
+	ubyte[] outbuf = null);
 
 // a wrapper for sc_update_binary
 alias  ft_uploadHexfile =  int function(sc_card* card,
@@ -83,75 +85,50 @@ alias  ft_uploadHexfile =  int function(sc_card* card,
 	c_ulong flags);
 
 alias  ft_cm_7_3_1_14_get_card_info =  int function(sc_card* card,
-	const card_info_type  type,
-	const ubyte           fileAtPos_PinRef_KeyRef,
-	out ushort            SW1SW2,
-	out ubyte             responseLen,
-	out ubyte[]           response, //=null,
-	c_ulong               apdu_flags=0 //, scope ubyte[]         command_bytes=null
+	const CardInfoType  type,
+	const ubyte         fileAtPos_PinRef_KeyRef,
+	out ushort          SW1SW2,
+	out ubyte           responseLen,
+	out ubyte[]         response, //=null,
+	c_ulong             apdu_flags=0 //, scope ubyte[]         command_bytes=null
 	) /*@nogc nothrow pure*/ @safe;
 
 alias  ft_cry_pso_7_4_3_8_2A_asym_encrypt_RSA =  int function(sc_card* card,
     const scope ubyte[] indata,
     scope ubyte[] encrypted_RSA) @trusted;
 
-alias  ft_cry_____7_4_4___46_generate_keypair_RSA =  int function(sc_card* card, const scope ubyte[] lv_key_len_type_data) /*@safe*/;
+alias  ft_cry_____7_4_4___46_generate_keypair_RSA =
+    int function(sc_card* card, const scope ubyte[] lv_key_len_type_data) /*@safe*/;
 
 alias  ft_ctrl_generate_keypair_RSA =  int function(bool, bool=false, bool=true);
 
-//alias  ft_aa_7_2_6_82_external_authentication = int function(sc_card* card, ubyte KeyID, scope sc_remote_data* rdata=null) @trusted;
-//alias  ft_cry_mse_7_4_2_1_22_set =  int function(sc_card* card, const scope ubyte[] tlv_crt) @trusted;
+//alias  ft_aa_7_2_6_82_external_authentication = int function(sc_card* card, ubyte KeyID, scope sc_remote_data* rdata=null, const scope ubyte[] keyValueTDES=null) @trusted;
+
+alias  ft_cry_mse_7_4_2_1_22_set =  int function(sc_card* card, const scope ubyte[] tlv_crt) @trusted;
+
+alias  ft_cry_pso_7_4_3_6_2A_sym_encrypt =  int function(sc_card* card,
+	const scope ubyte[] inData,
+	scope ubyte[] outData,
+	uint blockSize=8,
+	bool doCBCmode=true /* otherwise handled as ECB */
+	);
+
+alias  ft_cry_pso_7_4_3_7_2A_sym_decrypt =  int function(sc_card* card,
+	const scope ubyte[] inData,
+	scope ubyte[] outData,
+	uint blockSize=8,
+	bool doCBCmode=true, /* otherwise handled as ECB */
+	const scope ubyte[] tlv = null, // the same that was used for encryption; assuming that allows decryption as well
+	ub2 fid = [ubyte(0),ubyte(0)] // any DF for that verification was done already
+	);
+
 } // nothrow extern(C)
 
-/+
-enum CRT_TAG : ubyte {
-	HT      = 0xAA,   // Hash Template                 : AND:      Algorithm
-	AT      = 0xA4,   // Authentication Template       : AND: UQB, Pin_Key,
-	DST     = 0xB6,   // Digital Signature Template    : AND: UQB, Algorithm, KeyFile_RSA
-	CT_asym = 0xB8+1, // Confidentiality Template      : AND: UQB, Algorithm       OR: KeyFile_RSA
-	CT_sym  = 0xB8+0, // Confidentiality Template      : AND: UQB, Algorithm       OR: ID_Pin_Key_Local_Global, HP_Key_Session  ; OPT: Initial_Vector
-	CCT     = 0xB4,   // Cryptographic Checksum Templ. : AND: UQB, Algorithm  ;    OR: ID_Pin_Key_Local_Global, HP_Key_Session  ; OPT: Initial_Vector
-	NA      = 0x00,   // N/A unknown
-}
-//mixin FreeEnumMembers!CRT_TAG;
-
-enum Usage {
-	/* HT */
-	None,
-	/* AT 1*/
-	Pin_Verify_and_SymKey_Authenticate,
-	SymKey_Authenticate,
-	Pin_Verify,
-	/* DST 4*/
-	Sign_PKCS1_priv,  // algo (10) can be infered; the key type RSA priv. must match what is stored in FileID parameter
-	Verify_PKCS1_pub, // algo (10) can be infered; the key type RSA publ. must match what is stored in FileID parameter
-	Sign_9796_priv,   // algo (11) can be infered; the key type RSA priv. must match what is stored in FileID parameter
-	Verify_9796_pub,  // algo (11) can be infered; the key type RSA publ. must match what is stored in FileID parameter
-	/* CT_asym 8*/
-	Decrypt_PSO_priv,
-	Decrypt_PSO_SMcommand_priv,
-	Decrypt_PSO_SMresponse_priv,
-	Decrypt_PSO_SMcommandResponse_priv,
-	Encrypt_PSO_pub,
-	Encrypt_PSO_SMcommand_pub,
-	Encrypt_PSO_SMresponse_pub,
-	Encrypt_PSO_SMcommandResponse_pub,
-//		CT_asym: UQB_Possible(0xFF, [0x40/*PSO*/, 0x50/*PSO+SM in Command Data*/, 0x60/*PSO+SM in Response Data*/, 0x70/*PSO+SM in Command and Response Data*/]),
-	/* CT_sym */
-
-	/* CCT 16*/
-	Session_Key_SM,
-	Session_Key,
-	Local_Key1_SM,
-	Local_Key1,
-}
-//mixin FreeEnumMembers!Usage;
-+/
-
+/** enum for File Descriptor Byte (FDB); it's members are all the different file types, the card os knows about */
 enum EFDB : ubyte { // enum File Descriptor Byte, as acos knows them
 	// DF types:
-	MF                 = 0x3F,                          // == 0b0011_1111; common DF type mask == DF : (file_type_in_question & DF) == DF for this enum
-	DF                 = ISO7816_FILE_TYPE_DF, //0x38,  // == 0b0011_1000; common DF type mask == DF : (file_type_in_question & DF) == DF for this enum
+	MF                 = 0x3F,                          // == 0b0011_1111;
+	DF                 = ISO7816_FILE_TYPE_DF, //0x38,  // == 0b0011_1000;
 // Working EF:
 	Transparent_EF     = ISO7816_FILE_TYPE_TRANSPARENT_EF,      // 1, SC_FILE_EF.SC_FILE_EF_TRANSPARENT==1 as wll
 	Linear_Fixed_EF    = SC_FILE_EF.SC_FILE_EF_LINEAR_FIXED,    // 2,
@@ -168,8 +145,16 @@ enum EFDB : ubyte { // enum File Descriptor Byte, as acos knows them
 }
 //mixin FreeEnumMembers!EFDB;
 
-bool is_DFMF(ubyte/*EFDB*/ fdb) pure nothrow @nogc @safe { return (fdb & ISO7816_FILE_TYPE_DF) == ISO7816_FILE_TYPE_DF; }
+/** returns true, if given a fdb parameter that represents type MF or DF, which are directories,
+    returns false for any other fdb, which are 'real' files */
+bool is_DFMF(ubyte/*EFDB*/ fdb) pure nothrow @nogc @safe {return (fdb & ISO7816_FILE_TYPE_DF) == ISO7816_FILE_TYPE_DF;}
 
+/**
+   all 'real' files (opposed to directories) have a distinguishing feature called structure (e.g. transparent, linear-fixed etc.)
+	 The first 4 enum members of EFDB (that represent files) are named according to the 4 structures available,
+	 the remaining (beginning with RSA_Key_EF, which are all internal EF) are named differently, but have a specific structure as well.
+	 The function returns for file types an ubyte, which equals the corresponding EFDB-structure-enum, or it returns 0 for MF/DF
+*/
 ubyte iEF_FDB_to_structure(EFDB FDB) {
 	auto result = cast(ubyte)(FDB & 7);
 	if (result.among(1,2,4,6))
@@ -178,20 +163,30 @@ ubyte iEF_FDB_to_structure(EFDB FDB) {
 		return 0; // the result for MF/DF
 }
 
+/** The acos-internal code for RSA modulus length is bitLen/128; this function does the inverse/decode operation */
 ushort /*bitLen*/ decode_key_RSA_ModulusBitLen(const ubyte acosCode) pure nothrow @nogc @safe
 {
     assert(acosCode%2==0 && acosCode>=4 && acosCode<=32);
-	return  acosCode*128;
+	  return  acosCode*128;
 }
 
+/**
+  Each byte in SAC (and/or SAE) (called Security Condition Byte SCB) relates to an operation, depending on file descriptor byte,
+	or for SAE, defined within SAE bytes
+	One of SCB's bits expresses whether that operation is forced to be executed under Secure Messaging (SM) conditions (yes/no).
+	The mode of SM is selected by other bits of SCB (indirectly, via SE file). The end result of collecting all those SM-related
+	infos is expressed by the 3 enum members.
+	SCB and it's corresponding SM_Extend info are coupled by same position in storage variables: ubyte[8] sac <=> SM_Extend[8] smex
+*/
 enum SM_Extend : ubyte {
-	SM_NONE,
-	SM_CCT,            // Cryptographic Checksum Template
-	SM_CCT_AND_CT_sym  // Cryptographic Checksum Template and Confidentiality Template ref. key for sym. algorithm
+	SM_NONE,           /// SM is not enforced/impossible
+	SM_CCT,            /// SM is enforced, providing Authenticity, specified by a  Cryptographic Checksum Template
+	SM_CCT_AND_CT_sym  /// SM is enforced, providing Authenticity and Confidentiality, specified by a  Cryptographic Checksum Template and Confidentiality Template (ref. key for sym. algorithm)
 }
 //mixin FreeEnumMembers!SM_Extend;
 
-enum card_info_type : ubyte[3] {
+/** These bytes are used with the acos command Get Card Info; they select one of it's subcommands */
+enum CardInfoType : ubyte[3] {
 	Serial_Number                = [ 0, 0,  6], // 6 is for ACOSV2 etc. only; for ACOS5-64 V3 (Nano) in FIPS-mode it will be replaced by 8
 	count_files_under_current_DF = [ 1, 0,  0],
 	File_Information             = [ 2, 0,  8], // the P2 value must be replaced as desired
@@ -207,43 +202,24 @@ enum card_info_type : ubyte[3] {
 	Get_Key_Authentication_State = [12, 0,  1],
 }
 
-struct fci_se_info { // former cache_current_df_se_info
+/** FCI/file header data gets returned by select command. Some infos are collected in this structure */
+struct FCISEInfo { // former cache_current_df_se_info
 	/* DF specific: */
-	ub8          sac_df;  /* SAC Security Attributes Compact: output of  read_8C_SAC_Bytes_to_ub8SC, always 8 bytes sac_len */
-	SM_Extend[8] smex_df;
-	ubyte[32]    sae;     /* SAE Security Attributes Expanded */
-	uint         sae_len; /* sae length used */
-	ub2          seid;    /* Security Environment file IDentifier
+	ub8          sac_df;  /// SAC Security Attributes Compact: output of  read_8C_SAC_Bytes_to_ub8SC, always 8 bytes sac_len; should remember values of last encountered DF, but seems to be overwritten: check this
+	SM_Extend[8] smex_df; /// if the bytes in sac_df have relevance for Secure Messaging, and if so, which SM_Extend        ; should remember values of last encountered DF, but seems to be overwritten: check this
+	ubyte[32]    sae;     /// SAE Security Attributes Expanded
+	uint         sae_len; /// sae length used
+	ub2          seid;    /// Security Environment file IDentifier
 
-	/* Any File type: */
-	ub8          sac;  /* current selected file's SAC  : output of  read_8C_SAC_Bytes_to_ub8SC, always 8 bytes sac_len */
-	SM_Extend[8] smex; /* current selected file's */
+	/* The following for all 'File/DF' types: */
+	ub8          sac;  /// current selected file's SAC  : output of  read_8C_SAC_Bytes_to_ub8SC, always 8 bytes sac_len
+	SM_Extend[8] smex; /// current selected file's SAC relevance for Secure Messaging, see smex_df */
 
 //	sc_path   path_fid;
 //	sc_path   path_seid;    /* path of SE file */
-	ub2          fid;
-	ubyte        fdb;  /* File Descriptor Byte */
-	ubyte        NOR;  /* if applicable: Number Of Records */
-	ubyte        MRL;  /* if applicable: Max. Record Length */
+	ub2          fid;  /// File Id
+	ubyte        fdb;  /// File Descriptor Byte
+	ubyte        NOR;  /// if applicable: Number Of Records
+	ubyte        MRL;  /// if applicable: Max. Record Length
 }
-
-/+
-struct fsData {
-    ub8   fi; //fileInfo;
-    ub16  path;
-
-    fsData dup() nothrow { return this; }
-}
-
-alias  TreeTypeFSy = tree_k_ary.Tree!fsData; // 8 bytes + length of pathlen_max considered (, here SC_MAX_PATH_SIZE = 16) + 8 bytes SAC (file access conditions)
-alias  tnTypePtry  = TreeTypeFSy.nodeType*;
-alias  sitTypeFSy  = TreeTypeFSy.sibling_iterator; // sibling iterator type
-alias   itTypeFSy  = TreeTypeFSy.pre_order_iterator; // iterator type
-
-//bool        doCheckPKCS15 = true;
-//tnTypePtry   appdf;
-//tnTypePtry   prkdf;
-//tnTypePtry   pukdf;
-//itTypeFSy    iter_begin;
-+/
 

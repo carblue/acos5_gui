@@ -4,12 +4,13 @@ import core.stdc.stdio : printf;
 import std.signals;// : Signal;
 import std.format : format;
 import std.conv: to;
-import std.exception : assumeWontThrow, assumeUnique;
+import std.exception : assumeWontThrow;
 import std.stdio;
 
 import iup.iup_plusD : Handle;
+import util_general;
 
-import keyAsym : set_more_for_keyAsym_Id;
+import key_asym : set_more_for_keyAsym_Id;
 // tag types
 struct _keyAsym_RSAmodulusLenBits{}
 struct _keyAsym_crtModeGenerate{}
@@ -29,7 +30,7 @@ struct _AC_Delete_Create_RSADir{}
 //Obs
 //struct _keyAsym_usagePuKDF{}
 
-import keySym : set_more_for_keySym_Id;
+import key_sym : set_more_for_keySym_Id, set_more_for_global_local;
 // tag types
 struct _keySym_algoType{}
 struct _keySym_keyLenBits{}
@@ -37,17 +38,22 @@ struct _keySym_usageSKDF{}
 
 struct _keySym_ExtAutStore{}
 struct _keySym_ExtAut_ErrorCounterYN{}
+struct _keySym_ExtAut_ErrorCounterValue{}
 struct _keySym_IntAutStore{}
 struct _keySym_IntAut_UsageCounterYN{}
+struct _keySym_IntAut_UsageCounterValue{}
 
 struct _keySym_Id{}
-//struct _keySym_keyRef{}
+struct _keySym_recordNo{}
+
 struct _keySym_Label{}
 struct _keySym_Modifiable{}
 struct _keySym_authId{}
 struct _keySym_fidAppDir{}
 struct _keySym_fid{}
 struct _keySym_global_local{}
+struct _keySym_bytesStockAES{}
+struct _keySym_bytesStockDES{}
 
 struct _AC_Update_SKDF{}       //SCB
 struct _AC_Update_keyFile{}    //SCB
@@ -135,7 +141,7 @@ Retrieve the class object reference from an attribure (where it will be used)  W
             _value = v;
 assumeWontThrow(writefln(T.stringof~" object was set to value %s", _value));
 
-            static if (is(T==_keyAsym_usageGenerate) || is(T==_keyAsym_usagePrKDF) || is(T==_keySym_usageSKDF) /*|| is(T==_keyAsym_usagePuKDF)*/) {
+            static if (is(T==_keyAsym_usageGenerate) || is(T==_keyAsym_usagePrKDF) || is(T==_keySym_usageSKDF)) { /*|| is(T==_keyAsym_usagePuKDF)*/
                 if (_h !is null) {
 //assumeWontThrow(writefln(T.stringof~" object was set to value %s and translate int", _value));
                     _h.SetStringId2 ("", _lin, _col, keyUsageFlagsInt2string(_value));
@@ -157,6 +163,10 @@ assumeWontThrow(writefln(T.stringof~" object was set to value %s", _value));
                 if (programmatically &&  _h !is null)
                     _h.SetStringId2 ("", _lin, _col, _hexRep? format!"%04X"(_value) : _value.to!string);
             }
+            else static if (is(T==_keySym_bytesStockAES) || is(T==_keySym_bytesStockDES)) {
+                if (programmatically &&  _h !is null)
+                    _h.SetStringId2 ("", _lin, _col, ubaIntegral2string(_value));
+            }
             else {
                 if (programmatically &&  _h !is null)
                     _h.SetStringId2 ("", _lin, _col, _hexRep? format!"%X"(_value) : _value.to!string);
@@ -165,10 +175,14 @@ assumeWontThrow(writefln(T.stringof~" object was set to value %s", _value));
             /* this is critical for _keyAsym_Id:
              * First change_calcPrKDF.watch and change_calcPuKDF.watch must run: They create/dup structure to structure_new
              * only then: set_more_for_keyAsym_Id */
+
             static if (is (T == _keyAsym_Id))
                 set_more_for_keyAsym_Id(_value);
             static if (is (T == _keySym_Id))
                 set_more_for_keySym_Id(_value);
+            static if (is (T == _keySym_global_local))
+                set_more_for_global_local(_value);
+
         }
         catch (Exception e) { printf("### Exception in Pub.set()\n"); /* todo: handle exception */ }
         return _value;
@@ -176,4 +190,3 @@ assumeWontThrow(writefln(T.stringof~" object was set to value %s", _value));
 
     mixin Pub_boilerplate!(T,V);
 }
-
