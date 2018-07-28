@@ -466,13 +466,14 @@ This means: The read operation will be done automatically if not disallowed by f
    external authentication was successful; SM-protected file operations invoke external authentication automatically), then do read automatically.
 
 The tool aims at shielding the possibly complex access conditions of files (and commands) from the user and just ask for the required permission(s).
-But the sophisticated ACOS features of access conditions like "AND" and "OR" operator aren't implemented currently: Just use simple entries in the SE-file for authentication, with 1 pin or 1 key reference only.
-(The nigthmare counterexample would be a file deletion requiring 4 pin verifications; the rule above limits that to max. 2 pins, which is also the max. of opensc).
+But the sophisticated ACOS features of access conditions like "AND" and "OR" operator aren't implemented currently: Just use simple entries in the SE-file for verification/authentication, with 1 pin or 1 key reference only.
+(The nigthmare counterexample would be a file deletion requiring e.g. 4 or more pin verifications/key authentications; the rule above limits that to max. 2 pins/keys, which is also the max. of opensc).
+Deletion checks access rigths concerning the file itself and of the DF, this file resides in.
 In order to be able to check that, 2 file headers (including the SCB bytes) get printed, the enclosing DF's header and the header of the selected file/DF.
 
 
 PUKDF doesn't declare any public  RSA key  as private !
-PrKDF does    declare all private RSA keys as private and thus also declare an authId!
+PrKDF does    declare all private RSA keys as private and thus also declares an authId!
 `);
 
     AA["gkpRSA_text"].SetString(IUP_APPEND, `

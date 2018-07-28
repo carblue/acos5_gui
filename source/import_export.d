@@ -1,4 +1,4 @@
-module importExport;
+module import_export;
 
 import core.runtime : Runtime;
 import std.stdio;
@@ -21,10 +21,11 @@ import iup.iup_plusD;
 import util_general;// : ub22integral, ubaIntegral2string;
 import acos5_64_shared;
 
-import util_opensc : lh, card, TreeTypeFS, acos5_64_short_select, readFile, decompose, PKCS15Path_FileType, PKCS15_FILE_TYPE, fs, sitTypeFS,
-    util_connect_card, connect_card, cm_7_3_1_14_get_card_info, tlv_Range_mod, is_ACOSV3_opmodeV3_FIPS_140_2L3, is_ACOSV3_opmodeV3_FIPS_140_2L3_active;
+import util_opensc : lh, card, TreeTypeFS, acos5_64_short_select, readFile, decompose, PKCS15Path_FileType, sitTypeFS,
+    fs, PKCS15_FILE_TYPE, util_connect_card, connect_card, cm_7_3_1_14_get_card_info, tlv_Range_mod,
+    is_ACOSV3_opmodeV3_FIPS_140_2L3, is_ACOSV3_opmodeV3_FIPS_140_2L3_active;
 
-struct exportData {
+struct ExportData {
         ub2 fid;
         ubyte lcsi;
         ubyte fdb;
@@ -36,7 +37,7 @@ struct exportData {
         ubyte saeRemoveLen;
         ubyte NOR, MRL;
         ushort fileSize;
-        bool Readable; // needs special treatment: e.g. for fdb==CHV will write a standard pin file
+        bool readable; // needs special treatment: e.g. for fdb==CHV will write a standard pin file
 }
 
 
@@ -44,9 +45,10 @@ extern(C) nothrow:
 
 int btn_exportArchive_cb(Ihandle* ih) {
     int rv;
-    string[] list_archiv_files; // all in /tmp ; in the end, take all files listed and package them in the archiv file
-    list_archiv_files ~= "commands_create";
-    list_archiv_files ~= "toc_files_active";
+    string[] list_archiv_files = ["commands_create", "toc_files_active"];
+    // all in /tmp ; in the end, take all files listed and package them in the archiv file
+//    list_archiv_files ~= "commands_create";
+//    list_archiv_files ~= "toc_files_active";
 //    string  prefixPath = "";
     try {
         auto f_commands_create  = File("/tmp/commands_create", "w");  // open for writing, i.e. Create an empty file for output operations. If a file with the same name already exists, its contents are discarded and the file is treated as a new empty file.
@@ -57,7 +59,7 @@ int btn_exportArchive_cb(Ihandle* ih) {
         foreach (/*const*/ ref e; fs.preOrderRange(fs.begin(), fs.end())) {
 
             foreach (ub2 fid2; chunks(e[8..8+e[1]], 2)) {
-                rv= acos5_64_short_select(card, null, fid2, false, rbuf);
+                rv= acos5_64_short_select(card, fid2, null, rbuf);
 //        assumeWontThrow(writefln("fci: 0X[ %(%02X %) ]", rbuf));
             }
 
@@ -65,7 +67,7 @@ int btn_exportArchive_cb(Ihandle* ih) {
                 rbuf[0] =  /*ISO7816_TAG_FCP_.*/ISO7816_TAG_FCP;
             ubyte len = rbuf[1];
 
-            exportData ed;
+            ExportData ed;
             foreach (d,T,L,V; tlv_Range_mod(rbuf[2..2+len])) {
                 if      (T == /*ISO7816_TAG_FCP_.*/ISO7816_TAG_FCP_SIZE)
                     ed.fileSize = ub22integral(V[0..2]);
@@ -86,7 +88,7 @@ int btn_exportArchive_cb(Ihandle* ih) {
                 }
                 else if (T == ISO7816_RFU_TAG_FCP_.ISO7816_RFU_TAG_FCP_SAC) {
                     ed.ambSAC[0..L] = V[0..L];
-                    ed.Readable = ! ( L>1  &&  (V[0]&1)  &&  V[L-1]==0xFF);
+                    ed.readable = ! ( L>1  &&  (V[0]&1)  &&  V[L-1]==0xFF);
                 }
                 else if (T == ISO7816_RFU_TAG_FCP_.ISO7816_RFU_TAG_FCP_SEID)
                     ed.seid = V[0..2];
@@ -105,7 +107,7 @@ int btn_exportArchive_cb(Ihandle* ih) {
                     f_toc_files_active.writeln(" " ~ fileName ~ tail);
                     auto buf = new ubyte[ed.MRL];
                     // possible fdb:
-                    if (/*true*/ed.Readable) {
+                    if (/*true*/ed.readable) {
                 rv = sc_read_record(card, i, buf.ptr, buf.length, 0 /*flags*/);
                         if (!(rv>0 && rv==buf.length)) {
 assumeWontThrow(writeln("### rv: ", rv));
@@ -125,7 +127,7 @@ assumeWontThrow(writefln("### unreadable: ed.fid: %(%02X %)", ed.fid));
                 if (!is_DFMF(ed.fdb)) {
                     auto buf = new ubyte[ed.fileSize];
                     // possible fdb: 1 (ordinary transparent), 9 (RSA transparent)
-                    if (/*true*/ed.Readable) {
+                    if (/*true*/ed.readable) {
                         if (ed.fdb == 1)
                             rv = sc_read_binary(card, 0, buf.ptr, buf.length, 0 /*flags*/);
                         else
@@ -154,4 +156,3 @@ assumeWontThrow(writefln("### unreadable: ed.fid: %(%02X %)", ed.fid));
     catch (Exception e) { /* todo: handle exception */ }
     return IUP_DEFAULT;
 }
-

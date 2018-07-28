@@ -5,51 +5,53 @@ driver libacos5_64.so
 
 The driver is suitable for ACS ACOS5-64, hardware version V2 (Smart Card/CryptoMate64) and V3 (Smart Card/CryptoMate Nano),
 32K mode is not supported.
-The support for FIPS mode (V3) gets improved currently, while I didnt't succeed to setup a card in FIPS mode, that responses with
+The support for FIPS mode (V3) got improved, while I didnt't succeed to setup a card in FIPS mode, that responses with
 FIPS compliance==okay. I stil get an undocumented (in ref. manual) error code 6F59; perhaps someone is willing to help here?
 
 The driver is not complete in the context of card initialization. Those commands will follow in parallel to ongoing development
 of acos5_gui.
 
 
-The driver-package(s) available here were built on an Ubuntu Bionic Beaver system (18.04), i.e. they have dependencies typical for
-that distro, notably openssl 1.1.0:
+The driver-package(s) available here were built on an Ubuntu Bionic Beaver system (18.04.1), i.e. they have dependencies typical
+for that distro, notably openssl 1.1.0:
 
-acos5-64-bionic_amd64-dmd_2_81_0-opensc_0_17.deb
+acos5-64-bionic_amd64-dmd_2_81_1-opensc_0_17.deb
 acos5-64-bionic_amd64-ldc_2_80_1-opensc_0_17.deb
 acos5-64-bionic_amd64-gdc_2_76_0-opensc_0_17.deb
 
 
-3 D-Compiler suites are supported currently, DMD 2.081.0 and LDC 1.10.0 (which corresponds to 2.080.1); the driver depends on
+3 D-Compiler suites are supported currently, DMD 2.081.1, LDC 1.10.0 (which corresponds to 2.080.1) and GDC; the driver depends on
   shared phobos and druntime. Debian packaged LDC (1.8.0) lacks a required phobos function, introduced since LDC-1.9.0.
   Whatever libacos5_64.so You use, it was compiled WITHOUT rpath, thus expecting to find shared phobos and druntime in standard
   library search path. libphobos2-ldc-shared80_1.10.0-1_amd64.deb is a repackaging of ldc2-1.10.0-linux-x86_64.tar.xz installing
   the shared phobos and druntime that way, providing what acos5-64-bionic_amd64-ldc_2_80_1-opensc_0_17.deb depends on (referring
-  to the compiler).
+  to the compiler). Compiling acos5_64_gui with GDC requires a minor change to std.range.slide (to be publicly accessible).
+
 1 OpenSC version is supported currently, 0.17.0  (the driver depends on shared libopensc.so.5).
 
 More packages will follow, once packaging opensc_0_18 was done.
 ATTENTION: Compiling acos5_64_gui for OpenSC version 0.18.0 will require changing dub.json of this package:
        "subConfigurations": {
-               "opensc": "toString",        <- this is for OpenSC version 0.18.0
-               "opensc": "toStringPrior",   <- this is for OpenSC version 0.17.0
+               "opensc": "deimos",        <- this is for OpenSC version 0.18.0
+               "opensc": "deimosPrior",   <- this is for OpenSC version 0.17.0
                ...
        }
 
 While the libacos5_64.so included in .deb is meant to be used on any Linux 64 bit system, packaging it as .deb is an easy 1-click
 install for Debian/Ubuntu users and just an easy way for me to convey several infos in a compact way:
-1. Where the libacos5_64.so has to be placed in the system: Basically the only requirement is that it is placed within a standard
+1. Where the libacos5_64.so.0.0.1 has to be placed in the system: Basically the only requirement is that it is placed within a standard
    library search path for .so in a x86_64 system. The opensc.conf and acos5_64_gui will rely on the library being found without
    providing a path !
 2. Where to place opensc.conf and it's content, suitable for acos5_64
 3. Where to place acos5_64.profile and it's content, suitable for acos5_64
 4. The target architecture, dependency on other software and more is easily expressible, as shown in the control file
 5. Access rigths of libacos5_64.so.0.0.1 don't need to be root, thus if that's the case after installing from .deb,
-   do run chown on it for security reasons.
+   do run chown on it if You like.
 
 For Debian-based systems, one of the .deb is all You need referring to the driver (apart from "keyset" explained in the end).
-They assume http://d-apt.sourceforge.net/ or libphobos2-ldc-shared80_1.10.0-1_amd64.deb to be the source for DMD's or LDC's shared
-phobos and druntime.
+They assume http://downloads.dlang.org/releases/2.x/2.081.1/dmd_2.081.1-0_amd64.deb or
+http://d-apt.sourceforge.net/ or libphobos2-ldc-shared80_1.10.0-1_amd64.deb or Ububtu's gdc to be the source for DMD/LDC/GDC
+shared phobos and druntime.
 opensc_0_17 is available from Debian for Ubuntu Bionic (effectively 2 pack., opensc and opensc-pkcs11 make up a release version).
 opensc_0_18 will soon be available from https://github.com/carblue/opensc, packaged from compiled sources, also split into 2 .deb
 like in the 0.17 version)
@@ -61,17 +63,18 @@ YOU MAY WANT to change opensc.conf to Your needs, at least switching off logging
 beginning, it's recommended to have the logging feature enabled for troubleshooting.
 The log file will reveal pins entered for hardware version ACOS5 V2.0 (CryptoMate64) which lacks SM for pins. Secure Messaging for
 pins is possible since hardware version ACOS5-64 V3.0 (CryptoMate Nano) but only effective if configured for instruction 0x20 that
-way via SAE, or if in FIPS mode.
-The original opensc.conf from OpenSC, generated on Ubuntu Bionic Beaver from configure invocation
+way via SAE, or if in FIPS mode. SM for pin verification doesn't work currently, thus it reveals pins too.
+
+The 'original' opensc.conf from OpenSC, generated on Ubuntu Bionic Beaver from configure invocation
 $ ./configure --prefix=/usr --sysconfdir=/etc/opensc --libdir=/usr/lib/x86_64-linux-gnu
-is there as file opensc.conf.orig17 or opensc.conf.orig18
+is there as file opensc.conf.orig17 (or later opensc.conf.orig18 as well)
 
 
 For other Linux distros, these commands will extract relevant .deb contents to tmp/,
-e.g. of acos5-64-bionic_amd64-dmd_2_80_0-opensc_0_17.deb
+e.g. of acos5-64-bionic_amd64-dmd_2_81_1-opensc_0_17.deb
 $ mkdir tmp && cd tmp
-$ ar p ../acos5-64-bionic_amd64-dmd_2_80_0-opensc_0_17.deb control.tar.xz | tar -xJ
-$ ar p ../acos5-64-bionic_amd64-dmd_2_80_0-opensc_0_17.deb data.tar.xz | tar -xJ
+$ ar p ../acos5-64-bionic_amd64-dmd_2_81_1-opensc_0_17.deb control.tar.xz | tar -xJ
+$ ar p ../acos5-64-bionic_amd64-dmd_2_81_1-opensc_0_17.deb data.tar.xz | tar -xJ
 
 In this case, overwrite /etc/opensc/opensc.conf only if the existing (original) /etc/opensc/opensc.conf and the file
 opensc.conf.orig17 match exactly, otherwise perform the required changes manually or even better use diff and patch.
@@ -82,7 +85,7 @@ keyset_..._02_enc  and keyset_..._02_mac with 24 byte keys will be used for non-
 keyset_..._01_enc  and keyset_..._01_mac with 24 byte keys will be used for FIPS mode.
 
 
-$ ldd libacos5_64.so  (from acos5-64-bionic_amd64-dmd_2_81_0-opensc_0_17.deb)
+$ ldd libacos5_64.so  (from acos5-64-bionic_amd64-dmd_2_81_1-opensc_0_17.deb)
         linux-vdso.so.1 (0x00007ffdfe76d000)
         libcrypto.so.1.1 => /usr/lib/x86_64-linux-gnu/libcrypto.so.1.1 (0x00007f1d5ee16000)
         libopensc.so.5 => /usr/lib/x86_64-linux-gnu/libopensc.so.5 (0x00007f1d5ea4b000)
@@ -152,11 +155,11 @@ OpenSC
 It's recommended to read at least the README.md of dependency package/D-binding 'opensc' because of the tight dependency
 on the specific opensc binary on Your system that will be used (by driver and acos5_64_gui) !!
 Required is one of
-libopensc.so.5 in opensc version 0.17.0
-libopensc.so.6 in opensc version 0.18.0
+libopensc.so.5 in opensc version 0.17.0,   subConfigurations: "opensc": "deimosPrior"
+libopensc.so.6 in opensc version 0.18.0,   subConfigurations: "opensc": "deimos"
 
 Depending on the binary opensc version used,
-change dub.json to "libs-posix": [":libopensc.so.5"] or "libs-posix": [":libopensc.so.6"]
+the appropriate subconfiguration must be selected in acos5_64_gui/dubjson (as explained in the beginning)
 
 Also https://github.com/carblue/opensc/blob/master/info/options is a recommended read !
 
@@ -171,8 +174,7 @@ and also Debian packaging cares for p11-kit configuration files for OpenSC's PKC
 p11-kit is installed. The 'Typical Installation' described doesn't care for p11-kit configuration files.
 
 Requirements are a libopensc.so.? and opensc-pkcs11.so installed/available afterwards !
-I assume, You now have an opensc version 0.18.0 binary installation (otherwise a 0.17.0 binary, which requires ommitting
-OPENSC_VERSION_LATEST from the bindings dub.json and changing from libopensc.so.6 to libopensc.so.5). Following the 'Typical Installation' will #define
+I assume, You now have an opensc version 0.18.0 binary installation (otherwise a 0.17.0 binary). Following the 'Typical Installation' will #define
 ENABLE_SM, ENABLE_OPENSSL  and NOT #define SIMCLIST_WITH_THREADS, SIMCLIST_DUMPRESTORE in the binary build.
 
 The driver/SM libacos5_64.so binaries available here depend on a specific version of opensc && compiler/phobos && openssl 1.1.0 !
@@ -198,7 +200,7 @@ Review the settings done by etc_opensc_opensc_conf.patch, escpecially 3 points r
 2. If You want/Your card/token uses Secure Messaging (in FIPS mode, SM definitely is used !), then 2 correct keyset_* must exist:
    keyset_..._02_enc (which corresponds to record #2 with key reference 0x82 on card) and keyset_..._02_mac  (which corresponds to
    record #1 with key reference 0x81 on card), all are 24 byte keys according to SESSIONKEYSIZE24 set.
-   TODO expalin: For FIPS mode, the above is different, keyset_..._01* will be used (as security officer key and encryption key),
+   TODO explain: For FIPS mode, the above is different, keyset_..._01* will be used (as security officer key and encryption key),
    no session keys used  etc.
 
    keyset* and corresponding keys on card must be the same, i.e. You are using 2 recommendedly different, 24 byte keys, that both
@@ -218,7 +220,7 @@ Review the settings done by etc_opensc_opensc_conf.patch, escpecially 3 points r
                 decrypted response data
    (c) SM-enc:  Secure Messaging for Authenticity and Confidentiality, MAC-generation and check as well as encryption/decryption
                 of command (payload) data / response data
-   TODO expalin: For FIPS mode, the above is different: There is no (b) option
+   TODO explain: For FIPS mode, the above is different: There is no (b) option
 
    Not all commands need/support SM and the support also depends on the hardware (V2 / V3 (Nano)). Whether and which kind of SM
    applies, depends on the SCB SecurityConditionByte (which may point to some SecurityEnvironmentFile record).
@@ -230,9 +232,9 @@ Review the settings done by etc_opensc_opensc_conf.patch, escpecially 3 points r
    If exactly acl is defined as mode (it means something like access control decides about SM), then the driver acos5_64 will
    evaluate the SCB setting for possible SM related bits and - if requested - automatically turn on the appropriate Secure
    Messaging option and establish a 'secure channel' for Secure Messaging for one command and the possible response only,
-   afterwards closes the 'secure channel' for Secure Messaging, i.e. 'forgets' the waste 2 SessionKeys, zeroizes the
+   afterwards closes the 'secure channel' of Secure Messaging, i.e. 'forgets' the waste 2 SessionKeys, zeroizes the
    InitialVector (SendSequenceCounter), removes any Control Reference Templates accumulated in internal memory and revokes the
-   'state authenticated' of KeyTerminal = symetric key reference 0x81.
+   'state authenticated' of KeyTerminal = symmetric key reference 0x81.
 
    Setting up for Secure Messaging is not simple but it's worth the hassle for increased security. Here is an example:
    Suppose I want to read a file's content with SM-enc and let ?? denote a hex byte setting that's not relevant in this context:
@@ -267,6 +269,7 @@ Review the settings done by etc_opensc_opensc_conf.patch, escpecially 3 points r
    What acos5_64_gui currently does, is showing Header/meta infos (FCI) for file and it's directory, which exposes all relevant
    SCB s and SAE content.
 
+   Update: acos5_64_gui now can write sym keys !
    Put Key operations aren't yet provided by acos5_64_gui, but nevertheless, You have to lookup the "Symmetric Key Record Format"
    in the ACOS5-64 reference manual anyway: There are decisions to make about Retry(Error) / Usage Counter as well.
 Here are example commands (within the quotes) to use (e.g. from gscriptor, but better eliminate spaces used here for readability):

@@ -106,8 +106,8 @@ import acos5_64_shared;
 import pub;
 
 import util_opensc : lh, card, acos5_64_short_select, readFile, decompose, PKCS15Path_FileType, pkcs15_names,
-    PKCS15_FILE_TYPE, fs, sitTypeFS, PRKDF, PUKDF, AODF, cry_____7_4_4___46_generate_keypair_RSA,
-    util_connect_card, connect_card, PKCS15_ObjectTyp, errorDescription, PKCS15, iter_begin, appdf, prkdf, pukdf, tnTypePtr,
+    PKCS15_FILE_TYPE, fs, sitTypeFS, PRKDF, PUKDF, AODF, SKDF, cry_____7_4_4___46_generate_keypair_RSA,
+    util_connect_card, connect_card, PKCS15_ObjectTyp, errorDescription, PKCS15, iter_begin, appdf, tnTypePtr,
     /*populate_tree_fs,*/ itTypeFS, aid, cm_7_3_1_14_get_card_info, is_ACOSV3_opmodeV3_FIPS_140_2L3, is_ACOSV3_opmodeV3_FIPS_140_2L3_active,
     my_pkcs15init_callbacks, tlv_Range_mod, file_type, cry_pso_7_4_3_8_2A_asym_encrypt_RSA, getIdentifier;
 
@@ -128,8 +128,12 @@ struct _sizeNewRSAprivateFile{}
 struct _sizeNewRSApublicFile{}
 
 
+tnTypePtr   prkdf;
+tnTypePtr   pukdf;
 
 bool isNewKeyPairId;
+int  nextUniqueId; //= nextUniqueKeyId();
+int  nextUniquePairNo;
 
 
 enum /* matrixKeyAsymRowName */ {
@@ -218,18 +222,18 @@ Pub!(_AC_Delete_Create_RSADir,        ubyte[2])  AC_Delete_Create_RSADir;
 void keyAsym_initialize_PubObs() {
     /* initialze the publisher/observer system for GenerateKeyPair_RSA_tab */
     // some variables are declared as publisher though they don't need to be, currently just for consistency, but that's not the most efficient way
-    keyAsym_Label           = new Pub!(_keyAsym_Label,string)  (r_keyAsym_Label,            AA["matrixKeyAsym"]);
-    keyAsym_RSAmodulusLenBits          = new Pub!_keyAsym_RSAmodulusLenBits         (r_keyAsym_RSAmodulusLenBits,          AA["matrixKeyAsym"]);
-    keyAsym_crtModeGenerate    = new Pub!_keyAsym_crtModeGenerate   (r_keyAsym_crtModeGenerate,    AA["matrixKeyAsym"]);
+    keyAsym_Label             = new Pub!(_keyAsym_Label,string)  (r_keyAsym_Label,            AA["matrixKeyAsym"]);
+    keyAsym_RSAmodulusLenBits = new Pub!_keyAsym_RSAmodulusLenBits         (r_keyAsym_RSAmodulusLenBits,          AA["matrixKeyAsym"]);
+    keyAsym_crtModeGenerate   = new Pub!_keyAsym_crtModeGenerate   (r_keyAsym_crtModeGenerate,    AA["matrixKeyAsym"]);
     keyAsym_usageGenerate     = new Pub!_keyAsym_usageGenerate (r_keyAsym_usageGenerate,  AA["matrixKeyAsym"]);
-    keyAsym_usagePrKDF      = new Pub!_keyAsym_usagePrKDF(r_keyAsym_usagePrKDF, AA["matrixKeyAsym"]);
-    keyAsym_Modifiable      = new Pub!_keyAsym_Modifiable      (r_keyAsym_Modifiable,       AA["matrixKeyAsym"]);
-    keyAsym_authId          = new Pub!_keyAsym_authId       (r_keyAsym_authId,    AA["matrixKeyAsym"], true);
-    keyAsym_Id              = new Pub!_keyAsym_Id              (r_keyAsym_Id,               AA["matrixKeyAsym"], true);
-    keyAsym_fidAppDir       = new Pub!_keyAsym_fidAppDir              (r_keyAsym_fidAppDir,               AA["matrixKeyAsym"], true);
-    fidRSAprivate           = new PubA2!_fidRSAprivate        (r_fidRSAprivate,           AA["matrixKeyAsym"]);
-    fidRSApublic            = new PubA2!_fidRSApublic         (r_fidRSApublic,            AA["matrixKeyAsym"]);
-    valuePublicExponent     = new PubA16!_valuePublicExponent (r_valuePublicExponent,     AA["matrixKeyAsym"]);
+    keyAsym_usagePrKDF        = new Pub!_keyAsym_usagePrKDF(r_keyAsym_usagePrKDF, AA["matrixKeyAsym"]);
+    keyAsym_Modifiable        = new Pub!_keyAsym_Modifiable      (r_keyAsym_Modifiable,       AA["matrixKeyAsym"]);
+    keyAsym_authId            = new Pub!_keyAsym_authId       (r_keyAsym_authId,    AA["matrixKeyAsym"], true);
+    keyAsym_Id                = new Pub!_keyAsym_Id              (r_keyAsym_Id,               AA["matrixKeyAsym"], true);
+    keyAsym_fidAppDir         = new Pub!_keyAsym_fidAppDir              (r_keyAsym_fidAppDir,               AA["matrixKeyAsym"], true);
+    fidRSAprivate             = new PubA2!_fidRSAprivate        (r_fidRSAprivate,           AA["matrixKeyAsym"]);
+    fidRSApublic              = new PubA2!_fidRSApublic         (r_fidRSApublic,            AA["matrixKeyAsym"]);
+    valuePublicExponent       = new PubA16!_valuePublicExponent (r_valuePublicExponent,     AA["matrixKeyAsym"]);
     AC_Update_PrKDF_PuKDF           = new Pub!(_AC_Update_PrKDF_PuKDF,ubyte[2])           (r_AC_Update_PrKDF_PuKDF,           AA["matrixKeyAsym"]);
     AC_Update_Delete_RSAprivateFile = new Pub!(_AC_Update_Delete_RSAprivateFile,ubyte[2]) (r_AC_Update_Delete_RSAprivateFile, AA["matrixKeyAsym"]);
     AC_Update_Delete_RSApublicFile  = new Pub!(_AC_Update_Delete_RSApublicFile, ubyte[2]) (r_AC_Update_Delete_RSApublicFile,  AA["matrixKeyAsym"]);
@@ -250,41 +254,41 @@ void keyAsym_initialize_PubObs() {
     keyAsym_RSAmodulusLenBits         .connect(&sizeNewRSApublicFile.watch);
 
     keyAsym_usagePrKDF.connect(&keyAsym_usagePuKDF.watch);
+    // keyAsym_Id must be connected first to change_calcPrKDF, and only then to change_calcPuKDF
+    keyAsym_Id               .connect(&change_calcPrKDF.watch); // THIS MUST BE the first entry for change_calcPrKDF ! If no keyAsym_Id is selected, this MUST be the only one accessible
+    keyAsym_Label            .connect(&change_calcPrKDF.watch);
+    keyAsym_authId           .connect(&change_calcPrKDF.watch);
+    keyAsym_Modifiable       .connect(&change_calcPrKDF.watch);
+    keyAsym_RSAmodulusLenBits.connect(&change_calcPrKDF.watch);
+    keyAsym_usagePrKDF       .connect(&change_calcPrKDF.watch);
+//  fidRSAprivate            .connect(&change_calcPrKDF.watch);
 
-    keyAsym_Id              .connect(&change_calcPrKDF.watch); // THIS MUST BE the first entry for change_calcPrKDF ! If no keyAsym_Id is selected, this MUST be the only one accessible
-    keyAsym_Label           .connect(&change_calcPrKDF.watch);
-    keyAsym_authId       .connect(&change_calcPrKDF.watch);
-    keyAsym_Modifiable      .connect(&change_calcPrKDF.watch);
-    keyAsym_RSAmodulusLenBits         .connect(&change_calcPrKDF.watch);
-    keyAsym_usagePrKDF.connect(&change_calcPrKDF.watch);
-//  fidRSAprivate          .connect(&change_calcPrKDF.watch);
+    keyAsym_Id               .connect(&change_calcPuKDF.watch); // THIS MUST BE the first entry for change_calcPuKDF ! If no keyAsym_Id is selected, this MUST be the only one accessible
+    keyAsym_Label            .connect(&change_calcPuKDF.watch);
+//  authIdRSApublicFile      .connect(&change_calcPuKDF.watch);
+    keyAsym_Modifiable       .connect(&change_calcPuKDF.watch);
+    keyAsym_RSAmodulusLenBits.connect(&change_calcPuKDF.watch);
+    keyAsym_usagePuKDF       .connect(&change_calcPuKDF.watch);
+//  fidRSApublic             .connect(&change_calcPuKDF.watch);
 
-    keyAsym_Id              .connect(&change_calcPuKDF.watch); // THIS MUST BE the first entry for change_calcPuKDF ! If no keyAsym_Id is selected, this MUST be the only one accessible
-    keyAsym_Label           .connect(&change_calcPuKDF.watch);
-//  authIdRSApublicFile    .connect(&change_calcPuKDF.watch);
-    keyAsym_Modifiable      .connect(&change_calcPuKDF.watch);
-    keyAsym_RSAmodulusLenBits         .connect(&change_calcPuKDF.watch);
-    keyAsym_usagePuKDF .connect(&change_calcPuKDF.watch);
-//  fidRSApublic           .connect(&change_calcPuKDF.watch);
-
-    keyAsym_fidAppDir              .connect(&statusInput.watch);
-    fidRSAprivate          .connect(&statusInput.watch);
-    fidRSApublic           .connect(&statusInput.watch);
-    valuePublicExponent    .connect(&statusInput.watch);
-    keyAsym_usagePrKDF.connect(&statusInput.watch);
-    keyAsym_usageGenerate .connect(&statusInput.watch);
-    sizeNewRSAprivateFile  .connect(&statusInput.watch);
-    sizeNewRSApublicFile   .connect(&statusInput.watch);
+    keyAsym_fidAppDir    .connect(&statusInput.watch);
+    fidRSAprivate        .connect(&statusInput.watch);
+    fidRSApublic         .connect(&statusInput.watch);
+    valuePublicExponent  .connect(&statusInput.watch);
+    keyAsym_usagePrKDF   .connect(&statusInput.watch);
+    keyAsym_usageGenerate.connect(&statusInput.watch);
+    sizeNewRSAprivateFile.connect(&statusInput.watch);
+    sizeNewRSApublicFile .connect(&statusInput.watch);
 
 //// values to start with
-    keyAsym_fidAppDir              .set(appdf is null? 0 : ub22integral(appdf.data[2..4]), true);
-    keyAsym_crtModeGenerate   .set(true, true);
-    keyAsym_usageGenerate .set(4,   true); // this is only for acos-generation; no variable depends on this
+    keyAsym_fidAppDir      .set(appdf is null? 0 : ub22integral(appdf.data[2..4]), true);
+    keyAsym_crtModeGenerate.set(true, true);
+    keyAsym_usageGenerate  .set(4,   true); // this is only for acos-generation; no variable depends on this
     AC_Update_PrKDF_PuKDF  .set([prkdf is null? 0xFF : prkdf.data[25], pukdf is null? 0xFF : pukdf.data[25]], true); // no variable depends on this
     AC_Delete_Create_RSADir.set([appdf is null? 0xFF : appdf.data[24], appdf is null? 0xFF : appdf.data[25]], true); // no variable depends on this
-    toggle_RSA_cb(AA["toggle_RSA_PrKDF_PuKDF_change"].GetHandle, 1); // was set to active already
+    toggle_radioKeyAsym_cb(AA["toggle_RSA_PrKDF_PuKDF_change"].GetHandle, 1); // was set to active already
 //    AA["radioKeyAsym"].SetAttribute("VALUE_HANDLE", "toggle_RSA_PrKDF_PuKDF_change"); // doesn't work: "Changes the active toggle"
-//    AA["toggle_RSA_PrKDF_PuKDF_change"].SetIntegerVALUE(1); // Doesn't invoke toggle_RSA_cb
+//    AA["toggle_RSA_PrKDF_PuKDF_change"].SetIntegerVALUE(1); // Doesn't invoke toggle_radioKeyAsym_cb
 }
 
 
@@ -554,11 +558,20 @@ class Obs_change_calcPrKDF {
                         asn1_delete_structure(&_PrKDFentry.structure_new);
                     if (isNewKeyPairId) {
                         _PrKDFentry = PKCS15_ObjectTyp.init;
-//30 2F 30 0A 0C 01 3F 03 02 06   C0 04 01 01 30 0F 04 01 FF 03   03 06 20 00 03 02 03 B8 02 01   FF A1 10 30 0E 30 08 04 06 3F   00 41 00 41 FF 02 02 10 00
-                        _PrKDFentry.der = (cast(immutable(ubyte)[])hexString!"30 2F 30 0A 0C 01 3F 03 02 06 C0 04 01 01 30 0F 04 01 FF 03 03 06 20 00 03 02 03 B8 02 01 FF A1 10 30 0E 30 08 04 06 3F 00 41 00 41 FF 02 02 10 00").dup;
-                        _PrKDFentry.der[18] = cast(ubyte)v;
-                        _PrKDFentry.der[30] = cast(ubyte)v;
-                        _PrKDFentry.der[44] = 0xF0 | cast(ubyte)v;
+                        nextUniquePairNo = nextUniqueRSAKeyPairNo();
+                        assert(nextUniquePairNo>0);
+                        /*
+                        authId must be adapted
+                        */
+
+//30 2C 30 0A 0C 01 3F 03 02 06   C0 04 01 00 30 0C 04 01 FF 03   03 06 20 00 03 02 03 B8   A1 10 30 0E 30 08 04 06 3F 00 41 00 41 F7 02 02 10 00
+                        _PrKDFentry.der = (cast(immutable(ubyte)[])hexString!"30 2C 30 0A 0C 01 3F 03 02 06   C0 04 01 00 30 0C 04 01 FF 03   03 06 20 00 03 02 03 B8   A1 10 30 0E 30 08 04 06 3F 00 41 00 41 F7 02 02 10 00").dup;
+                        // all settings are preselected (except for keyAsym_authId) and must be set afterwards
+                        _PrKDFentry.der[13] = cast(ubyte)keyAsym_authId.get; // FIXME
+                        _PrKDFentry.der[18] = cast(ubyte)nextUniqueId;
+//                        _PrKDFentry.der[30] = cast(ubyte)v;
+                         /* CONVENTION, profile */
+                        _PrKDFentry.der[41] = 0xF0 | cast(ubyte)nextUniquePairNo;
                         asn1_result = asn1_create_element(PKCS15, pkcs15_names[PKCS15_FILE_TYPE.PKCS15_PRKDF][1], &_PrKDFentry.structure); // "PKCS15.PrivateKeyType"
                         if (asn1_result != ASN1_SUCCESS) {
                             assumeWontThrow(writeln("### Structure creation: ", asn1_strerror2(asn1_result)));
@@ -649,8 +662,8 @@ class Obs_change_calcPrKDF {
         switch (msg) {
             case "_keyAsym_Label":
                 char[] label = v.dup ~ '\0';
-                GC.addRoot(cast(void*)label.ptr);
-                GC.setAttr(cast(void*)label.ptr, GC.BlkAttr.NO_MOVE);
+//                GC.addRoot(cast(void*)label.ptr);
+//                GC.setAttr(cast(void*)label.ptr, GC.BlkAttr.NO_MOVE);
                 asn1_result = asn1_write_value(_PrKDFentry.structure_new, "privateRSAKey.commonObjectAttributes.label", label.ptr, 0);
                 if (asn1_result != ASN1_SUCCESS)
                     assumeWontThrow(writeln("### asn1_write_value privateRSAKey.commonObjectAttributes.label: ", asn1_strerror2(asn1_result)));
@@ -660,6 +673,7 @@ class Obs_change_calcPrKDF {
                 writeln(msg); stdout.flush();
                 assert(0, "Unknown observation");
         }
+        GC.collect();
         present();
     }
 
@@ -668,7 +682,7 @@ class Obs_change_calcPrKDF {
 //        assert(_PrKDFentry.posEnd); // it has been set
         _PrKDFentry.der_new = new ubyte[_PrKDFentry.der.length+32];
         int outDerLen;
-        int asn1_result = asn1_der_coding(_PrKDFentry.structure_new, "", _PrKDFentry.der_new, outDerLen, errorDescription);
+        immutable asn1_result = asn1_der_coding(_PrKDFentry.structure_new, "", _PrKDFentry.der_new, outDerLen, errorDescription);
         if (asn1_result != ASN1_SUCCESS)
         {
             printf ("\n### _PrKDFentry.der_new encoding creation: ERROR  with Obs_change_calcPrKDF\n");
@@ -717,12 +731,11 @@ class Obs_change_calcPuKDF {
                         asn1_delete_structure(&_PuKDFentry.structure_new);
                     if (isNewKeyPairId) {
                         _PuKDFentry = PKCS15_ObjectTyp.init;
-//30 2F 30 0A 0C 01 3F 03 02 06   C0 04 01 01 30 0F 04 01 FF 03   03 06 20 00 03 02 03 B8 02 01   FF A1 10 30 0E 30 08 04 06 3F   00 41 00 41 FF 02 02 10 00
-//30 2C 30 07 0C 01 3F 03 02 06   40          30 0F 04 01 FF 03   03 06 02 00 03 02 03 48 02 01   FF A1 10 30 0E 30 08 04 06 3F   00 41 00 41 FF 02 02 10 00
-                        _PuKDFentry.der = (cast(immutable(ubyte)[])hexString!"30 2C 30 07 0C 01 3F 03 02 06 40 30 0F 04 01 FF 03 03 06 02 00 03 02 03 48 02 01 FF A1 10 30 0E 30 08 04 06 3F 00 41 00 41 FF 02 02 10 00").dup;
-                        _PuKDFentry.der[15] = cast(ubyte)v;
-                        _PuKDFentry.der[27] = cast(ubyte)v;
-                        _PuKDFentry.der[41] = 0x30 | cast(ubyte)v;
+//30 29 30 07 0C 01 3F 03 02 06 40   30 0C 04 01 FF 03   03 06 02 00 03 02 03 48   A1 10 30 0E 30 08 04 06 3F 00 41 00 41 FF 02 02 10 00
+                        _PuKDFentry.der = (cast(immutable(ubyte)[])hexString!"30 29 30 07 0C 01 3F 03 02 06 40   30 0C 04 01 FF 03   03 06 02 00 03 02 03 48   A1 10 30 0E 30 08 04 06 3F 00 41 00 41 FF 02 02 10 00").dup;
+                        _PuKDFentry.der[15] = cast(ubyte)nextUniqueId;
+//                        _PuKDFentry.der[27] = cast(ubyte)v;
+                        _PuKDFentry.der[38] = 0x30 | cast(ubyte)nextUniquePairNo;
                         asn1_result = asn1_create_element(PKCS15, pkcs15_names[PKCS15_FILE_TYPE.PKCS15_PUKDF][1], &_PuKDFentry.structure); // "PKCS15.PublicKeyType"
                         if (asn1_result != ASN1_SUCCESS) {
                             assumeWontThrow(writeln("### Structure creation: ", asn1_strerror2(asn1_result)));
@@ -813,7 +826,8 @@ class Obs_change_calcPuKDF {
 //        assert(_PuKDFentry.posEnd); // it has been set
         _PuKDFentry.der_new = new ubyte[_PuKDFentry.der.length+32];
         int outDerLen;
-        int asn1_result = asn1_der_coding(_PuKDFentry.structure_new, "", _PuKDFentry.der_new, outDerLen, errorDescription);
+        immutable asn1_result = asn1_der_coding(_PuKDFentry.structure_new, "", _PuKDFentry.der_new, outDerLen,
+            errorDescription);
         if (asn1_result != ASN1_SUCCESS)
         {
             printf ("\n### _PuKDFentry.der_new encoding creation: ERROR  with Obs_change_calcPuKDF\n");
@@ -975,22 +989,53 @@ Operating with a 1 byte is NOT CONFORMANT to the standard, that's just how it is
 The topic RSA Keypair file id must be reviewed as well: There are some hardcoded restrictions/conventions/rules, in the driver as well
 
 */
-int nextUniqueKeyPairId() nothrow {
+int nextUniqueRSAKeyPairNo() nothrow {
     int[] keyAsym_IdAllowedRange = iota(1,16).array;
+    int PairNo; // privateRSAKey.privateRSAKeyAttributes.value.indirect.path.path
+    ubyte[16]  str;
+    int outLen;
+    int asn1_result;
     foreach (ref elem; PRKDF) {
-        int id = getIdentifier(elem, "privateRSAKey.commonKeyAttributes.iD");
-        keyAsym_IdAllowedRange = find!((a,b) => a == b)(keyAsym_IdAllowedRange, id); // remove any id smaller than id found
+        if ((asn1_result= asn1_read_value(elem.structure, "privateRSAKey.privateRSAKeyAttributes.value.indirect.path.path", str, outLen)) != ASN1_SUCCESS) {
+            assumeWontThrow(writefln("### asn1_read_value %s: %s", "privateRSAKey.privateRSAKeyAttributes.value.indirect.path.path", asn1_strerror2(asn1_result)));
+            assert(0);
+        }
+        assert(outLen>=2);
+        PairNo = str[outLen-1]&0x0F;
+        keyAsym_IdAllowedRange = find!((a,b) => a == b)(keyAsym_IdAllowedRange, PairNo); // remove any id smaller than id found
         if (keyAsym_IdAllowedRange.length)
             keyAsym_IdAllowedRange = keyAsym_IdAllowedRange[1..$]; // remove id found
     }
 //    int result = keyAsym_IdAllowedRange.empty? -1 : keyAsym_IdAllowedRange.front;
-//assumeWontThrow(writeln("nextUniqueKeyPairId: ", result));
+//assumeWontThrow(writeln("nextUniqueRSAKeyPairNo: ", result));
+    return  keyAsym_IdAllowedRange.empty? -1 : keyAsym_IdAllowedRange.front;//result;
+}
+
+int nextUniqueKeyId() nothrow {
+    int[] keyAsym_IdAllowedRange = iota(1,32).array;
+    int id;
+    foreach (ref elem; SKDF) {
+        id = getIdentifier(elem, "des3Key.commonKeyAttributes.iD");
+        if (id<0)
+            continue;
+        keyAsym_IdAllowedRange = find!((a,b) => a == b)(keyAsym_IdAllowedRange, id); // remove any id smaller than id found
+        if (keyAsym_IdAllowedRange.length)
+            keyAsym_IdAllowedRange = keyAsym_IdAllowedRange[1..$]; // remove id found
+    }
+    foreach (ref elem; PRKDF) {
+        id = getIdentifier(elem, "privateRSAKey.commonKeyAttributes.iD");
+        keyAsym_IdAllowedRange = find!((a,b) => a == b)(keyAsym_IdAllowedRange, id); // remove any id smaller than id found
+        if (keyAsym_IdAllowedRange.length)
+            keyAsym_IdAllowedRange = keyAsym_IdAllowedRange[1..$]; // remove id found
+    }
+/+ +/
+
     return keyAsym_IdAllowedRange.empty? -1 : keyAsym_IdAllowedRange.front;//result;
 }
 
 void populate_info_from_getResponse(ref ub32 info, /*const*/ ubyte[MAX_FCI_GET_RESPONSE_LEN] rbuf)  nothrow {
 //    assumeWontThrow(writefln("%(%02X %)     %(%02X %)", info, rbuf));
-    ubyte len = rbuf[1];
+    immutable len = rbuf[1];
     foreach (d,T,L,V; tlv_Range_mod(rbuf[2..2+len])) {
         if      (T == /*ISO7816_TAG_FCP_.*/ISO7816_TAG_FCP_SIZE)
             info[4..6]/*fileSize*/ = V[0..2];
@@ -1067,6 +1112,8 @@ ushort bitString2ushort_reversed(const bool[] bs) @nogc nothrow pure @safe {
 
 int set_more_for_keyAsym_Id(int keyAsym_Id) nothrow
 {
+    assert(keyAsym_Id > 0);
+
     import core.bitop : bitswap;
 
     string activeToggle = AA["radioKeyAsym"].GetStringVALUE();
@@ -1075,12 +1122,9 @@ int set_more_for_keyAsym_Id(int keyAsym_Id) nothrow
 
     int  asn1_result;
     int  outLen;
-    PKCS15_ObjectTyp  PrKDFentry, PuKDFentry;
 
-    assert(keyAsym_Id > 0);
-
-    PrKDFentry = change_calcPrKDF.pkcs15_ObjectTyp;
-    PuKDFentry = change_calcPuKDF.pkcs15_ObjectTyp;
+    PKCS15_ObjectTyp  PrKDFentry = change_calcPrKDF.pkcs15_ObjectTyp;
+    PKCS15_ObjectTyp  PuKDFentry = change_calcPuKDF.pkcs15_ObjectTyp;
 
     ubyte[1] flags; // optional
     asn1_result = asn1_read_value(PrKDFentry.structure_new, "privateRSAKey.commonObjectAttributes.flags", flags, outLen);
@@ -1096,7 +1140,7 @@ int set_more_for_keyAsym_Id(int keyAsym_Id) nothrow
             IupMessage("Feedback upon setting keyAsym_Id",
 "The PrKDF entry for the selected keyAsym_Id disallows modifying the RSA private key !\nThe toggle will be changed to toggle_RSA_PrKDF_PuKDF_change toggled");
             AA["toggle_RSA_PrKDF_PuKDF_change"].SetIntegerVALUE(1);
-            toggle_RSA_cb(AA["toggle_RSA_PrKDF_PuKDF_change"].GetHandle, 1);
+            toggle_radioKeyAsym_cb(AA["toggle_RSA_PrKDF_PuKDF_change"].GetHandle, 1);
         }
     }
     ubyte[1] authId; // optional
@@ -1107,7 +1151,7 @@ int set_more_for_keyAsym_Id(int keyAsym_Id) nothrow
     else {
         assert(outLen==1);
         if (authId[0])
-            assert(flags[0]&1); // may run into a problem if asn1_read_value for flags failed
+        {    assert(flags[0]&1); } // may run into a problem if asn1_read_value for flags failed
         keyAsym_authId.set(authId[0], true);
     }
 
@@ -1122,6 +1166,7 @@ int set_more_for_keyAsym_Id(int keyAsym_Id) nothrow
         else
             keyAsym_Label.set(assumeUnique(label[0..outLen]), true);
     }
+    GC.collect();
 
     ubyte[2] keyUsageFlags; // non-optional
     asn1_result = asn1_read_value(PrKDFentry.structure_new, "privateRSAKey.commonKeyAttributes.usage", keyUsageFlags, outLen);
@@ -1141,7 +1186,7 @@ int set_more_for_keyAsym_Id(int keyAsym_Id) nothrow
         assumeWontThrow(writeln("### asn1_read_value privateRSAKey.privateRSAKeyAttributes.modulusLength: ", asn1_strerror2(asn1_result)));
     assert(outLen==2);
 //assumeWontThrow(writefln("modulusLength set by set_more_for_keyAsym_Id: %(%02X %)", modulusLength));
-    ushort modulusBitLen = ub22integral(modulusLength);
+    immutable modulusBitLen = ub22integral(modulusLength);
     assert(modulusBitLen%256==0 && modulusBitLen>=512  && modulusBitLen<=4096);
     keyAsym_RSAmodulusLenBits.set(modulusBitLen, true);
 
@@ -1197,16 +1242,16 @@ valuePublicExponent.set(buf, true);
         isNewKeyPairId = false;
     }
     else {
-
         enum string commands = `
-int rv;
-foreach (ub2 fid; chunks(rsaPub.data[8..8+rsaPub.data[1]], 2))
-    rv= acos5_64_short_select(card, null, fid, true);
-assert(rv==0);
-ub16 buf;
-rv= sc_get_data(card, 5, buf.ptr, buf.length);
-assert(rv==buf.length);
-valuePublicExponent.set(buf, true);
+        int rv;
+        sc_path path;
+        sc_path_set(&path, SC_PATH_TYPE.SC_PATH_TYPE_PATH, &rsaPub.data[8], rsaPub.data[1], 0, -1);
+        rv= sc_select_file(card, &path, null);
+        assert(rv==0);
+        ub16 buf;
+        rv= sc_get_data(card, 5, buf.ptr, buf.length);
+        assert(rv==buf.length);
+        valuePublicExponent.set(buf, true);
 `;
         mixin (connect_card!commands);
     }
@@ -1223,7 +1268,7 @@ int matrixKeyAsym_dropcheck_cb(Ihandle* /*self*/, int lin, int col) {
 //    printf("matrixKeyAsym_dropcheck_cb(%d, %d)\n", lin, col);
 //    printf("matrixKeyAsym_dropcheck_cb  %s\n", AA["radioKeyAsym"].GetAttributeVALUE());
     string activeToggle = AA["radioKeyAsym"].GetStringVALUE();
-    bool isSelectedKeyPairId = AA["matrixKeyAsym"].GetIntegerId2("", r_keyAsym_Id, 1) != 0;
+    immutable isSelectedKeyPairId = AA["matrixKeyAsym"].GetIntegerId2("", r_keyAsym_Id, 1) != 0;
     switch (lin) {
     /* dropdown */
         case r_keyAsym_Id:
@@ -1231,10 +1276,10 @@ int matrixKeyAsym_dropcheck_cb(Ihandle* /*self*/, int lin, int col) {
                 return IUP_DEFAULT; // show the dropdown/popup menu
             return     IUP_IGNORE; // draw nothing
 
-        case r_keyAsym_authId:
-            if (!activeToggle.among("toggle_RSA_key_pair_delete", "toggle_RSA_key_pair_try_sign")  &&  isSelectedKeyPairId)
-                return IUP_DEFAULT; // show the dropdown/popup menu
-            return     IUP_IGNORE; // draw nothing
+//        case r_keyAsym_authId:
+//            if (!activeToggle.among("toggle_RSA_key_pair_delete", "toggle_RSA_key_pair_try_sign")  &&  isSelectedKeyPairId)
+//                return IUP_DEFAULT; // show the dropdown/popup menu
+//            return     IUP_IGNORE; // draw nothing
 
         case r_keyAsym_RSAmodulusLenBits:
             if ( !activeToggle.among("toggle_RSA_PrKDF_PuKDF_change", "toggle_RSA_key_pair_delete", "toggle_RSA_key_pair_try_sign")  &&  isSelectedKeyPairId)
@@ -1260,7 +1305,7 @@ int matrixKeyAsym_drop_cb(Ihandle* /*self*/, Ihandle* drop, int lin, int col) {
     if (col!=1 || lin>r_keyAsym_crtModeGenerate)
         return IUP_IGNORE; // draw nothing
 //    printf("matrixKeyAsym_drop_cb(%d, %d)\n", lin, col);
-    string activeToggle = AA["radioKeyAsym"].GetStringVALUE();
+    immutable activeToggle = AA["radioKeyAsym"].GetStringVALUE();
     ubyte[2]  str;
     int outLen;
     int asn1_result, rv;
@@ -1279,7 +1324,7 @@ int matrixKeyAsym_drop_cb(Ihandle* /*self*/, Ihandle* drop, int lin, int col) {
                 return IUP_DEFAULT; // show a dropdown field
             }
             return     IUP_IGNORE;  // show a text-edition field
-
+/*
         case r_keyAsym_authId:
             if (activeToggle != "toggle_RSA_key_pair_delete") {
                 int i = 1;
@@ -1301,7 +1346,7 @@ assumeWontThrow(writeln("### asn1_read_value pinAuthObj.commonAuthenticationObje
                 return IUP_DEFAULT;
             }
             return     IUP_IGNORE;
-
+*/
         case r_keyAsym_RSAmodulusLenBits:
             foreach (i; 1..16)
                 SetIntegerId("", i, 4096-(i-1)*256);
@@ -1336,7 +1381,7 @@ v: Indicates if item was selected or unselected (1 or 0). Always 1 for the popup
     catch(Exception e) { printf("### Exception in matrixKeyAsym_dropselect_cb\n"); return IUP_CONTINUE; }
 ////    printf("matrixKeyAsym_dropselect_cb(lin: %d, col: %d, text (t) of the item whose state was changed: %s, mumber (i) of the item whose state was changed: %d, selected (v): %d)\n", lin, col, t, i, v);
     if (v/*selected*/ && col==1) {
-        Handle h = createHandle(self);
+//        Handle h = createHandle(self);
 
         switch (lin) {
             case r_keyAsym_RSAmodulusLenBits:
@@ -1347,11 +1392,11 @@ v: Indicates if item was selected or unselected (1 or 0). Always 1 for the popup
             case r_keyAsym_Id:
                 keyAsym_Id.set = val; //h.GetIntegerVALUE;
                 break;
-
+/*
             case r_keyAsym_authId:
                 keyAsym_authId.set = val; //h.GetIntegerVALUE;
                 break;
-
+*/
             default:
                 assert(0);//break;
         }
@@ -1359,32 +1404,33 @@ v: Indicates if item was selected or unselected (1 or 0). Always 1 for the popup
     return IUP_CONTINUE; // return IUP_DEFAULT;
 }
 
-int matrixKeyAsym_edition_cb(Ihandle* ih, int lin, int col, int mode, int update)
+int matrixKeyAsym_edition_cb(Ihandle* ih, int lin, int col, int mode, int /*update*/)
 {
 //mode: 1 if the cell has entered the edition mode, or 0 if the cell has left the edition mode
 //update: used when mode=0 to identify if the value will be updated when the callback returns with IUP_DEFAULT. (since 3.0)
 //matrixKeyAsym_edition_cb(1, 1) mode: 1, update: 0
 //matrixKeyAsym_edition_cb(1, 1) mode: 0, update: 1
 ////    printf("matrixKeyAsym_edition_cb(%d, %d) mode: %d, update: %d\n", lin, col, mode, update);
-    string activeToggle = AA["radioKeyAsym"].GetStringVALUE();
-    bool isSelectedKeyPairId = AA["matrixKeyAsym"].GetIntegerId2("", r_keyAsym_Id, 1) != 0;
+    immutable activeToggle = AA["radioKeyAsym"].GetStringVALUE();
+    immutable isSelectedKeyPairId = AA["matrixKeyAsym"].GetIntegerId2("", r_keyAsym_Id, 1) != 0;
     if (mode==1) {
         AA["statusbar"].SetString(IUP_TITLE, "statusbar");
+        // toggle row alway readonly, if they are NOT enabled as toggles; otherwise: enabled as toggles don't go through edition
+        if (col==2 || lin.among(r_keyAsym_crtModeGenerate, r_keyAsym_Modifiable))
+            return IUP_IGNORE;
+        if (lin==r_keyAsym_authId)
+            return IUP_IGNORE;
         if (!isSelectedKeyPairId) {
-            if (lin.among(r_keyAsym_Modifiable,
-                          r_keyAsym_usagePrKDF,
+            if (lin.among(r_keyAsym_usagePrKDF,
                           r_keyAsym_Label,
                           r_keyAsym_RSAmodulusLenBits))
-                return IUP_IGNORE;
-            if (lin==r_keyAsym_authId && activeToggle != "toggle_RSA_key_pair_delete")
                 return IUP_IGNORE;
         }
         switch (activeToggle) {
             case "toggle_RSA_PrKDF_PuKDF_change":
-                if (col==2 || lin.among(r_acos_internal,
+                if (lin.among(r_acos_internal,
 //                                     r_keyAsym_Id,
                                        r_keyAsym_RSAmodulusLenBits,
-                                       r_keyAsym_crtModeGenerate,
                                        r_keyAsym_usageGenerate,
 //                                     r_keyAsym_Label,
                                        r_keyAsym_fidAppDir,
@@ -1399,7 +1445,6 @@ int matrixKeyAsym_edition_cb(Ihandle* ih, int lin, int col, int mode, int update
                                        r_statusInput
 //                                     r_keyAsym_usagePrKDF,
 //                                       r_keyAsym_usagePuKDF,  hidden
-//                                     r_keyAsym_Modifiable
                 )) // read_only
                     return IUP_IGNORE;
                 else
@@ -1409,7 +1454,6 @@ int matrixKeyAsym_edition_cb(Ihandle* ih, int lin, int col, int mode, int update
                 if (col==2 || lin.among(r_acos_internal,
 //                                     r_keyAsym_Id,
                                        r_keyAsym_RSAmodulusLenBits,
-                                       r_keyAsym_crtModeGenerate,
                                        r_keyAsym_usageGenerate,
                                        r_keyAsym_Label,
                                        r_keyAsym_fidAppDir,
@@ -1424,7 +1468,6 @@ int matrixKeyAsym_edition_cb(Ihandle* ih, int lin, int col, int mode, int update
                                        r_statusInput,
                                        r_keyAsym_usagePrKDF,
 //                                       r_keyAsym_usagePuKDF,  hidden
-                                       r_keyAsym_Modifiable
                 )) // read_only
                     return IUP_IGNORE;
                 else
@@ -1435,7 +1478,6 @@ int matrixKeyAsym_edition_cb(Ihandle* ih, int lin, int col, int mode, int update
                 if (col==2 || lin.among(r_acos_internal,
 //                                     r_keyAsym_Id,
 //                                       r_keyAsym_RSAmodulusLenBits,
-//                                       r_keyAsym_crtModeGenerate,
 //                                       r_keyAsym_usageGenerate,
 //                                       r_keyAsym_Label,
                                        r_keyAsym_fidAppDir,
@@ -1450,7 +1492,6 @@ int matrixKeyAsym_edition_cb(Ihandle* ih, int lin, int col, int mode, int update
                                        r_statusInput
 //                                       r_keyAsym_usagePrKDF,
 //                                       r_keyAsym_usagePuKDF,  hidden
-//                                       r_keyAsym_Modifiable
                 )) // read_only
                     return IUP_IGNORE;
                 else
@@ -1463,9 +1504,7 @@ int matrixKeyAsym_edition_cb(Ihandle* ih, int lin, int col, int mode, int update
     // shortcut for dropdown and toggle
     if (lin.among(r_keyAsym_RSAmodulusLenBits, // obj.val set.method in matrixKeyAsym_dropselect_cb
                   r_keyAsym_Id,                // obj.val set.method in matrixKeyAsym_dropselect_cb
-                  r_keyAsym_authId,            // obj.val set.method in matrixKeyAsym_dropselect_cb
-                  r_keyAsym_crtModeGenerate,   // obj.val set.method in matrixKeyAsym_togglevalue_cb
-                  r_keyAsym_Modifiable,        // obj.val set.method in matrixKeyAsym_togglevalue_cb
+//                  r_keyAsym_authId,            // obj.val set.method in matrixKeyAsym_dropselect_cb
     ))
         return IUP_DEFAULT;
 
@@ -1499,7 +1538,7 @@ int matrixKeyAsym_edition_cb(Ihandle* ih, int lin, int col, int mode, int update
 
         case r_keyAsym_usageGenerate:
             {
-                int tmp = clamp(h.GetIntegerVALUE & 6, 2, 6);
+                immutable tmp = clamp(h.GetIntegerVALUE & 6, 2, 6);
                 keyAsym_usageGenerate.set(tmp, true); // strange, doesn't update with new string
                 h.SetStringVALUE(keyUsageFlagsInt2string(tmp));
             }
@@ -1521,16 +1560,16 @@ int matrixKeyAsym_edition_cb(Ihandle* ih, int lin, int col, int mode, int update
         case r_keyAsym_Label:
             keyAsym_Label.set = h.GetStringVALUE();
             break;
-
+/*
         case r_keyAsym_authId:
             keyAsym_authId.set = cast(int) ub82integral(string2ubaIntegral(h.GetStringVALUE()));
             break;
-
+*/
         default:
             break;
     }
     return IUP_DEFAULT;
-}
+} // matrixKeyAsym_edition_cb
 
 int matrixKeyAsym_togglevalue_cb(Ihandle* /*self*/, int lin, int col, int status)
 {
@@ -1538,11 +1577,11 @@ int matrixKeyAsym_togglevalue_cb(Ihandle* /*self*/, int lin, int col, int status
 ////    printf("matrixKeyAsym_togglevalue_cb(%d, %d) status: %d\n", lin, col, status);
     switch (lin) {
         case r_keyAsym_Modifiable:
-            bool isSelectedKeyPairId = AA["matrixKeyAsym"].GetIntegerId2("", r_keyAsym_Id, 1) != 0;
+            immutable isSelectedKeyPairId = AA["matrixKeyAsym"].GetIntegerId2("", r_keyAsym_Id, 1) != 0;
             if (isSelectedKeyPairId)
                 keyAsym_Modifiable.set = status;
             else
-                assert(0);
+            {    assert(0); }
             break;
 
         case r_keyAsym_crtModeGenerate:
@@ -1554,15 +1593,15 @@ int matrixKeyAsym_togglevalue_cb(Ihandle* /*self*/, int lin, int col, int status
     return IUP_DEFAULT;
 }
 
-int toggle_RSA_cb(Ihandle* ih, int state)
+int toggle_radioKeyAsym_cb(Ihandle* ih, int state)
 {
-//    printf("toggle_RSA_cb (%d) %s\n", state, IupGetName(ih));
+//    printf("toggle_radioKeyAsym_cb (%d) %s\n", state, IupGetName(ih));
     if (state==0) { // for the toggle, that lost activated state
         /* if the keyAsym_Id is not valid (e.g. prior selected was "toggle_RSA_key_pair_create_and_generate" but no creation was invoked)
            then select a valid one */
         int Id;
         Handle h = AA["matrixKeyAsym"];
-        string inactivatedToggle = IupGetName(ih).fromStringz.idup;
+        immutable inactivatedToggle = IupGetName(ih).fromStringz.idup;
         if (inactivatedToggle == "toggle_RSA_key_pair_create_and_generate" &&
             empty(find!((a,b) => b == getIdentifier(a, "privateRSAKey.commonKeyAttributes.iD"))(PRKDF, keyAsym_Id.get)))
             foreach (int i, const ref elem; PRKDF) {
@@ -1581,53 +1620,57 @@ int toggle_RSA_cb(Ihandle* ih, int state)
         IupMessage("Feedback upon setting keyAsym_Id",
 "The PrKDF entry for the selected keyAsym_Id disallows modifying the RSA private key !\nThe toggle will be changed to toggle_RSA_PrKDF_PuKDF_change toggled");
         AA["toggle_RSA_PrKDF_PuKDF_change"].SetIntegerVALUE(1);
-        toggle_RSA_cb(AA["toggle_RSA_PrKDF_PuKDF_change"].GetHandle, 1);
+        toggle_radioKeyAsym_cb(AA["toggle_RSA_PrKDF_PuKDF_change"].GetHandle, 1);
         return IUP_DEFAULT;
     }
 
     Handle hButton = AA["btn_RSA"];
-////    printf("toggle_RSA_cb (%d) %s\n", state, activeToggle.toStringz);
+////    printf("toggle_radioKeyAsym_cb (%d) %s\n", state, activeToggle.toStringz);
 
     with (AA["matrixKeyAsym"])
     switch (activeToggle) {
-        case "toggle_RSA_PrKDF_PuKDF_change":            hButton.SetString(IUP_TITLE, "PrKDF/PuKDF only: Change some administrative (PKCS#15) data");
+        case "toggle_RSA_PrKDF_PuKDF_change":
+            hButton.SetString(IUP_TITLE, "PrKDF/PuKDF only: Change some administrative (PKCS#15) data");
             SetRGBId2(IUP_BGCOLOR, r_keyAsym_Modifiable,       1,  152,251,152);
             SetRGBId2(IUP_BGCOLOR, r_keyAsym_usagePrKDF, 1,  152,251,152);
             SetRGBId2(IUP_BGCOLOR, r_keyAsym_Label,            1,  152,251,152);
-            SetRGBId2(IUP_BGCOLOR, r_keyAsym_authId,        1,  152,251,152);
+//            SetRGBId2(IUP_BGCOLOR, r_keyAsym_authId,        1,  152,251,152);
 
             SetRGBId2(IUP_BGCOLOR, r_keyAsym_RSAmodulusLenBits,          1,  255,255,255);
             SetRGBId2(IUP_BGCOLOR, r_valuePublicExponent,     1,  255,255,255);
             SetRGBId2(IUP_BGCOLOR, r_keyAsym_crtModeGenerate,    1,  255,255,255);
             SetRGBId2(IUP_BGCOLOR, r_keyAsym_usageGenerate,  1,  255,255,255);
             break;
-        case "toggle_RSA_key_pair_delete":               hButton.SetString(IUP_TITLE, "RSA key pair: Delete key pair files (Currently not capable to delete the last existing key pair, i.e. one must remain to be selectable)");
+        case "toggle_RSA_key_pair_delete":
+            hButton.SetString(IUP_TITLE, "RSA key pair: Delete key pair files (Currently not capable to delete the last existing key pair, i.e. one must remain to be selectable)");
             SetRGBId2(IUP_BGCOLOR, r_keyAsym_Modifiable,       1,  255,255,255);
             SetRGBId2(IUP_BGCOLOR, r_keyAsym_usagePrKDF, 1,  255,255,255);
             SetRGBId2(IUP_BGCOLOR, r_keyAsym_Label,            1,  255,255,255);
-            SetRGBId2(IUP_BGCOLOR, r_keyAsym_authId,        1,  255,255,255);
+//            SetRGBId2(IUP_BGCOLOR, r_keyAsym_authId,        1,  255,255,255);
 
             SetRGBId2(IUP_BGCOLOR, r_keyAsym_RSAmodulusLenBits,          1,  255,255,255);
             SetRGBId2(IUP_BGCOLOR, r_valuePublicExponent,     1,  255,255,255);
             SetRGBId2(IUP_BGCOLOR, r_keyAsym_crtModeGenerate,    1,  255,255,255);
             SetRGBId2(IUP_BGCOLOR, r_keyAsym_usageGenerate,  1,  255,255,255);
             break;
-        case "toggle_RSA_key_pair_regenerate":           hButton.SetString(IUP_TITLE, "RSA key pair: Regenerate RSA key pair content in existing files (Takes some time: Up to 3-5 minutes for 4096 bit)");
+        case "toggle_RSA_key_pair_regenerate":
+            hButton.SetString(IUP_TITLE, "RSA key pair: Regenerate RSA key pair content in existing files (Takes some time: Up to 3-5 minutes for 4096 bit)");
             SetRGBId2(IUP_BGCOLOR, r_keyAsym_Modifiable,       1,  152,251,152);
             SetRGBId2(IUP_BGCOLOR, r_keyAsym_usagePrKDF, 1,  152,251,152);
             SetRGBId2(IUP_BGCOLOR, r_keyAsym_Label,            1,  152,251,152);
-            SetRGBId2(IUP_BGCOLOR, r_keyAsym_authId,        1,  152,251,152);
+//            SetRGBId2(IUP_BGCOLOR, r_keyAsym_authId,        1,  152,251,152);
 
             SetRGBId2(IUP_BGCOLOR, r_keyAsym_RSAmodulusLenBits,          1,  152,251,152);
             SetRGBId2(IUP_BGCOLOR, r_valuePublicExponent,     1,  152,251,152);
             SetRGBId2(IUP_BGCOLOR, r_keyAsym_crtModeGenerate,    1,  152,251,152);
             SetRGBId2(IUP_BGCOLOR, r_keyAsym_usageGenerate,  1,  152,251,152);
             break;
-        case "toggle_RSA_key_pair_create_and_generate":  hButton.SetString(IUP_TITLE, "RSA key pair: Create new RSA key pair files and generate RSA key pair content");
+        case "toggle_RSA_key_pair_create_and_generate":
+            hButton.SetString(IUP_TITLE, "RSA key pair: Create new RSA key pair files and generate RSA key pair content");
             SetRGBId2(IUP_BGCOLOR, r_keyAsym_Modifiable,       1,  152,251,152);
             SetRGBId2(IUP_BGCOLOR, r_keyAsym_usagePrKDF, 1,  152,251,152);
             SetRGBId2(IUP_BGCOLOR, r_keyAsym_Label,            1,  152,251,152);
-            SetRGBId2(IUP_BGCOLOR, r_keyAsym_authId,        1,  152,251,152);
+//            SetRGBId2(IUP_BGCOLOR, r_keyAsym_authId,        1,  152,251,152);
 
             SetRGBId2(IUP_BGCOLOR, r_keyAsym_RSAmodulusLenBits,          1,  152,251,152);
             SetRGBId2(IUP_BGCOLOR, r_valuePublicExponent,     1,  152,251,152);
@@ -1635,15 +1678,16 @@ int toggle_RSA_cb(Ihandle* ih, int state)
             SetRGBId2(IUP_BGCOLOR, r_keyAsym_usageGenerate,  1,  152,251,152);
 
             isNewKeyPairId = true;
-            int nextUniqueId = nextUniqueKeyPairId();
-            assert(nextUniqueId>=0);
+            nextUniqueId = nextUniqueKeyId();
+            assert(nextUniqueId>0);
             keyAsym_Id.set(nextUniqueId, true);
             break;
-        case "toggle_RSA_key_pair_try_sign":  hButton.SetString(IUP_TITLE, "RSA key pair: Sign SHA1/SHA256 hash");
+        case "toggle_RSA_key_pair_try_sign":
+            hButton.SetString(IUP_TITLE, "RSA key pair: Sign SHA1/SHA256 hash");
             SetRGBId2(IUP_BGCOLOR, r_keyAsym_Modifiable,       1,  255,255,255);
             SetRGBId2(IUP_BGCOLOR, r_keyAsym_usagePrKDF, 1,  255,255,255);
             SetRGBId2(IUP_BGCOLOR, r_keyAsym_Label,            1,  255,255,255);
-            SetRGBId2(IUP_BGCOLOR, r_keyAsym_authId,        1,  255,255,255);
+//            SetRGBId2(IUP_BGCOLOR, r_keyAsym_authId,        1,  255,255,255);
 
             SetRGBId2(IUP_BGCOLOR, r_keyAsym_RSAmodulusLenBits,          1,  255,255,255);
             SetRGBId2(IUP_BGCOLOR, r_valuePublicExponent,     1,  255,255,255);
@@ -1656,7 +1700,8 @@ int toggle_RSA_cb(Ihandle* ih, int state)
     valuePublicExponent.emit_self(); // invokes updating statusInput for am activated toggle; (valuePublicExponent is arbitrary here, just one, that statusInput depends on)
     // a 'clean' alternative would be, to introduce a Publisher toggle, that statusInput depends on
     return IUP_DEFAULT;
-}
+} // toggle_radioKeyAsym_cb
+
 
 const char[] btn_RSA_cb_common1 =`
             int diff;
@@ -1736,7 +1781,7 @@ const char[] btn_RSA_cb_common1 =`
                 elem.posEnd       += diff;
             }
             bufPubl ~=  zeroAdd;
-            assert(prkdf);
+            assert(pukdf);
 //assumeWontThrow(writeln("  ### check change_calcPuKDF.pkcs15_ObjectTyp: ", change_calcPuKDF.pkcs15_ObjectTyp));
 //assumeWontThrow(writeln("  ### check haystackPubl:                      ", haystackPubl));
 `;
@@ -1764,9 +1809,16 @@ int btn_RSA_cb(Ihandle* ih)
     }
 
     Handle hstat = AA["statusbar"];
-    string activeToggle = AA["radioKeyAsym"].GetStringVALUE();
+    immutable activeToggle = AA["radioKeyAsym"].GetStringVALUE();
 
     switch (activeToggle) {
+/*
+        case "toggle_RSA_PrKDF_PuKDF_change",
+             "toggle_RSA_key_pair_delete",
+             "toggle_RSA_key_pair_regenerate",
+             "toggle_RSA_key_pair_create_and_generate",
+             "toggle_RSA_key_pair_try_sign": break;
+*/
         case "toggle_RSA_PrKDF_PuKDF_change":
             if (equal(change_calcPrKDF.pkcs15_ObjectTyp.der, change_calcPrKDF.pkcs15_ObjectTyp.der_new) &&
                 equal(change_calcPuKDF.pkcs15_ObjectTyp.der, change_calcPuKDF.pkcs15_ObjectTyp.der_new) ) {
@@ -1775,7 +1827,7 @@ int btn_RSA_cb(Ihandle* ih)
             }
 
             //Does statusInput check, that the bytes to be written to PrKDF and PuKDF are there in "free space"
-            bool doDelete = false;
+            immutable bool doDelete;// = false;
             mixin(btn_RSA_cb_common1);
 
             enum string commands = `
@@ -1825,7 +1877,7 @@ int btn_RSA_cb(Ihandle* ih)
             return IUP_DEFAULT; // case "toggle_RSA_PrKDF_PuKDF_change"
 
         case "toggle_RSA_key_pair_regenerate":
-            bool doDelete = false;
+            immutable bool doDelete; // = false;
             mixin(btn_RSA_cb_common1);
 
             auto       pos_parent = new sitTypeFS(appdf);
@@ -1877,7 +1929,7 @@ int btn_RSA_cb(Ihandle* ih)
 //            // select app dir
 //            {
 //                ub2 fid = integral2uba!2(keyAsym_fidAppDir.get)[0..2];
-//                rv= acos5_64_short_select(card, null, fid, true);
+//                rv= acos5_64_short_select(card, fid);
 //                assert(rv==0);
 //            }
             sc_path_set(&file.path, SC_PATH_TYPE.SC_PATH_TYPE_PATH, &prFile.data[8], prFile.data[1], 0, -1);
@@ -1950,8 +2002,8 @@ int btn_RSA_cb(Ihandle* ih)
            The key pair must be modifiable; flags bit modifiable
            Ask for permission, if the key pair id is associated with a certificate, because it will render the certificate useless
         */
-            bool doDelete = true;
-            int keyAsym_Id_old = keyAsym_Id.get;
+            immutable doDelete = true;
+            immutable keyAsym_Id_old = keyAsym_Id.get;
             mixin(btn_RSA_cb_common1);
 
             auto       pos_parent = new sitTypeFS(appdf);
@@ -2016,7 +2068,7 @@ int btn_RSA_cb(Ihandle* ih)
             rv= sc_pkcs15init_delete_by_path(profile, p15card, &file.path);
             assert(rv == SC_SUCCESS);
 `;
-            mixin (connect_card!commands); // x-1930 -56
+            mixin (connect_card!commands);
             hstat.SetString(IUP_TITLE, "SUCCESS: Delete key pair files");
 
             // the files are deleted, but still part of fs and tree view; now remove those too
@@ -2029,7 +2081,7 @@ int btn_RSA_cb(Ihandle* ih)
                 assert(nodeFS);
                 if (nodeFS.data[0] != EFDB.RSA_Key_EF)
                     continue;
-                ubyte len = nodeFS.data[1];
+                immutable len = nodeFS.data[1];
                 if (countUntil!((a,b) => equal(a[], b))(searched, nodeFS.data[8+len-2..8+len]) >= 0) {
                     auto  tr = cast(iup.iup_plusD.Tree) AA["tree_fs"];
                     int id = tr.GetId(nodeFS);
@@ -2048,8 +2100,12 @@ int btn_RSA_cb(Ihandle* ih)
             Handle h = AA["matrixKeyAsym"];
             // set to another keyAsym_Id, the first found
             foreach (int i, const ref elem; PRKDF) {
+                rv = 0;
                 if ((rv= getIdentifier(elem, "privateRSAKey.commonKeyAttributes.iD")) < 0)
+                {    assert(0); }// continue;
+                if (rv==keyAsym_Id_old)
                     continue;
+                assert(rv>0);
                 h.SetIntegerId2("", r_keyAsym_Id, 1, rv);
                 matrixKeyAsym_dropselect_cb(h.GetHandle, r_keyAsym_Id, 1, null, rv.to!string.toStringz, i+1, 1);
                 break;
@@ -2057,6 +2113,7 @@ int btn_RSA_cb(Ihandle* ih)
             // TODO remove will leak memory of structure
             PRKDF = PRKDF.remove!((a) => getIdentifier(a, "privateRSAKey.commonKeyAttributes.iD") == keyAsym_Id_old);
             PUKDF = PUKDF.remove!((a) => getIdentifier(a, "publicRSAKey.commonKeyAttributes.iD")  == keyAsym_Id_old);
+//assumeWontThrow(writeln(PRKDF));
 
             GC.collect(); // just a check
             return IUP_DEFAULT; // case "toggle_RSA_key_pair_delete"
@@ -2064,15 +2121,16 @@ int btn_RSA_cb(Ihandle* ih)
         case "toggle_RSA_key_pair_create_and_generate":
             ubyte keyAsym_IdCurrent = cast(ubyte)keyAsym_Id.get;
             { // scope for the Cryptoki session; upon leaving, everything related get's closed/released
-                import core.sys.posix.dlfcn;
-                import util_pkcs11;
+                import core.sys.posix.dlfcn : dlsym, dlerror;
+                import util_pkcs11 : pkcs11_check_return_value, pkcs11_get_slot, pkcs11_start_session, pkcs11_login,
+                    pkcs11_logout, pkcs11_end_session;
 
                 CK_RV              rv;
                 CK_BYTE[8]         userPin =  0;//[0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38];
                 int       pinLocal     = 1;//(info.attrs.pin.reference&0x80)==0x80;
                 int       pinReference = 1;//info.attrs.pin.reference&0x7F; // strip the local flag
 
-                int rc = IupGetParam(toStringz("Pin requested for authorization (SCB)"),
+                immutable rc = IupGetParam(toStringz("Pin requested for authorization (SCB)"),
                     null/* &param_action*/, null/* void* user_data*/, /*format*/
                     "&Pin local (User)? If local==No, then it's the Security Officer Pin:%b[No,Yes]\n" ~
                     "&Pin reference (1-31; selects the record# in pin file):%i\n" ~
@@ -2091,7 +2149,8 @@ int btn_RSA_cb(Ihandle* ih)
 //                        return IUP_DEFAULT;
                     }
 
-                auto ctrl_generate_keypair_RSA = cast(ft_ctrl_generate_keypair_RSA) dlsym(lh, "ctrl_generate_keypair_RSA");
+                auto ctrl_generate_keypair_RSA =
+                    cast(ft_ctrl_generate_keypair_RSA) dlsym(lh, "ctrl_generate_keypair_RSA");
                 char* error = dlerror();
                 if (error) {
                     printf("dlsym error ctrl_generate_keypair_RSA: %s\n", error);
@@ -2160,7 +2219,8 @@ int btn_RSA_cb(Ihandle* ih)
                     &privateKey);
                 pkcs11_check_return_value(rv, "generate key pair");
                 if (rv != SC_SUCCESS)
-                    hstat.SetString(IUP_TITLE, "FAILURE: Generate new RSA key pair. This isn't abnormal with acos. Just try again");
+                    hstat.SetString(IUP_TITLE, "FAILURE: Generate new RSA key pair. This isn't abnormal with acos."~
+                        " Just try again");
 
                 pkcs11_logout(session);
                 pkcs11_end_session(session);
@@ -2229,12 +2289,12 @@ int btn_RSA_cb(Ihandle* ih)
                 rv = sc_update_binary(card, puPosEnd, PuKDFentry.der_new.ptr, PuKDFentry.der_new.length, 0);
             assert(rv==PuKDFentry.der_new.length);
 
-            fci_se_info  info2;
-            rv= acos5_64_short_select(card, &info2, integral2uba!2(fidRSAprivate.get[0])[0..2], true, rbuf_priv);
+            FCISEInfo  info2;
+            rv= acos5_64_short_select(card, integral2uba!2(fidRSAprivate.get[0])[0..2], &info2, rbuf_priv);
             assert(rv == SC_SUCCESS); // the file should exist now: it was created by the C_GenerateKeyPair call
             info_priv[24..32] = info2.sac[];
-            info2 = fci_se_info.init;
-            rv= acos5_64_short_select(card, &info2, integral2uba!2(fidRSApublic.get[0])[0..2], true, rbuf_publ);
+            info2 = FCISEInfo.init;
+            rv= acos5_64_short_select(card, integral2uba!2(fidRSApublic.get[0])[0..2],  &info2, rbuf_publ);
             assert(rv == SC_SUCCESS); // the file should exist now: it was created by the C_GenerateKeyPair call
             info_publ[24..32] = info2.sac[];
 `;
@@ -2280,7 +2340,7 @@ int btn_RSA_cb(Ihandle* ih)
             }
 +/
             AA["toggle_RSA_PrKDF_PuKDF_change"].SetIntegerVALUE(1);
-            toggle_RSA_cb(AA["toggle_RSA_PrKDF_PuKDF_change"].GetHandle, 1);
+            toggle_radioKeyAsym_cb(AA["toggle_RSA_PrKDF_PuKDF_change"].GetHandle, 1);
             keyAsym_Id.set(keyAsym_IdCurrent, true);
             hstat.SetString(IUP_TITLE, "SUCCESS: RSA_key_pair_create_and_generate");
             GC.collect(); // just a check
@@ -2334,7 +2394,7 @@ int btn_RSA_cb(Ihandle* ih)
 //            // select app dir
 //            {
 //                ub2 fid = integral2uba!2(keyAsym_fidAppDir.get)[0..2];
-//                rv= acos5_64_short_select(card, null, fid, true);
+//                rv= acos5_64_short_select(card, fid);
 //                assert(rv==0);
 //            }
             sc_path_set(&file.path, SC_PATH_TYPE.SC_PATH_TYPE_PATH, &prFile.data[8], prFile.data[1], 0, -1);
