@@ -13,7 +13,7 @@ Features planned/about to be implemented:
 - [x] View Cryptoki/Slot/Token-Info.<br>
 - [x] View (, manipulate) the filesystem in a tree- and other views (with some obvious restrictions, e.g. resizing files is impossible with this card type).<br>
 - [x] RSA keys/PrKDF/PuKDF handling.<br>
-- [x] Sym keys/SKDF handling. (No new SKDF entries written currently, work in progress)<br>
+- [x] Sym keys/SKDF handling.<br>
 - [ ] Pin/AOD handling.<br>
 - [ ] Certificate/CDF handling<br>
 - [ ] Export/Import file system<br>

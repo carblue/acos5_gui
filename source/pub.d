@@ -4,8 +4,8 @@ import core.stdc.stdio : printf;
 import std.signals;// : Signal;
 import std.format : format;
 import std.conv: to;
-import std.exception : assumeWontThrow;
-import std.stdio;
+////import std.exception : assumeWontThrow;
+////import std.stdio;
 
 import iup.iup_plusD : Handle;
 import util_general;
@@ -26,7 +26,7 @@ struct _keyAsym_fidAppDir{}
 struct _AC_Update_PrKDF_PuKDF{}            //SCB
 struct _AC_Update_Delete_RSAprivateFile{}
 struct _AC_Update_Delete_RSApublicFile{}
-struct _AC_Delete_Create_RSADir{}
+struct _AC_Create_Delete_RSADir{}
 //Obs
 //struct _keyAsym_usagePuKDF{}
 
@@ -36,12 +36,12 @@ struct _keySym_algoType{}
 struct _keySym_keyLenBits{}
 struct _keySym_usageSKDF{}
 
-struct _keySym_ExtAutStore{}
-struct _keySym_ExtAut_ErrorCounterYN{}
-struct _keySym_ExtAut_ErrorCounterValue{}
-struct _keySym_IntAutStore{}
-struct _keySym_IntAut_UsageCounterYN{}
-struct _keySym_IntAut_UsageCounterValue{}
+struct _keySym_ExtAuthYN{}
+struct _keySym_ExtAuthErrorCounterYN{}
+struct _keySym_ExtAuthErrorCounterValue{}
+struct _keySym_IntAuthYN{}
+struct _keySym_IntAuthUsageCounterYN{}
+struct _keySym_IntAuthUsageCounterValue{}
 
 struct _keySym_Id{}
 struct _keySym_recordNo{}
@@ -139,7 +139,7 @@ Retrieve the class object reference from an attribure (where it will be used)  W
     @property V set(V v, bool programmatically=false)  nothrow {
         try {
             _value = v;
-assumeWontThrow(writefln(T.stringof~" object was set to value %s", _value));
+////assumeWontThrow(writefln(T.stringof~" object was set to value %s", _value));
 
             static if (is(T==_keyAsym_usageGenerate) || is(T==_keyAsym_usagePrKDF) || is(T==_keySym_usageSKDF)) { /*|| is(T==_keyAsym_usagePuKDF)*/
                 if (_h !is null) {
@@ -153,7 +153,7 @@ assumeWontThrow(writefln(T.stringof~" object was set to value %s", _value));
                     _h.SetStringId2 ("", _lin, _col, _value);
                 }
             }
-            else static if (is(T==_AC_Update_PrKDF_PuKDF) || is(T==_AC_Delete_Create_RSADir) ||
+            else static if (is(T==_AC_Update_PrKDF_PuKDF) || is(T==_AC_Create_Delete_RSADir) ||
                 is(T==_AC_Update_Delete_RSAprivateFile) || is(T==_AC_Update_Delete_RSApublicFile)) {
                 if (programmatically && _h !is null) {
                     _h.SetStringId2 ("", _lin, _col, format!"%02X"(_value[0])  ~" / "~format!"%02X"(_value[1]));

@@ -75,6 +75,8 @@ import std.algorithm.mutation : remove;
 import std.traits : EnumMembers;
 import std.typecons : Tuple;
 import std.range : iota, slide, chunks/*, enumerate*/;
+import std.range.primitives : empty, front;//, back;
+import std.array : array;
 import std.base64 : Base64;
 
 import libopensc.opensc;// "dependencies" : "opensc": "==0.15.14",   : sc_card,SC_ALGORITHM_DES, SC_ALGORITHM_3DES, SC_ALGORITHM_AES; // to much to make sense listing // sc_format_path, SC_ALGORITHM_RSA, sc_print_path, sc_file_get_acl_entry
@@ -336,6 +338,7 @@ ubyte[] getPath(const ref PKCS15_ObjectTyp ot, string nodeName, bool new_=false,
     }
     return str[0..outLen].dup;
 }
+
 
     /* add space after name:, type: and value:
        pretty-print BIT STRING

@@ -31,7 +31,7 @@ import callbacks;
 import import_export;
 
 import key_asym :
-r_AC_Delete_Create_RSADir,
+r_AC_Create_Delete_RSADir,
 r_acos_internal,
 r_keyAsym_RSAmodulusLenBits,
 r_keyAsym_crtModeGenerate,
@@ -364,8 +364,8 @@ So the existence of this callback defines the matrix operation mode.
 */
     auto matrix = new Matrix("matrixKeyAsym");
     with (matrix) {
-        SetInteger(IUP_NUMLIN,         r_AC_Delete_Create_RSADir);
-        SetInteger(IUP_NUMLIN_VISIBLE, r_AC_Delete_Create_RSADir);
+        SetInteger(IUP_NUMLIN,         r_AC_Create_Delete_RSADir);
+        SetInteger(IUP_NUMLIN_VISIBLE, r_AC_Create_Delete_RSADir);
         SetInteger(IUP_NUMCOL,          2);
         SetInteger(IUP_NUMCOL_VISIBLE,  2);
         SetAttribute(IUP_RESIZEMATRIX, IUP_YES);
@@ -433,7 +433,7 @@ So the existence of this callback defines the matrix operation mode.
         __("Access Control condition for Update / Delete: Private key file"));
         SetAttributeId2("",  r_AC_Update_Delete_RSApublicFile, 0,
         __("Access Control condition for Update / Delete: Public key file"));
-        SetAttributeId2("",  r_AC_Delete_Create_RSADir,        0,
+        SetAttributeId2("",  r_AC_Create_Delete_RSADir,        0,
         __("Access Control condition for Create / Delete EF within enclosing DF"));
         SetAttribute(IUP_TOGGLECENTERED, IUP_YES);
 
@@ -467,26 +467,30 @@ private Vbox create_KeySym_tab() {
     child_array_toggles ~= toggle1;
 
     auto toggle2 = new Toggle("toggle_sym_delete",
-        __("Delete key record's content (select by key id)"));
+        __("Delete key record's content and remove from SKDF (select by key id)"));
     child_array_toggles ~= toggle2;
 
     auto toggle3 = new Toggle("toggle_sym_update",
-    __("Update/Write a key file record (excluding the special keys for Secure Messaging #1 amd #2)"));
+    __("Update existing (in SKDF) key file record (use one of the specialized following 2 choices forspecial keys for Secure Messaging #1 amd #2)"));
     child_array_toggles ~= toggle3;
 //F1010213048516070849A1B0C1D0E0F14589B316FE9437C8  82
 //F1E0D0C1B0A1890807164504130201F189FEB3C837451694  81
 //F1E0D0C1B0A1890807164504130201F189FEB3C837451694
 
     auto toggle4 = new Toggle("toggle_sym_updateSMkeyHost",
-    __("Update/Write record #1 for SM (keyHost for ExtAuth; some restrictions apply; the same must be in opensc.conf as key...mac)"));
+    __("Update existing (in SKDF) record #1 for SM (keyHost for ExtAuth; the same must be in opensc.conf as key...mac)"));
     auto toggle5 = new Toggle("toggle_sym_updateSMkeyCard",
-    __("Update/Write record #2 for SM (keyCard for IntAuth; some restrictions apply; the same must be in opensc.conf as key...enc)"));
+    __("Update existing (in SKDF) record #2 for SM (keyCard for IntAuth; the same must be in opensc.conf as key...enc)"));
     child_array_toggles ~= toggle4;
     child_array_toggles ~= toggle5;
 
-    auto toggle6 = new Toggle("toggle_sym_enc_dec",
-    __("Encrypt or Decrypt fromfile -> tofile"));
+    auto toggle6 = new Toggle("toggle_sym_create_write",
+    __("Write new key file record and add to SKDF"));
     child_array_toggles ~= toggle6;
+
+    auto toggle7 = new Toggle("toggle_sym_enc_dec",
+    __("Encrypt or Decrypt fromfile -> tofile"));
+    child_array_toggles ~= toggle7;
 
     foreach (i,toggle; child_array_toggles) {
         toggle.SetAttributeVALUE(i==0? IUP_ON : IUP_OFF);
@@ -511,7 +515,7 @@ private Vbox create_KeySym_tab() {
         SetInteger(IUP_HEIGHTDEF, 6);
 
 
-//        SetIntegerId(IUP_HEIGHT, r_keySym_IntAutStore, 0);
+//        SetIntegerId(IUP_HEIGHT, r_keySym_IntAuthYN, 0);
 // Don't set values for toggles to be synchronous with receiving variable's .init, which is 0,
 // ir initialize the same value set here
         SetAttributeId2("",  0,                         0,   __("AES/3DES key and SKDF attributes"));
@@ -523,7 +527,7 @@ private Vbox create_KeySym_tab() {
         SetAttributeId2("",  r_keySym_global_local,     2,   "SKDF");
 //SetRGBId2(IUP_BGCOLOR, r_keySym_global_local,       1,  255, 127, 0);
 
-        SetAttributeId2("",  r_keySym_Id,               0,   __("Key file's Id"));
+        SetAttributeId2("",  r_keySym_Id,               0,   __("Key file's SKDF Id"));
         SetAttributeId2("",  r_keySym_Id,               2,   "SKDF");
 
         SetAttributeId2("",  r_keySym_recordNo,         0,   __("Key file's record number  to work with (1-31 max.)  new/append/existing"));
@@ -555,33 +559,33 @@ private Vbox create_KeySym_tab() {
 //        SetAttributeId2("",  r_keySym_algoStore,       0,   __("keySym_algoStore"));
 //        SetAttributeId2("",  r_keySym_algoStore,       2,    "keySym file");
 
-        SetAttributeId2("",  r_keySym_IntAutStore,           0,   __("keySym_IntAutStore"));
-        SetAttributeId2("",  r_keySym_IntAutStore,           2,    "keySym file");
+        SetAttributeId2("",  r_keySym_IntAuthYN,           0,   __("keySym_IntAuthYN"));
+        SetAttributeId2("",  r_keySym_IntAuthYN,           2,    "keySym file");
 
-        SetAttributeId2("",  r_keySym_IntAut_UsageCounterYN,     0,
-        __("keySym_IntAut_UsageCounterYN  Yes only, if want to limit the no. usages in IntAuth., followed by key invalidation"));
-        SetAttributeId2("",  r_keySym_IntAut_UsageCounterYN,     2,    "keySym file");
+        SetAttributeId2("",  r_keySym_IntAuthUsageCounterYN,     0,
+        __("keySym_IntAuthUsageCounterYN  Yes only, if want to limit the no. usages in IntAuth., followed by key invalidation"));
+        SetAttributeId2("",  r_keySym_IntAuthUsageCounterYN,     2,    "keySym file");
 
-        SetAttributeId2("",  r_keySym_IntAut_UsageCounterValue,  0,   __("keySym_IntAut_UsageCounterValue"));
-        SetAttributeId2("",  r_keySym_IntAut_UsageCounterValue,  2,    "keySym file");
+        SetAttributeId2("",  r_keySym_IntAuthUsageCounterValue,  0,   __("keySym_IntAuthUsageCounterValue"));
+        SetAttributeId2("",  r_keySym_IntAuthUsageCounterValue,  2,    "keySym file");
 
-        SetAttributeId2("",  r_keySym_ExtAutStore,           0,   __("keySym_ExtAutStore"));
-        SetAttributeId2("",  r_keySym_ExtAutStore,           2,    "keySym file");
+        SetAttributeId2("",  r_keySym_ExtAuthYN,           0,   __("keySym_ExtAuthYN"));
+        SetAttributeId2("",  r_keySym_ExtAuthYN,           2,    "keySym file");
 
-        SetAttributeId2("",  r_keySym_ExtAut_ErrorCounterYN,     0,
-        __("keySym_ExtAut_ErrorCounterYN  Yes only, if want to limit the no. of errors in ExtAuth., followed by key invalidation"));
-        SetAttributeId2("",  r_keySym_ExtAut_ErrorCounterYN,     2,    "keySym file");
+        SetAttributeId2("",  r_keySym_ExtAuthErrorCounterYN,     0,
+        __("keySym_ExtAuthErrorCounterYN  Yes only, if want to limit the no. of errors in ExtAuth., followed by key invalidation"));
+        SetAttributeId2("",  r_keySym_ExtAuthErrorCounterYN,     2,    "keySym file");
 
-        SetAttributeId2("",  r_keySym_ExtAut_ErrorCounterValue,  0,   __("keySym_ExtAut_ErrorCounterValue 1..14"));
-        SetAttributeId2("",  r_keySym_ExtAut_ErrorCounterValue,  2,    "keySym file");
+        SetAttributeId2("",  r_keySym_ExtAuthErrorCounterValue,  0,   __("keySym_ExtAut_ErrorCounterValue 1..14"));
+        SetAttributeId2("",  r_keySym_ExtAuthErrorCounterValue,  2,    "keySym file");
 
         SetAttributeId2("",  r_keySym_bytesStockAES,            0,   __("Key's bytes stock AES"));
 //        SetAttributeId2("",  r_keySym_bytesStockAES,            1,    "0102030405060708090A0B0C0D0E0F101112131415161718");
-        SetAttributeId2("",  r_keySym_bytesStockAES,            2,    "keySym file");
+//        SetAttributeId2("",  r_keySym_bytesStockAES,            2,    "keySym file");
 
         SetAttributeId2("",  r_keySym_bytesStockDES,            0,   __("Key's bytes stock DES, controlled for odd-parity"));
 //        SetAttributeId2("",  r_keySym_bytesStockDES,            1,    "0102030405060708090A0B0C0D0E0F101112131415161718");
-        SetAttributeId2("",  r_keySym_bytesStockDES,            2,    "keySym file");
+//        SetAttributeId2("",  r_keySym_bytesStockDES,            2,    "keySym file");
 
         SetAttributeId2("",  r_keySym_ByteStringStore,              0,   __("This will be written to file/record"));
         SetAttributeId2("",  r_keySym_ByteStringStore,              2,    "keySym file");
