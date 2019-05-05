@@ -155,7 +155,7 @@ bool is_DFMF(ubyte/*EFDB*/ fdb) pure nothrow @nogc @safe {return (fdb & ISO7816_
 	 the remaining (beginning with RSA_Key_EF, which are all internal EF) are named differently, but have a specific structure as well.
 	 The function returns for file types an ubyte, which equals the corresponding EFDB-structure-enum, or it returns 0 for MF/DF
 */
-ubyte iEF_FDB_to_structure(EFDB FDB) {
+ubyte iEF_FDB_to_structure(EFDB FDB) nothrow {
 	auto result = cast(ubyte)(FDB & 7);
 	if (result.among(1,2,4,6))
 		return result;

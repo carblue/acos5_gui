@@ -131,13 +131,6 @@ ubyte[] string2ubaIntegral(string arr, uint radix=16) nothrow {
 
 //	assert(equal(string2ubaIntegral("439041101", 10), [0x1A, 0x2B, 0x3c, 0x4d]));
 
-/*
-ubaIntegral2string([0x10, 0x20, 0x30, 0x40], 16)  => "10203040"
-ubaIntegral2string([0x10, 0x20, 0x30, 0x40], 10)  => "270544960"
-
-string2ubaIntegral("10203040",  16)               => [0x10, 0x20, 0x30, 0x40]
-string2ubaIntegral("270544960", 10)               => [0x10, 0x20, 0x30, 0x40]
-*/
 
 pragma(inline, true)
 ubyte bitswap ( ubyte x ) pure nothrow @nogc @safe
@@ -260,7 +253,6 @@ else
 
 @safe unittest {
 	writeln("PASSED: bitswap");
-	writeln("PASSED: ub22integral");
 	writeln("PASSED: ub22integral");
 version(X86_64) {
 	writeln("PASSED: integral2uba!8");
