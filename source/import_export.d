@@ -1,6 +1,27 @@
+/*
+ * import_export.d: Program acos5_64_gui's 'import from/export to filesystem' file
+ *
+ * Copyright (C) 2018, 2019  Carsten Blüggel <bluecars@posteo.eu>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335  USA.
+ */
+
+/* Written in the D programming language */
+
 module import_export;
 
-import core.runtime : Runtime;
 import std.stdio;
 import std.conv: to;
 import std.exception : assumeWontThrow;
@@ -21,11 +42,11 @@ import iup.iup_plusD;
 import util_general;// : ub22integral, ubaIntegral2string;
 import acos5_64_shared;
 
-import util_opensc : lh, card, TreeTypeFS, acos5_64_short_select, readFile, decompose, PKCS15Path_FileType, sitTypeFS,
-    fs, PKCS15_FILE_TYPE, util_connect_card, connect_card, cm_7_3_1_14_get_card_info, tlv_Range_mod,
-    is_ACOSV3_opmodeV3_FIPS_140_2L3, is_ACOSV3_opmodeV3_FIPS_140_2L3_active;
+import util_opensc : connect_card, acos5_64_short_select, readFile, decompose, PKCS15Path_FileType, fs, TreeTypeFS,
+    PKCS15_FILE_TYPE, tlv_Range_mod, is_ACOSV3_opmodeV3_FIPS_140_2L3, is_ACOSV3_opmodeV3_FIPS_140_2L3_active;
 
-struct ExportData {
+struct ExportData
+{
         ub2 fid;
         ubyte lcsi;
         ubyte fdb;
@@ -43,22 +64,25 @@ struct ExportData {
 
 extern(C) nothrow:
 
-int btn_exportArchive_cb(Ihandle* ih) {
+int btn_exportArchive_cb(Ihandle* ih)
+{
     int rv;
     string[] list_archiv_files = ["commands_create", "toc_files_active"];
     // all in /tmp ; in the end, take all files listed and package them in the archiv file
 //    list_archiv_files ~= "commands_create";
 //    list_archiv_files ~= "toc_files_active";
 //    string  prefixPath = "";
-    try {
+    try
+    {
         auto f_commands_create  = File("/tmp/commands_create", "w");  // open for writing, i.e. Create an empty file for output operations. If a file with the same name already exists, its contents are discarded and the file is treated as a new empty file.
         auto f_toc_files_active = File("/tmp/toc_files_active", "w"); // dito
 
         ubyte[MAX_FCI_GET_RESPONSE_LEN]  rbuf;
         enum string commands = `
-        foreach (/*const*/ ref e; fs.preOrderRange(fs.begin(), fs.end())) {
-
-            foreach (ub2 fid2; chunks(e[8..8+e[1]], 2)) {
+        foreach (e; fs.rangePreOrder())
+        {
+            foreach (ub2 fid2; chunks(e.data[8..8+e.data[1]], 2))
+            {
                 rv= acos5_64_short_select(card, fid2, null, rbuf);
 //        assumeWontThrow(writefln("fci: 0X[ %(%02X %) ]", rbuf));
             }
@@ -68,12 +92,15 @@ int btn_exportArchive_cb(Ihandle* ih) {
             ubyte len = rbuf[1];
 
             ExportData ed;
-            foreach (d,T,L,V; tlv_Range_mod(rbuf[2..2+len])) {
+            foreach (d,T,L,V; tlv_Range_mod(rbuf[2..2+len]))
+            {
                 if      (T == /*ISO7816_TAG_FCP_.*/ISO7816_TAG_FCP_SIZE)
                     ed.fileSize = ub22integral(V[0..2]);
-                else if (T == /*ISO7816_TAG_FCP_.*/ISO7816_TAG_FCP_TYPE) {
+                else if (T == /*ISO7816_TAG_FCP_.*/ISO7816_TAG_FCP_TYPE)
+                {
                     ed.fdb = V[0];
-                    if (iEF_FDB_to_structure(cast(EFDB)ed.fdb)&6  &&  L.among(5,6)) { // then it's a record-based fdb
+                    if (iEF_FDB_to_structure(cast(EFDB)ed.fdb)&6  &&  L.among(5,6))  // then it's a record-based fdb
+                    {
                         ed.MRL = V[3];
                         ed.NOR = V[L-1];
                     }
@@ -82,17 +109,21 @@ int btn_exportArchive_cb(Ihandle* ih) {
                     ed.fid = V[0..2];
                 else if (T == /*ISO7816_TAG_FCP_.*/ISO7816_TAG_FCP_DF_NAME)
                     ed.df_name[0..L] = V[0..L];
-                else if (T == /*ISO7816_TAG_FCP_.*/ISO7816_TAG_FCP_LCS) {
+                else if (T == /*ISO7816_TAG_FCP_.*/ISO7816_TAG_FCP_LCS)
+                {
                     ed.lcsi = V[0];
                     V[0] = 1;
                 }
-                else if (T == ISO7816_RFU_TAG_FCP_.ISO7816_RFU_TAG_FCP_SAC) {
+                else if (T == ISO7816_RFU_TAG_FCP_.ISO7816_RFU_TAG_FCP_SAC)
+                {
                     ed.ambSAC[0..L] = V[0..L];
                     ed.readable = ! ( L>1  &&  (V[0]&1)  &&  V[L-1]==0xFF);
                 }
                 else if (T == ISO7816_RFU_TAG_FCP_.ISO7816_RFU_TAG_FCP_SEID)
                     ed.seid = V[0..2];
-                else if (T == ISO7816_RFU_TAG_FCP_.ISO7816_RFU_TAG_FCP_SAE) { // this is alway listed in the end, thus it's safe to omit  AB 00; and it must be omitted for non-DF/MF
+                else if (T == ISO7816_RFU_TAG_FCP_.ISO7816_RFU_TAG_FCP_SAE)
+                {
+                // this is alway listed in the end, thus it's safe to omit  AB 00; and it must be omitted for non-DF/MF
                     ed.sae[0..L] = V[0..L];
                     if (!L)
                         ed.saeRemoveLen = 2;
@@ -102,14 +133,17 @@ int btn_exportArchive_cb(Ihandle* ih) {
             string fileName;
             string tail = "  " ~ ed.lcsi.to!string;
             if (ed.NOR)
-                foreach (i; 1..1+ed.NOR) {
-                    fileName = ubaIntegral2string(e[8..8+e[1]]) ~ "_" ~ i.to!string;
+                foreach (i; 1..1+ed.NOR)
+                {
+                    fileName = ubaIntegral2string(e.data[8..8+e.data[1]]) ~ "_" ~ i.to!string;
                     f_toc_files_active.writeln(" " ~ fileName ~ tail);
                     auto buf = new ubyte[ed.MRL];
                     // possible fdb:
-                    if (/*true*/ed.readable) {
-                rv = sc_read_record(card, i, buf.ptr, buf.length, 0 /*flags*/);
-                        if (!(rv>0 && rv==buf.length)) {
+                    if (/*true*/ed.readable)
+                    {
+                        rv = sc_read_record(card, i, buf.ptr, buf.length, 0 /*flags*/);
+                        if (!(rv>0 && rv==buf.length))
+                        {
 assumeWontThrow(writeln("### rv: ", rv));
 assumeWontThrow(writefln("### ed.fid: %(%02X %)", ed.fid));
                         }
@@ -121,18 +155,22 @@ assumeWontThrow(writefln("### unreadable: ed.fid: %(%02X %)", ed.fid));
                     f.rawWrite(buf);
                     list_archiv_files ~= fileName;
                 }
-            else {
-                fileName = ubaIntegral2string(e[8..8+e[1]]);
+            else
+            {
+                fileName = ubaIntegral2string(e.data[8..8+e.data[1]]);
                 f_toc_files_active.writeln( (is_DFMF(ed.fdb)? "#" : " ") ~ fileName ~ tail);
-                if (!is_DFMF(ed.fdb)) {
+                if (!is_DFMF(ed.fdb))
+                {
                     auto buf = new ubyte[ed.fileSize];
                     // possible fdb: 1 (ordinary transparent), 9 (RSA transparent)
-                    if (/*true*/ed.readable) {
+                    if (/*true*/ed.readable)
+                    {
                         if (ed.fdb == 1)
                             rv = sc_read_binary(card, 0, buf.ptr, buf.length, 0 /*flags*/);
                         else
                             rv = sc_get_data(card, 0, buf.ptr, buf.length);
-                        if (!(rv>0 && rv==buf.length)) {
+                        if (!(rv>0 && rv==buf.length))
+                        {
 assumeWontThrow(writeln("### rv: ", rv));
 assumeWontThrow(writefln("### ed.fid: %(%02X %)", ed.fid));
                         }
@@ -153,6 +191,6 @@ assumeWontThrow(writefln("### unreadable: ed.fid: %(%02X %)", ed.fid));
 `;
         mixin(connect_card!commands);
     }
-    catch (Exception e) { /* todo: handle exception */ }
+    catch (Exception e) { printf("### Exception in btn_exportArchive_cb\n"); /* todo: handle exception */ }
     return IUP_DEFAULT;
 }

@@ -1,7 +1,10 @@
-/* Message catalogs for internationalization.
+/*
+   libintl.h: The originaring file: Message catalogs for internationalization.
+
    Copyright (C) 1995-2016 Free Software Foundation, Inc.
-   This file is part of the GNU C Library.
-   This file is derived from the file libgettext.h in the GNU gettext package.
+   The originaring file is part of the GNU C Library.
+   The originaring file is derived from the file libgettext.h in the GNU gettext package.
+   Copyright (C) 2018, 2019  for libintl.d, D binding: Carsten Blüggel <bluecars@posteo.eu>
 
    The GNU C Library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Lesser General Public
@@ -17,19 +20,20 @@
    License along with the GNU C Library; if not, see
    <http://www.gnu.org/licenses/>.
  */
-/*
-Written in the D programming language:  Binding to GNU gettext / libintl.h
-Copyright (C) 2018- : Carsten Blüggel <bluecars@posteo.eu>
 
-For git maintenance (ensure at least one congruent line with originating C header):
+/*
+ * Written in the D programming language
+ * Binding to GNU gettext / libintl.h
+
+ * For git maintenance (ensure at least one congruent line with originating C header):
 #define _LIBINTL_H	1
 
-http://www.labri.fr/perso/fleury/posts/programming/a-quick-gettext-tutorial.html
-TODO  Test how format strings work with %? when using other than printf in D
+ * http://www.labri.fr/perso/fleury/posts/programming/a-quick-gettext-tutorial.html
+ * TODO  Test how format strings work with %? when using other than printf in D
 
-Lets create the hello.pot file from hello.c (we are located in the hello/ directory):
-$> xgettext --keyword=_ --language=C --add-comments --sort-output -o hello.pot hello.c
-*/
+ * Lets create the hello.pot file from hello.c (we are located in the hello/ directory):
+ * $> xgettext --keyword=_ --language=C --add-comments --sort-output -o hello.pot hello.c
+ */
 
 module libintl;
 
@@ -41,7 +45,8 @@ import std.exception : assumeUnique;
 alias _   = gettextD;
 alias __  = gettext;
 
-version(I18N) {
+version(I18N)
+{
 
 string gettextD(const(char)* str) @nogc nothrow pure @trusted { return assumeUnique(fromStringz(gettext(str))); }
 
@@ -140,7 +145,8 @@ bind_textdomain_codeset (const(char)* __domainname, const(char)* __codeset) @tru
 //#endif    /* Optimizing.  */
 +/
 }
-else {
+else
+{
 
 pragma(inline, true)
 string gettextD(const(char)* __msgid) /*@nogc*/ @nogc nothrow pure @trusted {return assumeUnique(fromStringz(__msgid));}

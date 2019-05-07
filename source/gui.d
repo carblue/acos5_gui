@@ -1,23 +1,25 @@
 /*
- * Written in the D programming language, part of package acos5_64_gui.
- * gui.d: Graphical User Interface file, based on IUP
+ * gui.d: Program acos5_64_gui's Graphical User Interface file, based on IUP
  *
- * Copyright (C) 2018- : Carsten Blüggel <bluecars@posteo.eu>
+ * Copyright (C) 2018, 2019  Carsten Blüggel <bluecars@posteo.eu>
  *
- * This application is free software; You can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation,
- * version 2.0 of the License.
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
  *
- * This software is distributed in the hope that it will be useful,
+ * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this application; if not, write to the Free Software
- * Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335  USA
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335  USA.
  */
+
+/* Written in the D programming language */
+
 
 module gui;
 
@@ -68,15 +70,15 @@ toggle_radioKeyAsym_cb
 import key_sym; // matrixKeySym_dropcheck_cb
 
 
-private Hbox create_cryptoki_slot_tokeninfo_tab() {
+private Hbox create_cryptoki_slot_tokeninfo_tab()
+{
     Control[]  child_array1, child_array2;
     Matrix     matrix;
     Text       text;
-//    Vbox       vbox1, vbox2;
-//    List       list;
 
     matrix = new Matrix("slot_token");
-    with (matrix) {
+    with (matrix)
+    {
         SetInteger(IUP_NUMLIN,         43);
         SetInteger(IUP_NUMLIN_VISIBLE, 43);
         SetInteger(IUP_NUMCOL,          1);
@@ -90,56 +92,57 @@ private Hbox create_cryptoki_slot_tokeninfo_tab() {
         SetIntegerId(IUP_WIDTH,   1,    130);
         SetInteger(IUP_HEIGHTDEF,  5);
 
-        SetAttributeId2("", 0,  1,   __("value")); // SetAttributeId2("", 1,  1, "");
+        SetAttributeId2("",  0,  1,   __("value"));
 
-        SetAttributeId2("",  1,  0,   "Cryptoki version"); //  SetAttributeId2("",  7,  1, "CKF_REMOVABLE_DEVICE");
-        SetAttributeId2("",  2,  0,   __("Cryptoki manufacturerID")); //         SetAttributeId2("",  3,  1, "-");
-        SetAttributeId2("",  3,  0,   "Cryptoki flags bitfield"); //  SetAttributeId2("",  7,  1, "CKF_REMOVABLE_DEVICE");
-        SetAttributeId2("",  4,  0,   "Cryptoki libraryDescription"); //         SetAttributeId2("",  3,  1, "-");
-        SetAttributeId2("",  5,  0,   "Cryptoki libraryVersion"); //  SetAttributeId2("",  7,  1, "CKF_REMOVABLE_DEVICE");
+        SetAttributeId2("",  1,  0,   "Cryptoki version");
+        SetAttributeId2("",  2,  0,   __("Cryptoki manufacturerID"));
+//      SetAttributeId2("", ??,  0,   "Cryptoki flags bitfield");
+        SetAttributeId2("",  3,  0,   "Cryptoki libraryDescription");
+        SetAttributeId2("",  4,  0,   "Cryptoki libraryVersion");
 
-        SetAttributeId2("",  6,  0,   "Slot id"); //                  SetAttributeId2("",  1,  1, "-");
-        SetAttributeId2("",  7,  0,   __("Slot description")); //        SetAttributeId2("",  2,  1, "-");
-        SetAttributeId2("",  8,  0,   __("Slot manufacturerID")); //         SetAttributeId2("",  3,  1, "-");
-        SetAttributeId2("",  9,  0,   "Slot flag CKF_TOKEN_PRESENT"); //           SetAttributeId2("",  4,  1, "CKF_REMOVABLE_DEVICE");
-        SetAttributeId2("", 10,  0,   "Slot flag CKF_REMOVABLE_DEVICE"); //           SetAttributeId2("",  5,  1, "CKF_REMOVABLE_DEVICE");
-        SetAttributeId2("", 11,  0,   "Slot flag CKF_HW_SLOT"); //           SetAttributeId2("",  6,  1, "CKF_REMOVABLE_DEVICE");
-        SetAttributeId2("", 12,  0,   "Slot hardware/firmware version"); //  SetAttributeId2("",  7,  1, "CKF_REMOVABLE_DEVICE");
+        SetAttributeId2("",  5,  0,   "No. of slots with a token present (and opensc can bind to)");
+        SetAttributeId2("",  6,  0,   "Slot id (first one with a token present choosen)");
+        SetAttributeId2("",  7,  0,   __("Slot description"));
+        SetAttributeId2("",  8,  0,   __("Slot manufacturerID"));
+        SetAttributeId2("",  9,  0,   "Slot flag CKF_TOKEN_PRESENT");
+        SetAttributeId2("", 10,  0,   "Slot flag CKF_REMOVABLE_DEVICE");
+        SetAttributeId2("", 11,  0,   "Slot flag CKF_HW_SLOT");
+        SetAttributeId2("", 12,  0,   "Slot hardware/firmware version");
 
-        SetAttributeId2("", 13,  0,   __("Token label")); //              SetAttributeId2("",  8,  1, "-");
-        SetAttributeId2("", 14,  0,   __("Token manufacturer")); //       SetAttributeId2("",  9,  1, "-");
-        SetAttributeId2("", 15,  0,   "Token model"); //              SetAttributeId2("", 10,  1, "-");
-        SetAttributeId2("", 16,  0,   "Token serialnr"); //           SetAttributeId2("", 11,  1, "-");
+        SetAttributeId2("", 13,  0,   __("Token label"));
+        SetAttributeId2("", 14,  0,   __("Token manufacturer"));
+        SetAttributeId2("", 15,  0,   "Token model");
+        SetAttributeId2("", 16,  0,   "Token serialnr");
 
-        SetAttributeId2("", 17,  0,   "Token flags bitfield (summary, below the details)"); //        SetAttributeId2("", 12,  1, "-");
-        SetAttributeId2("", 18,  0,   "Token flag CKF_RNG"); //      SetAttributeId2("", 13,  1, "-");
-        SetAttributeId2("", 19,  0,   "Token flag CKF_WRITE_PROTECTED"); //        SetAttributeId2("", 14,  1, "-");
-        SetAttributeId2("", 20,  0,   "Token flag CKF_LOGIN_REQUIRED"); //         SetAttributeId2("", 15,  1, "-");
-        SetAttributeId2("", 21,  0,   "Token flag CKF_USER_PIN_INITIALIZED"); //           SetAttributeId2("", 16,  1, "-");
+        SetAttributeId2("", 17,  0,   "Token flags bitfield (summary, below the details)");
+        SetAttributeId2("", 18,  0,   "Token flag CKF_RNG");
+        SetAttributeId2("", 19,  0,   "Token flag CKF_WRITE_PROTECTED");
+        SetAttributeId2("", 20,  0,   "Token flag CKF_LOGIN_REQUIRED");
+        SetAttributeId2("", 21,  0,   "Token flag CKF_USER_PIN_INITIALIZED");
 
-        SetAttributeId2("", 22,  0,   "Token flag CKF_PROTECTED_AUTHENTICATION_PATH"); //             SetAttributeId2("", 17,  1, "-");
-        SetAttributeId2("", 23,  0,   "Token flag CKF_DUAL_CRYPTO_OPERATIONS"); //    SetAttributeId2("", 18,  1, "-");
-        SetAttributeId2("", 24,  0,   "Token flag CKF_TOKEN_INITIALIZED"); //    SetAttributeId2("", 19,  1, "-");
-        SetAttributeId2("", 25,  0,   "Token flag CKF_SECONDARY_AUTHENTICATION"); //      SetAttributeId2("", 20,  1, "-");
+        SetAttributeId2("", 22,  0,   "Token flag CKF_PROTECTED_AUTHENTICATION_PATH");
+        SetAttributeId2("", 23,  0,   "Token flag CKF_DUAL_CRYPTO_OPERATIONS");
+        SetAttributeId2("", 24,  0,   "Token flag CKF_TOKEN_INITIALIZED");
+        SetAttributeId2("", 25,  0,   "Token flag CKF_SECONDARY_AUTHENTICATION");
 
-        SetAttributeId2("", 26,  0,   "Token flag CKF_USER_PIN_COUNT_LOW"); // SetAttributeId2("", 21,  1, "-");
-        SetAttributeId2("", 27,  0,   "Token flag CKF_USER_PIN_FINAL_TRY"); //      SetAttributeId2("", 22,  1, "-");
-        SetAttributeId2("", 28,  0,   "Token flag CKF_USER_PIN_LOCKED"); //      SetAttributeId2("", 23,  1, "-");
-        SetAttributeId2("", 29,  0,   "Token flag CKF_USER_PIN_TO_BE_CHANGED"); //        SetAttributeId2("", 24,  1, "-");
+        SetAttributeId2("", 26,  0,   "Token flag CKF_USER_PIN_COUNT_LOW");
+        SetAttributeId2("", 27,  0,   "Token flag CKF_USER_PIN_FINAL_TRY");
+        SetAttributeId2("", 28,  0,   "Token flag CKF_USER_PIN_LOCKED");
+        SetAttributeId2("", 29,  0,   "Token flag CKF_USER_PIN_TO_BE_CHANGED");
 
-        SetAttributeId2("", 30,  0,   "Token flag CKF_SO_PIN_COUNT_LOW"); //   SetAttributeId2("", 25,  1, "-");
-        SetAttributeId2("", 31,  0,   "Token flag CKF_SO_PIN_FINAL_TRY"); //   SetAttributeId2("", 25,  1, "-");
-        SetAttributeId2("", 32,  0,   "Token flag CKF_SO_PIN_LOCKED"); //   SetAttributeId2("", 25,  1, "-");
-        SetAttributeId2("", 33,  0,   "Token flag CKF_SO_PIN_TO_BE_CHANGED"); //   SetAttributeId2("", 25,  1, "-");
+        SetAttributeId2("", 30,  0,   "Token flag CKF_SO_PIN_COUNT_LOW");
+        SetAttributeId2("", 31,  0,   "Token flag CKF_SO_PIN_FINAL_TRY");
+        SetAttributeId2("", 32,  0,   "Token flag CKF_SO_PIN_LOCKED");
+        SetAttributeId2("", 33,  0,   "Token flag CKF_SO_PIN_TO_BE_CHANGED");
 
-        SetAttributeId2("", 34,  0,   "Token flag CKF_ERROR_STATE"); //   SetAttributeId2("", 25,  1, "-");
+        SetAttributeId2("", 34,  0,   "Token flag CKF_ERROR_STATE");
 
-        SetAttributeId2("", 35,  0,   "Token SessionCount cur/max"); //   SetAttributeId2("", 25,  1, "-");
-        SetAttributeId2("", 36,  0,   "Token RwSessionCount cur/max"); //   SetAttributeId2("", 25,  1, "-");
-        SetAttributeId2("", 37,  0,   "Token PinLen min/max"); //   SetAttributeId2("", 25,  1, "-");
-        SetAttributeId2("", 38,  0,   "Token PublicMemory free/total"); //   SetAttributeId2("", 25,  1, "-");
-        SetAttributeId2("", 39,  0,   "Token PrivateMemory free/total"); //   SetAttributeId2("", 25,  1, "-");
-        SetAttributeId2("", 40,  0,   "Token hardware/firmware version"); //  SetAttributeId2("",  7,  1, "CKF_REMOVABLE_DEVICE");
+        SetAttributeId2("", 35,  0,   "Token SessionCount cur/max");
+        SetAttributeId2("", 36,  0,   "Token RwSessionCount cur/max");
+        SetAttributeId2("", 37,  0,   "Token PinLen min/max");
+        SetAttributeId2("", 38,  0,   "Token PublicMemory free/total in kB");
+        SetAttributeId2("", 39,  0,   "Token PrivateMemory free/total in kB");
+        SetAttributeId2("", 40,  0,   "Token hardware/firmware version");
         SetAttributeId2("", 41,  0,   "Token utcTime");
         SetAttributeId2("", 42,  0,   "Token has provision for FIPS 140-2 Level 3–Compliant Mode");
         SetAttributeId2("", 42,  1,   "No");
@@ -154,7 +157,8 @@ private Hbox create_cryptoki_slot_tokeninfo_tab() {
     child_array2 ~= vbox1;
 
     text = new Text("cst_text");
-    with (text) {
+    with (text)
+    {
         SetInteger  (IUP_SIZE, 500);
         SetAttribute(IUP_MULTILINE, IUP_YES);
         SetInteger  (IUP_VISIBLELINES, 40);
@@ -167,7 +171,8 @@ private Hbox create_cryptoki_slot_tokeninfo_tab() {
     return hbox;
 }
 
-private Vbox create_opensc_conf_tab() {
+private Vbox create_opensc_conf_tab()
+{
     Control[] child_array;
 
     child_array ~= new Label(  "This page allows editing opensc.conf (and later acos5_64.profile). Root privileges will be required for storing"); // will be collected
@@ -178,10 +183,12 @@ private Vbox create_opensc_conf_tab() {
     return vbox;
 }
 
-private Hbox create_filesystem_tab() {
+private Hbox create_filesystem_tab()
+{
     Control[] child_array1, child_array2, child_array3;
     auto tree_fs = new Tree("tree_fs");
-    with (tree_fs) {
+    with (tree_fs)
+    {
         SetAttribute(IUP_SHOWTOGGLE, IUP_YES);
 
         SetCallback(IUP_SELECTION_CB, cast(Icallback) &selectbranchleaf_cb);
@@ -199,7 +206,6 @@ private Hbox create_filesystem_tab() {
 //      SetAttribute("ADDEXPANDED", "NO");
 //      SetAttribute("SHOWDRAGDROP", IUP_YES);
 ////    SetAttribute("SHOWRENAME", IUP_YES);
-
     }
 
     child_array1 ~= tree_fs;
@@ -216,7 +222,8 @@ private Hbox create_filesystem_tab() {
     child_array2 ~= toggle2;
 
     auto list = new List("list_op_file_possible");
-    with (list) {
+    with (list)
+    {
         SetInteger  (IUP_SIZE, 100);
         SetAttribute(IUP_DROPDOWN, IUP_YES);
         SetInteger  (IUP_VISIBLEITEMS, 7);
@@ -241,7 +248,8 @@ private Hbox create_filesystem_tab() {
     child_array2 ~= new Label("Read-Result (hexadecimal; content ending with 4 zero bytes indicates: There were possibly more zero bytes, subject to 'zero byte truncation')");
 
     auto text1 = new Text("fs_text");
-    with (text1) {
+    with (text1)
+    {
         SetAttribute(IUP_SIZE, "650");
         SetAttribute(IUP_MULTILINE, IUP_YES);
         SetAttribute(IUP_VISIBLELINES, "10");
@@ -256,7 +264,8 @@ private Hbox create_filesystem_tab() {
     child_array2 ~= toggle3;
 
     auto text2 = new Text("fs_text_asn1");
-    with (text2) {
+    with (text2)
+    {
         SetAttribute(IUP_SIZE, "650");
         SetAttribute(IUP_MULTILINE, IUP_YES);
         SetAttribute(IUP_VISIBLELINES, "30");
@@ -273,7 +282,8 @@ private Hbox create_filesystem_tab() {
     return hbox;
 }
 
-private Vbox create_ssh_tab() {
+private Vbox create_ssh_tab()
+{
 /*
 remember to inform:
 /etc/ssh/ssh_config or user's config file requires an entry like
@@ -292,11 +302,13 @@ ssh -I /path/to/opensc-pkcs11.so -T git@github.com
     return vbox;
 }
 
-private Vbox create_KeyASym_tab() {
+private Vbox create_KeyASym_tab()
+{
     Control[]  child_array, child_array_toggles;
 
     auto text1 = new Text("gkpRSA_text");
-    with (text1) {
+    with (text1)
+    {
         SetAttribute(IUP_SIZE, "800");
         SetAttribute(IUP_MULTILINE, IUP_YES);
         SetAttribute(IUP_VISIBLELINES, "8");
@@ -326,7 +338,8 @@ The IGNORERADIO can be used in any of these children types to disable this funct
         __("Sign SHA1/SHA256 hash (select key pair id)  Use to test the signing capability for selected id, output to stdout"));
     child_array_toggles ~= toggle5;
 
-    foreach (i,toggle; child_array_toggles) {
+    foreach (i,toggle; child_array_toggles)
+    {
         toggle.SetAttributeVALUE(i==0? IUP_ON : IUP_OFF);
         toggle.SetCallback(IUP_ACTION, cast(Icallback) &toggle_radioKeyAsym_cb);
     }
@@ -339,7 +352,8 @@ VALUE (non inheritable): name identifier of the active toggle. The name is set b
 VALUE_HANDLE (non inheritable): Changes the active toggle. The value passed must be the handle of a child contained in the radio. When consulted if the toggles are not mapped into the native system the return value may be NULL or invalid. (since 3.0)
 */
     auto text2 = new Text("hash_to_be_signed");
-    with (text2) {
+    with (text2)
+    {
         SetAttribute(IUP_SIZE, "500");
         SetAttribute(IUP_READONLY, IUP_YES);
         SetStringVALUE("0102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F20    to be signed: 20/32 bytes");
@@ -347,7 +361,8 @@ VALUE_HANDLE (non inheritable): Changes the active toggle. The value passed must
     child_array ~= text2;
 
     auto text3 = new Text();
-    with (text3) {
+    with (text3)
+    {
         SetAttribute(IUP_SIZE, "500");
         SetAttribute(IUP_READONLY, IUP_YES);
         SetStringVALUE(
@@ -363,7 +378,8 @@ In callback mode these attributes are ignored and the cells are filled with stri
 So the existence of this callback defines the matrix operation mode.
 */
     auto matrix = new Matrix("matrixKeyAsym");
-    with (matrix) {
+    with (matrix)
+    {
         SetInteger(IUP_NUMLIN,         r_AC_Create_Delete_RSADir);
         SetInteger(IUP_NUMLIN_VISIBLE, r_AC_Create_Delete_RSADir);
         SetInteger(IUP_NUMCOL,          2);
@@ -459,7 +475,8 @@ So the existence of this callback defines the matrix operation mode.
     return vbox;
 }
 
-private Vbox create_KeySym_tab() {
+private Vbox create_KeySym_tab()
+{
     Control[]  child_array, child_array_toggles;
 
     auto toggle1 = new Toggle("toggle_sym_SKDF_change",
@@ -475,7 +492,7 @@ private Vbox create_KeySym_tab() {
     child_array_toggles ~= toggle3;
 //F1010213048516070849A1B0C1D0E0F14589B316FE9437C8  82
 //F1E0D0C1B0A1890807164504130201F189FEB3C837451694  81
-//F1E0D0C1B0A1890807164504130201F189FEB3C837451694
+
 
     auto toggle4 = new Toggle("toggle_sym_updateSMkeyHost",
     __("Update existing (in SKDF) record #1 for SM (keyHost for ExtAuth; the same must be in opensc.conf as key...mac)"));
@@ -492,14 +509,16 @@ private Vbox create_KeySym_tab() {
     __("Encrypt or Decrypt fromfile -> tofile"));
     child_array_toggles ~= toggle7;
 
-    foreach (i,toggle; child_array_toggles) {
+    foreach (i,toggle; child_array_toggles)
+    {
         toggle.SetAttributeVALUE(i==0? IUP_ON : IUP_OFF);
         toggle.SetCallback(IUP_ACTION, cast(Icallback) &toggle_radioKeySym_cb);
     }
     child_array  ~= new Radio("radioKeySym", new Vbox(child_array_toggles, FILL_TYPE.FILL_FRONT_AND_BACK_AND_BETWEEN));
 
     auto matrix = new Matrix("matrixKeySym");
-    with (matrix) {
+    with (matrix)
+    {
         SetInteger(IUP_NUMLIN,         r_change_calcSKDF);
         SetInteger(IUP_NUMLIN_VISIBLE, r_change_calcSKDF);
         SetInteger(IUP_NUMCOL,          2);
@@ -548,9 +567,9 @@ private Vbox create_KeySym_tab() {
         SetAttributeId2("",  r_keySym_authId,           0,   __("authId (that protects the key; 1 byte hex. 01..FF)"));
         SetAttributeId2("",  r_keySym_authId,           2,   "SKDF");
 
-        SetAttributeId2("",  r_keySym_algoType,         0,
+        SetAttributeId2("",  r_keySym_algoFamily,         0,
         __("Algorithm type selection AES or one of DES, 3DES_128bit, 3DES_192bit"));
-        SetAttributeId2("",  r_keySym_algoType,         2,    "SKDF, keySym file");
+        SetAttributeId2("",  r_keySym_algoFamily,         2,    "SKDF, keySym file");
 
         SetAttributeId2("",  r_keySym_keyLenBits,        0,   __("Key bitLength"));
 //        SetAttributeId2("",  r_keySym_keyLenBits,        1,    "192");
@@ -598,9 +617,9 @@ private Vbox create_KeySym_tab() {
         SetAttributeId2("",  r_keySym_fidAppDir,        2,   "SKDF");
 //SetRGBId2(IUP_BGCOLOR, r_keySym_fidAppDir,       1,  255,0,255);
         SetAttributeId2("",  r_fromfile,        0,   "fromfile");
-        SetAttributeId2("",  r_fromfile,        1,   "/home/bodo/workspace/acos5_64_GUI/acos_fromfile.hex");
+        SetAttributeId2("",  r_fromfile,        1,   "$HOME/workspace/acos5_64_GUI/acos_fromfile.hex");
         SetAttributeId2("",  r_tofile,          0,   "tofile");
-        SetAttributeId2("",  r_tofile,          1,   "/home/bodo/workspace/acos5_64_GUI/acos_tofile.hex");
+        SetAttributeId2("",  r_tofile,          1,   "$HOME/workspace/acos5_64_GUI/acos_tofile.hex");
 
         SetAttributeId2("",  r_iv,          0,   "iv");
         SetAttributeId2("",  r_iv,          1,   "11223344556677881122334455667788");
@@ -649,11 +668,13 @@ private Vbox create_KeySym_tab() {
     return vbox;
 }
 
-private Vbox create_sanityCheck_tab() {
+private Vbox create_sanityCheck_tab()
+{
     Control[]  child_array;
 
     auto text1 = new Text("sanity_overview_text");
-    with (text1) {
+    with (text1)
+    {
         SetInteger(IUP_SIZE, 900);
         SetAttribute(IUP_MULTILINE, IUP_YES);
         SetInteger(IUP_VISIBLELINES, 8);
@@ -662,7 +683,8 @@ private Vbox create_sanityCheck_tab() {
     child_array ~= text1;
 
     auto matrix = new Matrix("matrixsanity");
-    with (matrix) {
+    with (matrix)
+    {
         SetInteger(IUP_NUMLIN,         3);
         SetInteger(IUP_NUMLIN_VISIBLE, 3);
         SetInteger(IUP_NUMCOL,         2);
@@ -685,7 +707,7 @@ private Vbox create_sanityCheck_tab() {
         __("16003: ACOS5-64 V2.00 (Card/CryptoMate64);  16004: ACOS5-64 V3.00 (Card/CryptoMate Nano)"));
 
         SetAttributeId2("",  2,   0,   __("Card OS version major/minor from command 'Get Card Info'"));
-        SetAttributeId2("",  2,   2,   __("Reflects both: Card type and Operation Mode Byte setting"));
+        SetAttributeId2("",  2,   2,   __("for V3, minor is related to Operation Mode Byte setting"));
         SetAttributeId2("",  3,   0,   __("Operation Mode Byte setting from command 'Get Card Info'"));
         SetAttributeId2("",  3,   2,   __("Non-retrievable for ACOS5-64 V2.00"));
         SetAttribute(IUP_TOGGLECENTERED, IUP_YES);
@@ -700,7 +722,8 @@ private Vbox create_sanityCheck_tab() {
     child_array ~= matrix;
 
     auto text2 = new Text("sanity_text");
-    with (text2) {
+    with (text2)
+    {
         SetInteger(IUP_SIZE, 900);
         SetAttribute(IUP_MULTILINE, IUP_YES);
         SetInteger(IUP_VISIBLELINES, 30);
@@ -721,11 +744,13 @@ private Vbox create_sanityCheck_tab() {
 }
 
 
-private Vbox create_importExport_tab() {
+private Vbox create_importExport_tab()
+{
     Control[]  child_array;
 
     auto text1 = new Text("importExport_text");
-    with (text1) {
+    with (text1)
+    {
         SetAttribute(IUP_SIZE, "800");
         SetAttribute(IUP_MULTILINE, IUP_YES);
         SetAttribute(IUP_VISIBLELINES, "16");
@@ -744,7 +769,8 @@ private Vbox create_importExport_tab() {
 
 
 /** create the main window */
-Dialog create_dialog_dlg0() {
+Dialog create_dialog_dlg0()
+{
     /* Example of i18n usage */
     auto btn_exit    = new Button(  __("Exit")); // __("Beenden")
 ////  btn_exit.SetCallback(IUP_ACTION, &dlg0_exit);
@@ -758,8 +784,8 @@ Dialog create_dialog_dlg0() {
         create_KeyASym_tab,
         create_KeySym_tab,
         create_importExport_tab,
+      create_sanityCheck_tab,
 //      create_ssh_tab,
-//      create_sanityCheck_tab,
 //      create_opensc_conf_tab,
     ];
     auto tabs = new Tabs("tabCtrl", child_array);

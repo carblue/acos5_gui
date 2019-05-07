@@ -1,11 +1,40 @@
-/* generated from PKCS15.asn with: asn1Parser -o tasn1_pkcs15.c -n tasn1_pkcs15_tab  PKCS15.asn
+/*
+ * tasn1_pkcs15.d: Basically generated from PKCS15.asn with libtasn1 utility asn1Parser
+ *
+ * Copyright (C) 2018, 2019  Carsten Blüggel <bluecars@posteo.eu>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335  USA.
+ */
+
+/* Written in the D programming language */
+
+/*
+ * PKCS15.asn is based on the publicly available PKCS#15 ASN.1 module, modified specifically for libtasn1 usage.
+ * It should cover exactly the version of PKCS#15, that is implemented by OpenSC, ~ 2004:ISO/IEC 7816-15
+ *
+ * File generated from PKCS15.asn with: asn1Parser -o tasn1_pkcs15.c -n tasn1_pkcs15_tab  PKCS15.asn
  * or asn1_parser2array ("PKCS15.asn".ptr, "tasn1_pkcs15.c".ptr, "tasn1_pkcs15_tab".ptr, error_desc.ptr);
- * to be translated to D and used with function asn1_array2tree when PKCS15.asn is in it's final state */
+ * to be translated to D and used with function asn1_array2tree when PKCS15.asn is in it's final state
+ * (probably there are still issues related to IMPLICIT/EXPLICIT tagging)
+ */
 
 module tasn1_pkcs15;
 
 import libtasn1;
 
+/** tasn1_pkcs15_tab is the representation of PKCS15.asn declarations for use with libtasn1 functions */
 const(asn1_static_node)[] tasn1_pkcs15_tab = [
   { "PKCS15", 536875024, null },
   { null, 1610612748, null },

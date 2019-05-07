@@ -6,11 +6,12 @@
 	"authors": ["Carsten Blüggel"],
 	"homepage": "https://github.com/carblue/acos5_64_gui",
 	"dependencies" : {
-		"iup": "~>3.25.0-beta.1",
+		"iup": "~>3.26.0-alpha.1",
 		"opensc": "~>0.18.0-beta.4",
-		"emsi_containers": "~>0.8.0-alpha.9",
+		"emsi_containers": "~>0.8.0-alpha.13",
 		"tasn1:wrapper": "~>0.0.5",
-		"pkcs11": "~>2.40.0-alpha.3"
+		"pkcs11": "~>2.40.0-alpha.3",
+		"openssl" : "*"
 	},
 	"subConfigurations": {
 		"opensc": "deimosPrior",
@@ -24,17 +25,17 @@
 	],
 	"targetName": "acos5_64_gui",
     "mainSourceFile" : "source/acos5_64_gui.d",
-	"xxxbuildRequirements" : ["disallowDeprecations"],
+	"fixme-buildRequirements" : ["disallowDeprecations"],
 
 	"dflags-posix-dmd": ["-defaultlib=libphobos2.so"],
 	"dflags-posix-ldc": ["-defaultlib=phobos2-ldc-shared,druntime-ldc-shared"],
-	"xdflagsx-posix-gdc": ["-shared-libphobos", "-Wunknown-pragmas", "-vtls", "-vcg-ast", "-defaultlib=libphobos2.so"],
+	"fixme-dflagsx-posix-gdc": ["-shared-libphobos", "-Wunknown-pragmas", "-vtls", "-vcg-ast", "-defaultlib=libphobos2.so"],
 
 	"lflags-posix" : ["--no-undefined", "--as-needed"],
-	"xlflagsx-posix-x86_64-ldc": ["-rpath=$HOME/Downloads/dlang/ldc2-1.9.0-linux-x86_64/lib"],
+	"fixme-lflags-posix-x86_64-ldc": ["-rpath=$HOME/Downloads/dlang/ldc2-1.15.0-linux-x86_64/lib"],
 	"libs-posix": ["iupimglib"],
-	"lflags-windows-x86-fixme": ["/SUBSYSTEM:WINDOWS:6.00"   , ":opensc-pkcs11.so", "acos5_64"],
-	"postBuildCommands-windows" : ["strip -s acos5_64_gui.exe"],
+	"fixme-lflags-windows-x86": ["/SUBSYSTEM:WINDOWS:6.00"   , ":opensc-pkcs11.so", "acos5_64"],
+	"fixme-postBuildCommands-windows" : ["strip -s acos5_64_gui.exe"],
 	"versions": ["Have_acos5_64", "I18N"],
 	"configurations": [
 		{

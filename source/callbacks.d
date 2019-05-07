@@ -1,27 +1,27 @@
 /*
- * Written in the D programming language, part of package acos5_64_gui.
- * callbacks.d: Callbacks file, based on IUP
+ * callbacks.d: Program acos5_64_gui's callbacks file, based on the IUP library
  *
- * Copyright (C) 2018- : Carsten Blüggel <bluecars@posteo.eu>
+ * Copyright (C) 2018, 2019  Carsten Blüggel <bluecars@posteo.eu>
  *
- * This application is free software; You can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation,
- * version 2.0 of the License.
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
  *
- * This software is distributed in the hope that it will be useful,
+ * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this application; if not, write to the Free Software
- * Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335  USA
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335  USA.
  */
+
+/* Written in the D programming language */
 
 module callbacks;
 
-import core.runtime : Runtime;
 import core.stdc.stdio : printf;
 import std.stdio;
 import std.string : /*fromStringz,*/ toStringz;
@@ -46,32 +46,42 @@ import libintl : _, __;
 import util_general;// : ub22integral;
 import acos5_64_shared;
 
-import util_opensc : lh, card, acos5_64_short_select, readFile, decompose, PKCS15Path_FileType, PKCS15_FILE_TYPE,
-    util_connect_card, connect_card, cm_7_3_1_14_get_card_info, is_ACOSV3_opmodeV3_FIPS_140_2L3, tnTypePtr,
-    is_ACOSV3_opmodeV3_FIPS_140_2L3_active;
+import util_opensc : connect_card, acos5_64_short_select, readFile, decompose, PKCS15Path_FileType, PKCS15_FILE_TYPE,
+    is_ACOSV3_opmodeV3_FIPS_140_2L3, is_ACOSV3_opmodeV3_FIPS_140_2L3_active, tnTypePtr, tlv_Range_mod, fsInfoSize;
 
 
 ub8 map2DropDown = [1, 2, 3, 4, 5, 6, 7, 8];
 
+Config config;
+string groupCfg;
+/* Config keys */
+int isMFcreated;
+int isEF_DIRcreated;
+int isappDFdefined;
+int isappDFexists;
+string appDF;
 
 nothrow :
 
 
-void populate_list_op_file_possible(tnTypePtr pn, ub2 fid, EFDB fdb, ub2 size_or_MRL_NOR, ubyte lcsi, ub8 sac) {
+void populate_list_op_file_possible(tnTypePtr pn, ub2 fid, EFDB fdb, ub2 size_or_MRL_NOR, ubyte lcsi, ub8 sac)
+{
     import std.string : empty;
 
     immutable string[7][6] textSCB_FileType = [
-      [_("Delete Child"),   "Create EF",        "Create DF",        "Deactivate/Invalidate", "Activate/Rehabilitate", "Terminate/Lock", "Delete Self"], // DF/MF
-      [_("Read"),           "Update/Erase",     "",                 "Deactivate/Invalidate", "Activate/Rehabilitate", "Terminate/Lock", "Delete Self"], // EF     binary
-      [_("Read"),           "Update",           "",                 "Deactivate/Invalidate", "Activate/Rehabilitate", "Terminate/Lock", "Delete Self"], // EF_lin_fix/CHV record
-      [_("Read"),           "Update/Append",    "",                 "Deactivate/Invalidate", "Activate/Rehabilitate", "Terminate/Lock", "Delete Self"], // EF_lin_var record
-      [_("Read (Get Key)"), "Put Key",          "MSE/PSO Commands", "Deactivate/Invalidate", "Activate/Rehabilitate", "Terminate/Lock", "Delete Self"], // Key File
-      [_("Read"),           "MSE Store/Delete", "MSE Restore",      "Deactivate/Invalidate", "Activate/Rehabilitate", "Terminate/Lock", "Delete Self"], // SE File
+        [_("Delete Child"),   "Create EF",        "Create DF",        "Deactivate/Invalidate", "Activate/Rehabilitate", "Terminate/Lock", "Delete Self"], // DF/MF
+        [_("Read"),           "Update/Erase",     "",                 "Deactivate/Invalidate", "Activate/Rehabilitate", "Terminate/Lock", "Delete Self"], // EF     binary
+        [_("Read"),           "Update",           "",                 "Deactivate/Invalidate", "Activate/Rehabilitate", "Terminate/Lock", "Delete Self"], // EF_lin_fix/CHV record
+        [_("Read"),           "Update/Append",    "",                 "Deactivate/Invalidate", "Activate/Rehabilitate", "Terminate/Lock", "Delete Self"], // EF_lin_var record
+        [_("Read (Get Key)"), "Put Key",          "MSE/PSO Commands", "Deactivate/Invalidate", "Activate/Rehabilitate", "Terminate/Lock", "Delete Self"], // Key File
+        [_("Read"),           "MSE Store/Delete", "MSE Restore",      "Deactivate/Invalidate", "Activate/Rehabilitate", "Terminate/Lock", "Delete Self"], // SE File
     ];
 
-    int index_textSCB_FileType(EFDB fdb) {
+    int index_textSCB_FileType(EFDB fdb)
+    {
         with (EFDB)
-        final switch (fdb) {
+        final switch (fdb)
+        {
             case MF, DF:              return 0;
             case Transparent_EF:      return 1;
             case Linear_Fixed_EF,
@@ -96,7 +106,8 @@ void populate_list_op_file_possible(tnTypePtr pn, ub2 fid, EFDB fdb, ub2 size_or
     immutable auto_read = AA["toggle_auto_read"].GetStringVALUE()==IUP_ON;
     map2DropDown = ub8.init;
     /* Don't show superfluous operations e.g. like Activate, if the file is activated already*/
-    foreach (i, b; sac) {
+    foreach (i, b; sac)
+    {
         if      (i==0 && idx==0) // suppresses Delete Child, which is a access condition, but deleting a file is selected by Delete Self on EF/DF
             continue;
         else if (i==2 && textSCB_FileType[idx][i].empty)
@@ -109,7 +120,8 @@ void populate_list_op_file_possible(tnTypePtr pn, ub2 fid, EFDB fdb, ub2 size_or
             continue;
         else if (i==7)
             continue;
-        else if (b<255) {
+        else if (b<255)
+        {
             h.SetString(IUP_APPENDITEM, textSCB_FileType[idx][i]);
             map2DropDown[i] = ++j;
         }
@@ -121,11 +133,14 @@ void populate_list_op_file_possible(tnTypePtr pn, ub2 fid, EFDB fdb, ub2 size_or
     h.SetCallback(IUP_VALUECHANGED_CB, &list_op_file_possible_val_changed_cb);
 //    assumeWontThrow(writeln(map2DropDown));
 
-    if (fileReadPossible && auto_read && (sac[0]==0 || sac[0]&0x40 || (is_ACOSV3_opmodeV3_FIPS_140_2L3 && sac[0].among(1,3) ) ) ) {
+    if (fileReadPossible && auto_read && (sac[0]==0 || sac[0]&0x40 ||
+        (is_ACOSV3_opmodeV3_FIPS_140_2L3 && sac[0].among(1,3))))
+    {
         immutable expectedFileType = pn.data[6];
         ubyte dummydetectedFileType;
         PKCS15Path_FileType[] dummyPkcs15Extracted;
-        readFile(pn, fid, fdb, sac[0], decompose(fdb, size_or_MRL_NOR).expand, expectedFileType, dummydetectedFileType, dummyPkcs15Extracted);
+        readFile(pn, fid, fdb, sac[0], decompose(fdb, size_or_MRL_NOR).expand, expectedFileType, dummydetectedFileType,
+                                                 dummyPkcs15Extracted);
 //assumeWontThrow(writefln("expectedFileType: %s, detectedFileType: %s, dummyPkcs15Extracted: ", expectedFileType, cast(PKCS15_FILE_TYPE)detectedFileType, dummyPkcs15Extracted));
     }
 }
@@ -146,7 +161,8 @@ int selectbranchleaf_cb(Ihandle* /*ih*/, int id, int status)
 
 ////    printf("selectbranchleaf_cb id(%d), status(%d)\n", id, status);
 
-    if (status==0 || id==0) {
+    if (status==0 || id==0)
+    {
         AA["fs_text"].SetAttributeVALUE(""); // clear content
         AA["fs_text_asn1"].SetAttributeVALUE("");
 
@@ -170,11 +186,13 @@ int selectbranchleaf_cb(Ihandle* /*ih*/, int id, int status)
         ubyte len2 = pn.data[1]/2;
         int i = 1;
         AA["fs_text"].SetString(IUP_APPEND, "Header/meta infos (FCI):");
-        foreach (ub2 fid; chunks(pn.data[8..8+pn.data[1]], 2)) {
+        foreach (ub2 fid; chunks(pn.data[8..8+pn.data[1]], 2))
+        {
             info = FCISEInfo.init;
             rbuf = typeof(rbuf).init;
             rv= acos5_64_short_select(card, fid, &info, rbuf);
-            if (i.among(len2, len2==1? 1 : len2-1)) {
+            if (i.among(len2, len2==1? 1 : len2-1))
+            {
 //                info_df = info;
 //            assumeWontThrow(writeln(info)); //writefln("0x[%(%02X %)]", fid);
 //                while (buf.length>=5 && !any(buf[$-5..$]))
@@ -185,7 +203,7 @@ int selectbranchleaf_cb(Ihandle* /*ih*/, int id, int status)
             ++i;
         }
 //        with (PKCS15_FILE_TYPE) if (pn.data[6].among(PKCS15_Pin, PKCS15_SecretKey, PKCS15_RSAPrivateKey))
-        with (EFDB) if (pn.data[0].among(CHV_EF, Sym_Key_EF/*, RSA_Key_EF*/) && pn.data[6]!=PKCS15_FILE_TYPE.PKCS15_RSAPublicKey)
+        with (EFDB) if (pn.data[0].among(CHV_EF, Sym_Key_EF) && pn.data[6]!=PKCS15_FILE_TYPE.PKCS15_RSAPublicKey)
             return IUP_DEFAULT;
         AA["fs_text"].SetString(IUP_APPEND, "\nContent:");
 
@@ -205,33 +223,33 @@ int executeleaf_cb(Ihandle* h, int /*id*/)
 ////  auto pn = cast(tnTypePtr) (cast(iup.iup_plusD.Tree) AA["tree_fs"]).GetUserId(id);
 ////  printf("executeleaf_cb (%d) %s\n", id, sc_dump_hex(pn.data.ptr, pn.data.length));
 //  assumeWontThrow(writefln("0x [%(%0sX, %)]", pn.data[0..8]));
-  return IUP_DEFAULT;
+    return IUP_DEFAULT;
 }
 
 
 int branchopen_cb(Ihandle* h, int /*id*/)
 {
 ////  printf("branchopen_cb (%d)\n", id);
-  return IUP_DEFAULT;
+    return IUP_DEFAULT;
 }
 
 
 int branchclose_cb(Ihandle* h, int /*id*/)
 {
 ////  printf("branchclose_cb (%d)\n", id);
-  return IUP_DEFAULT;
+    return IUP_DEFAULT;
 }
 
 
 /* Callback called when a key is hit */
 int k_any_cb(Ihandle* h, int c)
 {
-  if (c == K_DEL)
-  {
-    IupSetAttribute(h,"DELNODE","MARKED");
-  }
+    if (c == K_DEL)
+    {
+        IupSetAttribute(h,"DELNODE","MARKED");
+    }
 
-  return IUP_DEFAULT;
+    return IUP_DEFAULT;
 }
 
 
@@ -241,57 +259,120 @@ int list_op_file_possible_val_changed_cb(Ihandle* ih)
 ////    Handle h = createHandle(ih);
 ////    int val = h.GetIntegerVALUE;
 ////    printf("list_op_file_possible_val_changed_cb (%p), val(%d)\n", h, val);
-  return IUP_DEFAULT;
+    return IUP_DEFAULT;
 }
 
 
 int toggle_op_file_possible_suppress_cb(Ihandle* ih, int /*state*/)
 {
 ////  printf("toggle_op_file_possible_suppress_cb (%d)\n", state);
-  return IUP_DEFAULT;
+    return IUP_DEFAULT;
 }
 
 
 int toggle_auto_read_cb(Ihandle* ih, int /*state*/)
 {
 ////  printf("toggle_auto_read_cb (%d)\n", state);
-  return IUP_DEFAULT;
+    return IUP_DEFAULT;
 }
 
 
 int toggle_auto_decode_asn1_cb(Ihandle* ih, int /*state*/)
 {
 ////  printf("toggle_auto_decode_asn1_cb (%d)\n", state);
-  return IUP_DEFAULT;
+    return IUP_DEFAULT;
 }
 
 int btn_sanity_cb(Ihandle* ih)
 {
+//    printf("btn_sanity_cb: IupGetName(ih): %s", IupGetName(ih)); // btn_sanity_cb: IupGetName(ih): btn_sanity
     enum string commands = `
     Handle h = AA["matrixsanity"];
     h.SetIntegerId2("", 1, 1, card.type);
     h.Update;
     with (card.version_)
-    h.SetStringId2 ("", 2, 1, hw_major.to!string~" / "~hw_minor.to!string);
+    h.SetStringId2 ("", 2, 1, hw_major.to!string~"."~hw_minor.to!string);
     int rv;
-    if (card.type==16004) { //61
-		ushort   SW1SW2;
-		ubyte    responseLen;
-		ubyte[]  response;
-		if ((rv= cm_7_3_1_14_get_card_info(card, CardInfoType.Operation_Mode_Byte_Setting, 0, SW1SW2, responseLen, response)) < 0) return IUP_DEFAULT;
-		assert(responseLen==0);
-		ubyte sw2 = cast(ubyte)SW1SW2;
-		assert(canFind([ 0,1,2,16 ], sw2));
-		with (h)
-		switch (sw2) {
-			case  0: SetStringId2 ("",   3, 1, "FIPS 140-2 Level 3–Compliant Mode"); break;
-			case  1: SetStringId2 ("",   3, 1, "Emulated 32K Mode"); break;
-			case  2: SetStringId2 ("",   3, 1, "Non-FIPS 64K Mode"); break;
-			case 16: SetStringId2 ("",   3, 1, "NSH-1 Mode"); break;
-			default: break;
-		}
+    if (card.type==16004)
+    {
+        ushort   SW1SW2;
+        ubyte    responseLen;
+        ubyte[]  response;
+        if ((rv= cm_7_3_1_14_get_card_info(card, CardInfoType.Operation_Mode_Byte_Setting, 0, SW1SW2, responseLen,
+                                           response)) < 0)
+            return IUP_DEFAULT;
+        assert(responseLen==0);
+        ubyte sw2 = cast(ubyte)SW1SW2;
+        assert(canFind([ 0,1,2,16 ], sw2));
+        with (h)
+        switch (sw2)
+        {
+            case  0: SetStringId2 ("",   3, 1, "FIPS 140-2 Level 3–Compliant Mode"); break;
+            case  1: SetStringId2 ("",   3, 1, "Emulated 32K Mode"); break;
+            case  2: SetStringId2 ("",   3, 1, "Non-FIPS 64K Mode"); break;
+            case 16: SetStringId2 ("",   3, 1, "NSH-1 Mode"); break;
+            default: break;
+        }
+    }
+
+    sc_path path;
+    sc_format_path("3F00", &path);
+    rc= sc_select_file(card, &path, null);
+    isMFcreated =  rc==SC_SUCCESS? 1 : 0;
+    config.SetVariableInt(groupCfg.toStringz, "isMFcreated", isMFcreated);
+    AA["sanity_text"].SetString(IUP_APPEND, "isMFcreated = "~isMFcreated.to!string);
+    if (!isMFcreated)
+        return IUP_DEFAULT;//assert(0);
+
+//    sc_format_path("3F002F00", &path);
+//    rc= sc_select_file(card, &path, null);
+
+    ub2 fid = [0x2F, 0];
+    ubyte[MAX_FCI_GET_RESPONSE_LEN] fci_2f00;
+    rc = acos5_64_short_select(card, fid, null, fci_2f00);
+    isEF_DIRcreated =  rc==SC_SUCCESS? 1 : 0;
+    AA["sanity_text"].SetString(IUP_APPEND, "isEF_DIRcreated = "~isEF_DIRcreated.to!string);
+    if (isEF_DIRcreated)
+    {
+        ushort size_2f00;
+        foreach (d,T,L,V; tlv_Range_mod(fci_2f00[2..$]))
+             if (T==0x80)
+                size_2f00 = ub22integral(V);
+
+        auto  buf = new ubyte[](size_2f00);
+        rv = sc_read_binary(card, 0, buf.ptr, buf.length, 0 /*flags*/);
+        assert(rv>0 && rv==buf.length);
+
+        foreach (d,T,L,V; tlv_Range_mod(buf[2..$]))
+            if (T==0x51)
+            {
+                isappDFdefined = 1;
+                appDF = ubaIntegral2string(V[0..L]);
+                AA["sanity_text"].SetString(IUP_APPEND, "isappDFdefined = "~isappDFdefined.to!string);
+                AA["sanity_text"].SetString(IUP_APPEND, "appDF = "~appDF);
+            }
+
+        sc_format_path(appDF.toStringz, &path);
+        rc= sc_select_file(card, &path, null);
+        isappDFexists =  rc==SC_SUCCESS? 1 : 0;
+        AA["sanity_text"].SetString(IUP_APPEND, "isappDFexists = "~isappDFexists.to!string);
     }
 `;
+/*
+    ub2 fid = [0x2F, 0];
+    ubyte[MAX_FCI_GET_RESPONSE_LEN] outbuf;
+    rc = acos5_64_short_select(card, fid, null, outbuf);
+*/
     mixin (connect_card!commands);
+
+    with (config)
+    {
+//        SetVariableInt(groupCfg.toStringz, "isMFcreated",     isMFcreated);
+        SetVariableInt(groupCfg.toStringz, "isEF_DIRcreated", isEF_DIRcreated);
+        SetVariableInt(groupCfg.toStringz, "isappDFdefined",  isappDFdefined);
+        SetVariableStr(groupCfg.toStringz, "appDF",           appDF.toStringz);
+        SetVariableInt(groupCfg.toStringz, "isappDFexists",   isappDFexists);
+    }
+
     return IUP_DEFAULT;
 } // btn_sanity_cb

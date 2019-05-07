@@ -1,7 +1,30 @@
-/* very simple k-ary tree implementation, inspired by http://tree.phi-sci.com/
-tree.hh: an STL-like C++ tree class by Kasper Peeters
-It was stripped down from other code to meet current needs
+/*
+ * tree_k_ary.d: Simple k-ary tree implementation, inspired by http://tree.phi-sci.com/
+ *
+ * Copyright (C) 2018, 2019  Carsten Blüggel <bluecars@posteo.eu>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335  USA.
+ */
+
+/* Written in the D programming language */
+
+/*
+   http://tree.phi-sci.com/ : tree.hh: an STL-like C++ tree class by Kasper Peeters
+   This is a stripped down version from other code, to meet current needs
 */
+
 module tree_k_ary;
 
 import std.experimental.allocator.gc_allocator;
@@ -28,7 +51,8 @@ struct Tree_k_ary(T, Alloc=GCAllocator)
         TreeNode* parent, firstChild, lastChild, prevSibling, nextSibling;
     }
 
-    static Tree_k_ary opCall() {
+    static Tree_k_ary opCall()
+    {
         Tree_k_ary t;
         t.head = cast(TreeNode*)Alloc.instance.allocate(TreeNode.sizeof).ptr;
         t.feet = cast(TreeNode*)Alloc.instance.allocate(TreeNode.sizeof).ptr;
@@ -62,7 +86,8 @@ struct Tree_k_ary(T, Alloc=GCAllocator)
     }
 +/
 
-    TreeNode* insertAsSiblingBefore(TreeNode* pos, T x) {
+    TreeNode* insertAsSiblingBefore(TreeNode* pos, T x)
+    {
         if (pos == null)
             pos = feet; // Backward compatibility: when calling insert on a null node, insert before the feet.
         assert(pos != head); // Cannot insert before head.
@@ -86,7 +111,8 @@ struct Tree_k_ary(T, Alloc=GCAllocator)
         return tmp;
     }
 
-    TreeNode* insertAsSiblingAfter(TreeNode* pos, T x) {
+    TreeNode* insertAsSiblingAfter(TreeNode* pos, T x)
+    {
         if (pos == null)
             pos = head; // Backward compatibility: when calling insert on a null node, insert after the head.
         assert(pos != feet); // Cannot insert after feet.
@@ -111,7 +137,8 @@ struct Tree_k_ary(T, Alloc=GCAllocator)
     }
 
     /// Insert node as first child of node pointed to by posParent.
-    TreeNode* insertAsChildFirst(TreeNode* posParent, T x) {
+    TreeNode* insertAsChildFirst(TreeNode* posParent, T x)
+    {
         assert(posParent != head);
         assert(posParent != feet);
         assert(posParent);
@@ -135,7 +162,8 @@ struct Tree_k_ary(T, Alloc=GCAllocator)
     }
 
     /// Insert node as last child of node pointed to by posParent.
-    TreeNode* insertAsChildLast(TreeNode* posParent, T x) {
+    TreeNode* insertAsChildLast(TreeNode* posParent, T x)
+    {
         assert(posParent != head);
         assert(posParent != feet);
         assert(posParent);
@@ -159,41 +187,47 @@ struct Tree_k_ary(T, Alloc=GCAllocator)
     }
 
     /// Erase all children of the node pointed to by posParent
-    void eraseChildren(TreeNode* posParent) {
-      if (posParent==null) return;
+    void eraseChildren(TreeNode* posParent)
+    {
+        if (posParent==null)
+            return;
 
-      TreeNode* prev;
-      TreeNode* cur  = posParent.firstChild;
+        TreeNode* prev;
+        TreeNode* cur  = posParent.firstChild;
 
-      while (cur != null) {
-        prev = cur;
-        cur  = cur.nextSibling;
-        eraseChildren(prev);
+        while (cur != null)
+        {
+            prev = cur;
+            cur  = cur.nextSibling;
+            eraseChildren(prev);
 
-        version(unittest)
-            --countNodes;
-        Alloc.instance.deallocate((cast(void*)prev)[0..TreeNode.sizeof]);
-      }
-      posParent.firstChild = null;
-      posParent.lastChild  = null;
+            version(unittest)
+                --countNodes;
+            Alloc.instance.deallocate((cast(void*)prev)[0..TreeNode.sizeof]);
+        }
+        posParent.firstChild = null;
+        posParent.lastChild  = null;
     }
 
     /// Erase element at position pointed to by pos, return pos.nextSibling
-    TreeNode* erase(TreeNode* pos) {
+    TreeNode* erase(TreeNode* pos)
+    {
         assert(pos);
         assert(pos != head);
         assert(pos != feet);
         eraseChildren(pos);
         if (pos.prevSibling != null)
             pos.prevSibling.nextSibling = pos.nextSibling;
-        else {
+        else
+        {
             if (pos.parent)      pos.parent.firstChild = pos.nextSibling;
             if (pos.nextSibling) pos.nextSibling.prevSibling = null;
         }
 
         if (pos.nextSibling != null)
             pos.nextSibling.prevSibling = pos.prevSibling;
-        else {
+        else
+        {
             if (pos.parent)      pos.parent.lastChild = pos.prevSibling;
             if (pos.prevSibling) pos.prevSibling.nextSibling = null;
         }
@@ -206,8 +240,10 @@ struct Tree_k_ary(T, Alloc=GCAllocator)
     }
 
     /// Erase all nodes of the tree.
-    void clear() {
-        if (head) {
+    void clear()
+    {
+        if (head)
+        {
             TreeNode* tmp = root();
             while (tmp != feet)
                 tmp = erase(tmp);
@@ -221,13 +257,15 @@ struct Tree_k_ary(T, Alloc=GCAllocator)
         @property TreeNode* front() { return currNode; }
         @property bool empty() { return currNode == endNode; }
 
-        void popFront() {
+        void popFront()
+        {
             if (currNode.firstChild != null)
             {
                 currNode = currNode.firstChild;
                 return;
             }
-            else {
+            else
+            {
                 while (currNode.nextSibling == null)
                     currNode = currNode.parent;
 
@@ -236,7 +274,8 @@ struct Tree_k_ary(T, Alloc=GCAllocator)
             }
         }
 
-        TreeNode* locate(alias pred="a.data==b", E)(E needle) nothrow /*@nogc*/ {
+        TreeNode* locate(alias pred="a.data==b", E)(E needle) nothrow /*@nogc*/
+        {
             for ( ; !empty(); popFront())
                 if (binaryFun!pred(front(), needle))
                     return currNode;
@@ -250,7 +289,7 @@ struct Tree_k_ary(T, Alloc=GCAllocator)
     {
         @safe unittest
         {
-            import std.range.primitives;
+            import std.range.primitives : isBidirectionalRange;
             static assert(isBidirectionalRange!RangeSiblings);
         }
 
@@ -264,20 +303,24 @@ struct Tree_k_ary(T, Alloc=GCAllocator)
 
         @property TreeNode* front() { return _first; }
         @property TreeNode* back()  { return _last; }
-        void popFront() {
+        void popFront()
+        {
             if (_first is _last)
                 _first = _last = null;
             else
                 _first = _first.nextSibling;
         }
-        void popBack() {
+
+        void popBack()
+        {
             if (_first is _last)
                 _first = _last = null;
             else
                 _last = _last.prevSibling;
         }
 
-        TreeNode* locate(alias pred="a.data==b", E)(E needle) nothrow /*@nogc*/ {
+        TreeNode* locate(alias pred="a.data==b", E)(E needle) nothrow /*@nogc*/
+        {
             for ( ; !empty(); popFront())
                 if (binaryFun!pred(front(), needle))
                     return _first;
@@ -288,7 +331,8 @@ struct Tree_k_ary(T, Alloc=GCAllocator)
     RangeSiblings rangeSiblings(TreeNode* parent) { return RangeSiblings(parent); }
 }
 
-unittest {
+unittest
+{
     import std.algorithm.comparison : equal;
     import std.range : retro;
 
@@ -599,9 +643,10 @@ unittest {
     assert(t.feet.nextSibling == null);
 }
 
-unittest {
+unittest
+{
     import std.algorithm.comparison : equal;
-    import std.stdio;
+//    import std.stdio;
 
     auto t = Tree_k_ary!string();
     auto nF = t.insertAsSiblingAfter(null, "F");

@@ -1,112 +1,88 @@
 /*
- * Written in the D programming language, part of package acos5_64_gui.
- * acos5_64_gui.d: main file
+ * acos5_64_gui.d: Program acos5_64_gui's main file
  *
- * Copyright (C) 2018- : Carsten Blüggel <bluecars@posteo.eu>
+ * Copyright (C) 2018, 2019  Carsten Blüggel <bluecars@posteo.eu>
  *
- * This application is free software; You can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation,
- * version 2.0 of the License.
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
  *
- * This software is distributed in the hope that it will be useful,
+ * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this application; if not, write to the Free Software
- * Foundation, 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335  USA
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335  USA.
  */
 
+/* Written in the D programming language */
 
 /*
-This program MUST NOT be used in parallel to using libacos5_64.so in other ways like through opensc-pkcs11.so
-as it may alter the selected file unexpected by other software!
-TODO check about countermeasures like locking etc. provided by PKCS#11
-*/
+ * This program MUST NOT be used in parallel to using libacos5_64.so in other ways like through opensc-pkcs11.so,
+ * as it may alter the selected file unexpected by other software!
+ * TODO check about countermeasures like locking etc. provided by PKCS#11
+ */
 
 module acos5_64_gui;
 
 
 import core.memory : GC;
-import core.runtime : Runtime;
 import core.stdc.config : c_long, c_ulong;
-//import core.stdc.string : strlen;
 import core.stdc.stdlib : EXIT_SUCCESS, EXIT_FAILURE, exit, getenv; //, div_t, div, malloc, free;
 import core.stdc.locale : setlocale, LC_ALL;
-//import core.stdc.stdio : printf;
 import std.stdio : write, writeln, writefln, stdout;
-//import std.typecons;
-//import std.string : fromStringz, toStringz, representation;
-import std.algorithm.searching;
-import std.algorithm.comparison;
 import std.conv : to;
 import std.format : format;
-import std.exception : assumeWontThrow;
-
-/*
-import deimos.openssl.crypto : CRYPTO_cleanup_all_ex_data;
-import deimos.openssl.conf;
-import deimos.openssl.evp;
-import deimos.openssl.err;
-
-import deimos.openssl.rsa;
-import deimos.openssl.sha;
-import deimos.openssl.rand;
-import deimos.openssl.bn : BN_num_bits;
-//import deimos.openssl.ossl_typ : RSA_METHOD;
-//import deimos.openssl.evp : EVP_PKEY_RSA / *6* /;
-*/
-
-import libopensc.opensc;
-import libopensc.types;
-import libopensc.errors;
-import libopensc.log;
-import libopensc.cards;
+import std.string : toStringz, fromStringz, stripRight, representation, assumeUTF;
+import std.algorithm.searching : startsWith;
 
 import libintl : _, __;
 version(I18N)
-import libintl : bindtextdomain, textdomain, bind_textdomain_codeset;
+    import libintl : bindtextdomain, textdomain, bind_textdomain_codeset;
 
-import iup.iup_plusD;
+import iup.iup_plusD : AA, Handle, Config, IupOpenD, IupControlsOpen, IupClose, IupMainLoop, IUP_APPEND;
 
 //import deimos.p11; "dependencies" : "p11:deimos": "~>0.0.3", // it's an alternative for "dependencies" : "pkcs11": "~>2.40.0-alpha.3"
-import pkcs11;
 
-import libtasn1;// : asn1_parser2tree, asn1_delete_structure, ASN1_SUCCESS;
+import libtasn1 : asn1_array2tree, asn1_parser2tree, asn1_delete_structure, ASN1_SUCCESS; // asn1_parser2array
 import tasn1_pkcs15 : tasn1_pkcs15_tab;
 
-import util_general;
+import libopensc.cardctl : SC_CARDCTL_GET_SERIALNR;
+import libopensc.opensc : sc_card_ctl;
+import libopensc.types : sc_serial_number;
+
 import gui : create_dialog_dlg0;
-import util_opensc : lh, card, populate_tree_fs, PKCS15_FILE_TYPE, util_connect_card, connect_card, PKCS15,
-    errorDescription, fs, itTypeFS, iter_begin, appdf, is_ACOSV3_opmodeV3_FIPS_140_2L3,
+import util_opensc : connect_card, populate_tree_fs, PKCS15_FILE_TYPE, PKCS15,
+    errorDescription, fs, appdf, is_ACOSV3_opmodeV3_FIPS_140_2L3,
     is_ACOSV3_opmodeV3_FIPS_140_2L3_active, cm_7_3_1_14_get_card_info, tnTypePtr;
 //    , PRKDF, PUKDF, PUKDF_TRUSTED, SKDF, CDF, CDF_TRUSTED, CDF_USEFUL, DODF, AODF;
 import util_pkcs11 : pkcs11_check_return_value, pkcs11_get_slot;
+import callbacks : btn_sanity_cb,
+    config,
+    groupCfg,
+    isMFcreated,
+    isEF_DIRcreated,
+    isappDFdefined,
+    isappDFexists,
+    appDF;
 
 import key_asym : keyAsym_initialize_PubObs, prkdf, pukdf;
 import key_sym  : keySym_initialize_PubObs,  skdf;
 
+/*
+Local imports:
+enum string commands1 : import util_general : ubaIntegral2string;
+main:                   import pkcs11;
+*/
 
-import acos5_64_shared;
+int main(string[])
+{
 
-/+
-void dummy_function(sc_context* ctx) /*@safe*/ {
-    writeln("This is going to be printed from @safe code: ", *ctx);
-}
-
-
-string blankPaddingTrimmed(ubyte[] buf) {
-return "";
-}
-+/
-
-//version(unittest) {}
-//else
-int main(string[]) {
-
-version(I18N) {
+version(I18N)
+{
     /* Setting the i18n environment */
     setlocale (LC_ALL, "");
     cast(void) bindtextdomain ("acos5_64_gui", getenv("PWD"));
@@ -116,12 +92,17 @@ version(I18N) {
 
     IupOpenD();
     IupControlsOpen(); // without this, no Matrix etc. will be visible
-
-	  Config config = new Config;
-	  config.SetAttribute("APP_NAME", "acos5_64_gui");
-    // import std.file : getcwd;
-	  // writeln("current working directory: ", getcwd());
     version(Windows)  IupSetGlobal("UTF8MODE", IUP_YES);
+
+    /* IUP Config */
+    int ret;
+    config = new Config;
+    config.SetAttribute("APP_NAME", "acos5_64_gui");
+    if ((ret= config.LoadConfig) != 0)
+    {
+        writeln("IupConfigLoad return value: ", ret);
+//        exit(EXIT_FAILURE);
+    }
 
     /*
     Workflow:
@@ -148,49 +129,64 @@ version(I18N) {
 
     */
 
-    {
-        int rv;
-        //Serial Number of Card (EEPROM): 'C0C6406881C7'
-        int some; // some and more later placed globally
-        with (config) {
-/* once only to have the file generated
-	if ((rv= SaveConfig) != 0) {
-		writeln("IupConfigSave return value: ", rv);
-		exit(EXIT_FAILURE);
-	}
- */
-	           if ((rv= LoadConfig) != 0) {
-		             writeln("IupConfigLoad return value: ", rv);
-//		           exit(EXIT_FAILURE);
-	           }
-	           else {
-		              some = config.GetVariableInt("group", "key");
-		              /*debug*/ writeln("\nConfigured some: ", some);
-           	}
-        }
-    }
-
-    /* Shows dialog */
-    create_dialog_dlg0.Show; // this does the mapping; it's here because some things can be done only after mapping
-
+    /* ASN.1 */
     int parse_result;
     if (true)
         parse_result = asn1_array2tree (tasn1_pkcs15_tab, &PKCS15, errorDescription);
     else
         parse_result = asn1_parser2tree ("PKCS15.asn", &PKCS15, errorDescription);
 
-    if (parse_result != ASN1_SUCCESS) {
+    if (parse_result != ASN1_SUCCESS)
+    {
         writeln(errorDescription);
         exit(EXIT_FAILURE);
     }
-
 /+  once create the array/vector  /* C VECTOR CREATION */
     char[ASN1_MAX_ERROR_DESCRIPTION_SIZE] error_desc;
     parse_result = asn1_parser2array ("PKCS15.asn".ptr,
                                       "tasn1_pkcs15.c".ptr,
                                       "tasn1_pkcs15_tab".ptr, error_desc.ptr);
 +/
-    enum string commands = `
+
+
+    /* Shows dialog */
+    create_dialog_dlg0.Show; // this does the mapping; it's here because some things can be done only after mapping
+
+    /* TODO replace cm_7_3_1_14_get_card_info by  int sc_card_ctl(sc_card* card, SC_CARDCTL_GET_SERIALNR, void* arg); */
+    enum string commands1 = `
+        import util_general : ubaIntegral2string;
+        ushort   SW1SW2;
+        ubyte    responseLen;
+        ubyte[]  response;
+        if ((rc= cm_7_3_1_14_get_card_info(card, CardInfoType.Serial_Number, 0, SW1SW2, responseLen, response))
+            != SC_SUCCESS)
+        {
+            writeln("FAILED: cm_7_3_1_14_get_card_info: Serial_Number");
+            exit(1);
+        }
+        groupCfg = ubaIntegral2string(response);
+`;
+    mixin (connect_card!(commands1, "EXIT_FAILURE", "3", "exit(1);"));
+
+    if (config.GetVariableIntDef(groupCfg.toStringz, "seen", 99) == 99)
+    {
+        config.SetVariableInt(groupCfg.toStringz, "seen", 1);
+        AA["sanity_text"].SetString(IUP_APPEND, "Invoked by main, because this card was seen for the first time !");
+        btn_sanity_cb(AA["btn_sanity"].GetHandle());
+        config.SaveConfig();
+    }
+    else with (config)
+    {
+        isMFcreated =      GetVariableIntDef(groupCfg.toStringz, "isMFcreated", 0);
+        isEF_DIRcreated  = GetVariableIntDef(groupCfg.toStringz, "isEF_DIRcreated", 0);
+        isappDFdefined   = GetVariableIntDef(groupCfg.toStringz, "isappDFdefined", 0);
+        isappDFexists    = GetVariableIntDef(groupCfg.toStringz, "isappDFexists", 0);
+        appDF            = GetVariableStrDef(groupCfg.toStringz, "appDF", "").fromStringz.idup;
+    }
+
+    if (isMFcreated && isEF_DIRcreated && isappDFdefined && isappDFexists)
+    {
+        enum string commands2 = `
         populate_tree_fs(); // populates PrKDF, PuKDF (and dropdown key pair id),
 /+
         import std.range : chunks;
@@ -207,7 +203,7 @@ version(I18N) {
 //        assert(rc==1664 /*lenWritten*/); // return EXIT_FAILURE;
 +/
 `;
-    mixin (connect_card!(commands, "EXIT_FAILURE", "3", "exit(1);"));
+        mixin (connect_card!(commands2, "EXIT_FAILURE", "3", "exit(1);"));
 /* * /
     writeln("PRKDF.length:         ", PRKDF.length);
     writeln("PUKDF.length:         ", PUKDF.length);
@@ -221,13 +217,19 @@ version(I18N) {
     writeln("AODF.length:          ", AODF.length);
 / * */
 
-    prkdf = fs.preOrderRange(iter_begin, fs.end()).locate!"a[6]==b"(PKCS15_FILE_TYPE.PKCS15_PRKDF);
-    pukdf = fs.preOrderRange(iter_begin, fs.end()).locate!"a[6]==b"(PKCS15_FILE_TYPE.PKCS15_PUKDF);
-    skdf  = fs.preOrderRange(iter_begin, fs.end()).locate!"a[6]==b"(PKCS15_FILE_TYPE.PKCS15_SKDF);
+        prkdf = fs.rangePreOrder().locate!"a.data[6]==b"(PKCS15_FILE_TYPE.PKCS15_PRKDF);
+        pukdf = fs.rangePreOrder().locate!"a.data[6]==b"(PKCS15_FILE_TYPE.PKCS15_PUKDF);
+        skdf  = fs.rangePreOrder().locate!"a.data[6]==b"(PKCS15_FILE_TYPE.PKCS15_SKDF);
 
-    keyAsym_initialize_PubObs();
-    keySym_initialize_PubObs();
-
+        if (prkdf && pukdf)
+            keyAsym_initialize_PubObs();
+        else
+            AA["tabCtrl"].SetStringId("TABVISIBLE", 2, "NO");
+        if (skdf)
+            keySym_initialize_PubObs();
+        else
+            AA["tabCtrl"].SetStringId("TABVISIBLE", 3, "NO");
+    }
 
 /+
     // testing, that the 2 tree representations (AA["tree_fs"] and fs) are well connnected/synchronized and how to retrieve data via id or the other direction, via tnTypePtr nodeFS:
@@ -554,6 +556,10 @@ ACOS allows specifying a 16 byte public exponent prime, but opensc is limited to
 `);
 
     AA["importExport_text"].SetString(IUP_APPEND, `
+Work in progress, writes/exports readable files to /tmp . The archiving to a compressed file is missing and any import is missing.
+It's intended, that such an archive file may serve as a backup and be used for initializing the card, populating it with what is in the archive file.
+Unreadable contents need to be archived manually or omitted, pins must be written so there are default values to start with. The design needs to be fleshed out.
+
 This applies to the whole file system: (Currently, the output is in /tmp)
 First select whether to import or export and enter from/to which file  /path/from//to/file  on the hosting computer.
 Export will collect all information retrievable from the card/token and write it to an archive file on the hosting computer.
@@ -606,7 +612,7 @@ At the moment, my intention is primaryly to get users started with some base ins
 First the mere create and select commands generating the skeletin, second the select and activate commands which will run in the end.
 `);
 
-/*
+/* */
     AA["sanity_overview_text"].SetString(IUP_APPEND, `
 These sanity checks are intended to be run with ACOS5-64 cards/tokens operating the first time with the acos5_64 driver (and this tool) and are run automatically, if dub.json has dlang version identifier SANITYCHECK defined:
 My experience was with ACS client kit software for CryptoMate64, the worst software I ever was forced to buy in order to make use of the token at all, beyond that, constrained to the Windows OS. Don't know if things improved and which options are available nowadays for driver and tool.
@@ -627,130 +633,156 @@ The checks may be grouped into these categories:
     But ACS wanted to be smart and implemented some additional places to search for in case of 'File not found', which opened the door of ambiguity.
     Also, I once managed to have 2 files named "1234" within the same directory, impossible acc. to the ref. manual but doable and plain wrong; thus there must be some bug in acos while trying to prevent that.
 `);
-*/
+
     /*
        One way to access the card/token is via util_connect_card, which uses functions from libopensc.so, but nothing from opensc-pkcs11.so.
        The other way is through the PKCS#11/Cryptoki interface, used in the following. It uses the specified or preconfigured PKCS#11 module,
        which may be any one capable to support ACOS5-64, likely opensc-pkcs11.so (or even better if installed: p11-kit-proxy.so)
     */
+//    if (isMFcreated)
     { // scope for scope(exit)  PKCS11.unload();
+        import pkcs11 : PKCS11, NULL_PTR, CKR_OK, CK_RV, CK_ULONG, CK_TRUE, CK_SLOT_ID, CK_SLOT_INFO, CK_TOKEN_INFO,
+            CK_INFO, CK_C_INITIALIZE_ARGS, CKF_OS_LOCKING_OK,
+            CKF_TOKEN_PRESENT, CKF_REMOVABLE_DEVICE, CKF_HW_SLOT, CKF_RNG, CKF_WRITE_PROTECTED, CKF_LOGIN_REQUIRED,
+            CKF_USER_PIN_INITIALIZED, CKF_PROTECTED_AUTHENTICATION_PATH, CKF_DUAL_CRYPTO_OPERATIONS,
+            CKF_TOKEN_INITIALIZED, CKF_SECONDARY_AUTHENTICATION, CKF_ERROR_STATE,
+            CKF_USER_PIN_COUNT_LOW, CKF_USER_PIN_FINAL_TRY, CKF_USER_PIN_LOCKED, CKF_USER_PIN_TO_BE_CHANGED,
+            CKF_SO_PIN_COUNT_LOW, CKF_SO_PIN_FINAL_TRY, CKF_SO_PIN_LOCKED, CKF_SO_PIN_TO_BE_CHANGED,
+            C_Initialize, C_Finalize, C_GetSlotList, C_GetSlotInfo, C_GetTokenInfo, C_GetInfo;
+
         // this one-liner enables operating with the module specified
         PKCS11.load("opensc-pkcs11.so");
-        scope(exit)  PKCS11.unload();
+        scope(exit)
+            PKCS11.unload();
         // Now PKCS#11 functions can be called, but as latest opensc-pkcs11.so implements Cryptoki API v2.20
         // and the headers cover API v2.40 as well, take care not to use/call anything unavailable !
         CK_RV rv;
         /* We aren't going to access the Cryptoki library from multiple threads simultaneously */
-        CK_C_INITIALIZE_ARGS  init_args; // = {cast()NULL_PTR, NULL_PTR, NULL_PTR, NULL_PTR, CKF_OS_LOCKING_OK, NULL_PTR};
+        CK_C_INITIALIZE_ARGS  init_args;
         init_args.flags = CKF_OS_LOCKING_OK;
 
-        if ((rv= C_Initialize(&init_args)) != CKR_OK) { // CKR_ARGUMENTS_BAD, CKR_CANT_LOCK, CKR_CRYPTOKI_ALREADY_INITIALIZED, CKR_FUNCTION_FAILED, CKR_GENERAL_ERROR, CKR_HOST_MEMORY, CKR_NEED_TO_CREATE_THREADS, CKR_OK.
+        if ((rv= C_Initialize(&init_args)) != CKR_OK)  // CKR_ARGUMENTS_BAD, CKR_CANT_LOCK, CKR_CRYPTOKI_ALREADY_INITIALIZED, CKR_FUNCTION_FAILED, CKR_GENERAL_ERROR, CKR_HOST_MEMORY, CKR_NEED_TO_CREATE_THREADS, CKR_OK.
+        {
             writeln("Failed to initialze Cryptoki");
             return EXIT_FAILURE;
         }
         scope(exit)
             C_Finalize(NULL_PTR);
 
-        CK_INFO  info;
-        pkcs11_check_return_value(rv= C_GetInfo(&info), "get info");
-//        writeln("cryptokiVersion.major: ", info.cryptokiVersion.major);
-//        writeln("cryptokiVersion.minor: ", info.cryptokiVersion.minor);
-
         Handle h = AA["slot_token"];
 
-        h.SetStringId2("",  1,  1, info.cryptokiVersion.major.to!string~"."~info.cryptokiVersion.minor.to!string);
+        CK_INFO  info; /* C_GetInfo returns general information about Cryptoki. */
+        pkcs11_check_return_value(rv= C_GetInfo(&info), "get info");
+        with (info) with (h)
+        {
+            SetStringId2("",  1,  1, cryptokiVersion.major.to!string ~"."~ cryptokiVersion.minor.to!string);
+            SetStringId2("",  2,  1, manufacturerID.assumeUTF.stripRight);
+         //SetIntegerId2("", ??,  1, cast(int) flags);
+            SetStringId2("",  3,  1, libraryDescription.assumeUTF.stripRight);
+            SetStringId2("",  4,  1, libraryVersion.major.to!string~"."~libraryVersion.minor.to!string);
+        }
 
-        // TODO replace the pos-hack by blankPaddingTrimmed for all blank-padded strings
-        ptrdiff_t pos = clamp(countUntil(info.manufacturerID[], [ubyte(32),ubyte(32)]), 0,32);
-        h.SetStringId2("",  2,  1, cast(string)info.manufacturerID.ptr[0..pos]);
-        //    h.SetIntegerId2("", 3,  1, cast(int)info.flags);
+        CK_SLOT_ID[10]  slotIds; /* Slot       A logical reader that potentially contains a token. */
+        CK_ULONG        slotCount;
+        // size query
+        pkcs11_check_return_value(rv= C_GetSlotList(CK_TRUE, null, &slotCount), "get slot list (size query)");
+        if (rv != CKR_OK || slotCount == 0  ||  slotCount > slotIds.length)
+        {
+            h.SetIntegerId2 ("",  5,  1, cast(int) slotCount);
+            writeln("Error: Could not find any slots or more than 10 slots with a token present found "~
+                "(dev: adjust array size?)");
+//            exit(EXIT_FAILURE);
+        }
+        else
+        {
+            pkcs11_check_return_value(rv= C_GetSlotList(CK_TRUE, slotIds.ptr, &slotCount), "get slot list");
+            if (rv != CKR_OK)
+                exit(EXIT_FAILURE);
 
-        pos = clamp(countUntil(info.libraryDescription[], [ubyte(32),ubyte(32)]), 0,32);
-        h.SetStringId2("",  4,  1, cast(string)info.libraryDescription.ptr[0..pos]);
-        h.SetStringId2("",  5,  1, info.libraryVersion.major.to!string~"."~info.libraryVersion.minor.to!string);
+            CK_SLOT_ID  slotID;
+/*
+            foreach (slot; slotIds[0..slotCount]) {
+                CK_SLOT_INFO  slotInfoLocal;
+                pkcs11_check_return_value(rv= C_GetSlotInfo(slot, &slotInfoLocal), "get slot info");
+                if (rv != CKR_OK)
+                    continue;
+//                if (slotInfoLocal.slotDescription.assumeUTF.stripRight.startsWith("ACS CryptoMate64"))
+//                    slotID = slot;
+//                if (slotInfoLocal.slotDescription.assumeUTF.stripRight.startsWith("ACS CryptoMate (T2)"))
+//                    slotID = slot;
+            }
+*/
+            slotID = slotIds[0];
 
-        CK_SLOT_ID  slotID = pkcs11_get_slot();
-//        writeln("slotID: ", slotID);
-        h.SetIntegerId2("",  6,  1, cast(int)slotID);
+            h.SetIntegerId2 ("",  5,  1, cast(int) slotCount);
+            h.SetIntegerId2 ("",  6,  1, cast(int) slotID);
 
-        CK_SLOT_INFO  slotInfo;
-        pkcs11_check_return_value(rv= C_GetSlotInfo(slotID, &slotInfo), "get slot info");
-        pos = clamp(countUntil(slotInfo.slotDescription[], [ubyte(32),ubyte(32)]), 0,64);
-//        writeln ("slotDescription: ", (cast(char*)slotInfo.slotDescription.ptr)[0..pos]);
-        h.SetStringId2("",  7,  1, cast(string)slotInfo.slotDescription.ptr[0..pos]);
-        pos = clamp(countUntil(slotInfo.manufacturerID[], [ubyte(32),ubyte(32)]), 0,32);
-//        writeln ("manufacturerID:  ", (cast(char*)slotInfo.manufacturerID.ptr)[0..pos]);
-        h.SetStringId2("",  8,  1, cast(string)slotInfo.manufacturerID.ptr[0..pos]);
-//        writeln ("flags:           ", slotInfo.flags);
-        if (slotInfo.flags & CKF_TOKEN_PRESENT)     h.SetIntegerId2("",  9,  1,  1);
-        if (slotInfo.flags & CKF_REMOVABLE_DEVICE)  h.SetIntegerId2("", 10,  1,  1);
-        if (slotInfo.flags & CKF_HW_SLOT)           h.SetIntegerId2("", 11,  1,  1);
-//        writefln("hardwareVersion: %s.%s", slotInfo.hardwareVersion.major, slotInfo.hardwareVersion.minor);
-//        writefln("firmwareVersion: %s.%s", slotInfo.firmwareVersion.major, slotInfo.firmwareVersion.minor);
-        h.SetStringId2("", 12, 1, slotInfo.hardwareVersion.major.to!string~"."~slotInfo.hardwareVersion.minor.to!string~
-            " / " ~ slotInfo.firmwareVersion.major.to!string~"."~slotInfo.firmwareVersion.minor.to!string);
-        CK_TOKEN_INFO tokenInfo;
-        pkcs11_check_return_value(rv= C_GetTokenInfo(slotID, &tokenInfo), "get token info");
+            CK_SLOT_INFO  slotInfo; /* C_GetSlotInfo obtains information about a particular slot in the system. */
+            pkcs11_check_return_value(rv= C_GetSlotInfo(slotID, &slotInfo), "get slot info");
+            with (slotInfo) with (h)
+            {
+                SetStringId2("",  7,  1, stripRight(assumeUTF(slotDescription)));
+                SetStringId2("",  8,  1, stripRight(assumeUTF(manufacturerID)));
+             //SetIntegerId2("", ??,  1, cast(int) flags);
+                if (flags & CKF_TOKEN_PRESENT)     SetIntegerId2("",  9,  1,  1); /* a token is there */
+                if (flags & CKF_REMOVABLE_DEVICE)  SetIntegerId2("", 10,  1,  1); /* removable devices*/
+                if (flags & CKF_HW_SLOT)           SetIntegerId2("", 11,  1,  1); /* hardware slot */
+                SetStringId2("", 12,  1, hardwareVersion.major.to!string~"."~hardwareVersion.minor.to!string~" / "~
+                                     firmwareVersion.major.to!string~"."~firmwareVersion.minor.to!string);
+            }
 
-//    pos = clamp(/*countUntil(tokenInfo.label[], 0/ *[ubyte(32),ubyte(32)]* /)*/32, 0,32);
-//        writeln ("token.label:     ", (cast(char*)tokenInfo.label.ptr)[0..pos]);
-//writefln ("token.label: 0x[%(%02X %)]: ", tokenInfo.label); // token.label: 0x[55 73 65 72 20 28 0C 12 43 54 4D 36 34 5F 43 30 43 36 34 30 36 38 38 31 43 37 29 20 20 20 20 20]:
-        pos = clamp(countUntil(tokenInfo.label[], [ubyte(32),ubyte(32)]), 0,32);
-        h.SetStringId2("", 13,  1, cast(string)tokenInfo.label.ptr[0..pos]);
+            CK_TOKEN_INFO tokenInfo; /* C_GetTokenInfo obtains information about a particular token in the system. */
+            pkcs11_check_return_value(rv= C_GetTokenInfo(slotID, &tokenInfo), "get token info");
+            with (tokenInfo) with (h)
+            {
+                SetStringId2("", 13,  1, stripRight(assumeUTF(label)));
+                SetStringId2("", 14,  1, stripRight(assumeUTF(manufacturerID)));
+                SetStringId2("", 15,  1, stripRight(assumeUTF(model)));
+                SetStringId2("", 16,  1, stripRight(cast(string) serialNumber[]));
+                SetIntegerId2("",17,  1, cast(int) flags);
+                if (flags & CKF_RNG)                           SetIntegerId2("", 18,  1,  1);
+                if (flags & CKF_WRITE_PROTECTED)               SetIntegerId2("", 19,  1,  1);
+                if (flags & CKF_LOGIN_REQUIRED)                SetIntegerId2("", 20,  1,  1);
+                if (flags & CKF_USER_PIN_INITIALIZED)          SetIntegerId2("", 21,  1,  1);
 
-        pos = clamp(countUntil(tokenInfo.manufacturerID[], [ubyte(32),ubyte(32)]), 0,32);
-        h.SetStringId2("", 14,  1, cast(string)tokenInfo.manufacturerID.ptr[0..pos]);
-        pos = clamp(countUntil(tokenInfo.model[], [ubyte(32),ubyte(32)]), 0,16);
-        h.SetStringId2("", 15,  1, cast(string)tokenInfo.model.ptr[0..pos]);
-        pos = clamp(countUntil(tokenInfo.serialNumber[], [ubyte(32),ubyte(32)]), 0,16);
-        h.SetStringId2("", 16,  1, cast(string)tokenInfo.serialNumber.ptr[0..pos]);
-        h.SetIntegerId2("",17,  1, cast(int)tokenInfo.flags);
+                if (flags & CKF_PROTECTED_AUTHENTICATION_PATH) SetIntegerId2("", 22,  1,  1);
+                if (flags & CKF_DUAL_CRYPTO_OPERATIONS)        SetIntegerId2("", 23,  1,  1);
+                if (flags & CKF_TOKEN_INITIALIZED)             SetIntegerId2("", 24,  1,  1);
+                if (flags & CKF_SECONDARY_AUTHENTICATION)      SetIntegerId2("", 25,  1,  1);
 
-        if (tokenInfo.flags & CKF_RNG)                   h.SetIntegerId2("", 18,  1,  1);
-        if (tokenInfo.flags & CKF_WRITE_PROTECTED)       h.SetIntegerId2("", 19,  1,  1);
-        if (tokenInfo.flags & CKF_LOGIN_REQUIRED)        h.SetIntegerId2("", 20,  1,  1);
-        if (tokenInfo.flags & CKF_USER_PIN_INITIALIZED)  h.SetIntegerId2("", 21,  1,  1);
+                if (flags & CKF_USER_PIN_COUNT_LOW)            SetIntegerId2("", 26,  1,  1);
+                if (flags & CKF_USER_PIN_FINAL_TRY)            SetIntegerId2("", 27,  1,  1);
+                if (flags & CKF_USER_PIN_LOCKED)               SetIntegerId2("", 28,  1,  1);
+                if (flags & CKF_USER_PIN_TO_BE_CHANGED)        SetIntegerId2("", 29,  1,  1);
 
-        if (tokenInfo.flags & CKF_PROTECTED_AUTHENTICATION_PATH) h.SetIntegerId2("", 22,  1,  1);
-        if (tokenInfo.flags & CKF_DUAL_CRYPTO_OPERATIONS)        h.SetIntegerId2("", 23,  1,  1);
-        if (tokenInfo.flags & CKF_TOKEN_INITIALIZED)             h.SetIntegerId2("", 24,  1,  1);
-        if (tokenInfo.flags & CKF_SECONDARY_AUTHENTICATION)      h.SetIntegerId2("", 25,  1,  1);
+                if (flags & CKF_SO_PIN_COUNT_LOW)              SetIntegerId2("", 30,  1,  1);
+                if (flags & CKF_SO_PIN_FINAL_TRY)              SetIntegerId2("", 31,  1,  1);
+                if (flags & CKF_SO_PIN_LOCKED)                 SetIntegerId2("", 32,  1,  1);
+                if (flags & CKF_SO_PIN_TO_BE_CHANGED)          SetIntegerId2("", 33,  1,  1);
 
-        if (tokenInfo.flags & CKF_USER_PIN_COUNT_LOW)            h.SetIntegerId2("", 26,  1,  1);
-        if (tokenInfo.flags & CKF_USER_PIN_FINAL_TRY)            h.SetIntegerId2("", 27,  1,  1);
-        if (tokenInfo.flags & CKF_USER_PIN_LOCKED)               h.SetIntegerId2("", 28,  1,  1);
-        if (tokenInfo.flags & CKF_USER_PIN_TO_BE_CHANGED)        h.SetIntegerId2("", 29,  1,  1);
+                if (flags & CKF_ERROR_STATE)                   SetIntegerId2("", 34,  1,  1); // since version 2.30 ?
 
-        if (tokenInfo.flags & CKF_SO_PIN_COUNT_LOW)              h.SetIntegerId2("", 30,  1,  1);
-        if (tokenInfo.flags & CKF_SO_PIN_FINAL_TRY)              h.SetIntegerId2("", 31,  1,  1);
-        if (tokenInfo.flags & CKF_SO_PIN_LOCKED)                 h.SetIntegerId2("", 32,  1,  1);
-        if (tokenInfo.flags & CKF_SO_PIN_TO_BE_CHANGED)          h.SetIntegerId2("", 33,  1,  1);
-
-        ////    if (tokenInfo.flags & CKF_ERROR_STATE)                   h.SetIntegerId2("", 34,  1,  1); // since version 2.30 ?
-/+ +/
-        h.SetStringId2("", 35,  1, tokenInfo.ulSessionCount.to!string~" / "~tokenInfo.ulMaxSessionCount.to!string);
-        h.SetStringId2("", 36,  1, tokenInfo.ulRwSessionCount.to!string~" / "~tokenInfo.ulMaxRwSessionCount.to!string);
-        h.SetStringId2("", 37,  1, tokenInfo.ulMinPinLen.to!string~" / "~tokenInfo.ulMaxPinLen.to!string);
-
-        ////    h.SetStringId2("", 38,  1, (cast(float)tokenInfo.ulFreePublicMemory/1024).to!string~" / "~(cast(float)tokenInfo.ulTotalPublicMemory/1024).to!string);
-        ////    h.SetStringId2("", 39,  1, (cast(float)tokenInfo.ulFreePrivateMemory/1024).to!string~" / "~(cast(float)tokenInfo.ulTotalPrivateMemory/1024).to!string);
-        with (tokenInfo)
-        h.SetStringId2("", 40,  1, hardwareVersion.major.to!string~"."~hardwareVersion.minor.to!string~" / "~
-                                              firmwareVersion.major.to!string~"."~firmwareVersion.minor.to!string);
-    //    pos = clamp(countUntil(tokenInfo.utcTime[], [ubyte(32),ubyte(32)]), 0,16);
-        h.SetStringId2("", 41,  1, cast(string)tokenInfo.utcTime.ptr[0..16]);
+                SetStringId2("", 35,  1, ulSessionCount.to!string  ~" / "~ulMaxSessionCount.to!string);
+                SetStringId2("", 36,  1, ulRwSessionCount.to!string~" / "~ulMaxRwSessionCount.to!string);
+                SetStringId2("", 37,  1, ulMinPinLen.to!string     ~" / "~ulMaxPinLen.to!string);
+              //SetStringId2("", 38,  1, format("%5.0f", ulFreePublicMemory /1024.) ~" / "~ format("%5.0f", ulTotalPublicMemory /1024.));
+              //SetStringId2("", 39,  1, format("%5.0f", ulFreePrivateMemory/1024.) ~" / "~ format("%5.0f", ulTotalPrivateMemory/1024.));
+                SetStringId2("", 40,  1, hardwareVersion.major.to!string~"."~hardwareVersion.minor.to!string~" / "~
+                                         firmwareVersion.major.to!string~"."~firmwareVersion.minor.to!string);
+                SetStringId2("", 41,  1, cast(string) utcTime[]);
+            }
+        }
     } //  // scope for scope(exit)  PKCS11.unload();
-
     AA["dlg0"].Update;
     AA["tabCtrl"].SetInteger("VALUEPOS", 1); // filesystem
-
     GC.collect();
     /* start event loop */
     IupMainLoop();
+    config.SaveConfig();
+    IupClose();
 
-    /* Clear the "PKCS15" structures */
+    /* Clear the "PKCS15" structure */
     asn1_delete_structure (&PKCS15);
 
-    IupClose();
     return EXIT_SUCCESS;
 }
