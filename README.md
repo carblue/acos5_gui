@@ -1,8 +1,11 @@
 # acos5_64_gui
-An Administration tool for ACS ACOS5-64 (v2: Smart Card/CryptoMate64 or v3: Smart Card/CryptoMate Nano in mode Non-FIPS/64K), based on driver acos5_64 for OpenSC.
+An Administration tool for ACS ACOS5-64 (v2: Smart Card/CryptoMate64 and v3: Smart Card/CryptoMate Nano), based on driver acos5_64 for OpenSC.
 
-The Linux acos5_64 driver/SM binary libacos5_64.so included is bound to a specific opensc version and depends on specific shared object(s) phobos and druntime of a D compiler suite (currently supported: DMD 2.081.1, LDC 2.080.1 (LDC 1.10.0), GDC 2.076, https://dlang.org/download.html).<br>
-Other "systemDependencies" are listed in dub.json.<br>
+The repo is in transit to be based on a new driver implementation (https://github.com/carblue/acos5_64 since release v0.0.7);<br>
+(this repo's release tagged v0.0.6 is the last one based on the old driver (https://github.com/carblue/acos5_64 with releases tagged < v0.0.6);<br>
+
+During transit, not all - what worked already - is still available; since next release, the gap should be caught up.
+
 
 ![alt text](Screenshot_20180620_acos5_64_gui.png)
 
