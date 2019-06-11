@@ -144,9 +144,9 @@ private Hbox create_cryptoki_slot_tokeninfo_tab()
         SetAttributeId2("", 39,  0,   "Token PrivateMemory free/total in kB");
         SetAttributeId2("", 40,  0,   "Token hardware/firmware version");
         SetAttributeId2("", 41,  0,   "Token utcTime");
-        SetAttributeId2("", 42,  0,   "Token has provision for FIPS 140-2 Level 3–Compliant Mode");
+        SetAttributeId2("", 42,  0,   "Token operates in FIPS 140-2 Level 3 Mode");
         SetAttributeId2("", 42,  1,   "No");
-        SetAttributeId2("", 43,  0,   "Token is verified to operate in FIPS 140-2 Level 3–Compliant Mode");
+        SetAttributeId2("", 43,  0,   "Token is verified to comply with FIPS 140-2 Level 3 file system requirements");
         SetAttributeId2("", 43,  1,   "N/A");
 
         SetAttribute(IUP_TOGGLECENTERED,  IUP_YES);
@@ -335,7 +335,7 @@ The IGNORERADIO can be used in any of these children types to disable this funct
         __("Create new RSA key pair files and generate RSA key pair content"));
     child_array_toggles ~= toggle4;
     auto toggle5 = new Toggle("toggle_RSA_key_pair_try_sign",
-        __("Sign SHA1/SHA256 hash (select key pair id)  Use to test the signing capability for selected id, output to stdout"));
+        __("Sign SHA1/SHA256 hash (select key pair id) and Verify.  Use to test the signing capability for selected id, input (first 20/32 bytes) from text box below, output to stdout"));
     child_array_toggles ~= toggle5;
 
     foreach (i,toggle; child_array_toggles)
@@ -647,11 +647,6 @@ private Vbox create_KeySym_tab()
     auto btn_random_key = new Button("btn_random_key",  __("Perform randomize key (and if it's DES-type, care for odd-parity bytes)"));
     btn_random_key.SetCallback(IUP_ACTION, &btn_random_key_cb);
     child_array ~= btn_random_key;
-/+
-    auto btnExternalAuth = new Button("btnExternalAuth",  __("External Authentication"));
-    btnExternalAuth.SetCallback(IUP_ACTION, &btnExternalAuth_cb);
-    child_array ~= btnExternalAuth;
-+/
 /+
     auto btn_enc_dec = new Button("btn_enc_dec",  __("Perform enc_dec fromfile tofile"));
     btn_enc_dec.SetCallback(IUP_ACTION, &btn_enc_dec_cb);

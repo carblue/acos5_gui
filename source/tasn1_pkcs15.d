@@ -32,7 +32,7 @@
 
 module tasn1_pkcs15;
 
-import libtasn1;
+import wrapper.libtasn1;
 
 /** tasn1_pkcs15_tab is the representation of PKCS15.asn declarations for use with libtasn1 functions */
 const(asn1_static_node)[] tasn1_pkcs15_tab = [
@@ -445,14 +445,13 @@ const(asn1_static_node)[] tasn1_pkcs15_tab = [
   { "PublicKeyType", 1610612754, null },
   { "publicRSAKey", 2, "PublicKeyObjectRSA".ptr },
   { "SecretKeyType", 1610612754, null },
+  { "genericSecretKey", 1073741826, "SecretKeyObject".ptr },
   { "desKey", 1610620930, "SecretKeyObject".ptr },
   { null, 4104, "2".ptr },
   { "des2Key", 1610620930, "SecretKeyObject".ptr },
   { null, 4104, "3".ptr },
-  { "des3Key", 1610620930, "SecretKeyObject".ptr },
+  { "des3Key", 536879106, "SecretKeyObject".ptr },
   { null, 4104, "4".ptr },
-  { "aesKey", 536879106, "SecretKeyObject".ptr },
-  { null, 4104, "15".ptr },
   { "CertificateType", 1610612754, null },
   { "x509Certificate", 2, "CertificateObjectX509".ptr },
   { "DataType", 1610612754, null },
@@ -641,3 +640,4 @@ const(asn1_static_node)[] tasn1_pkcs15_tab = [
   { "authObj", 2, "AuthenticationType".ptr },
   { null, 0, null }
 ];
+

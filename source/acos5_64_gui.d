@@ -46,20 +46,16 @@ version(I18N)
 import iup.iup_plusD : AA, Handle, Config, IupOpenD, IupControlsOpen, IupClose, IupMainLoop, IUP_APPEND;
 
 //import deimos.p11; "dependencies" : "p11:deimos": "~>0.0.3", // it's an alternative for "dependencies" : "pkcs11": "~>2.40.0-alpha.3"
+//import deimos.sodium;
 
-import libtasn1 : asn1_array2tree, asn1_parser2tree, asn1_delete_structure, ASN1_SUCCESS; // asn1_parser2array
+import wrapper.libtasn1 : asn1_array2tree, asn1_parser2tree, asn1_delete_structure, ASN1_SUCCESS; // asn1_parser2array
 import tasn1_pkcs15 : tasn1_pkcs15_tab;
-
-import libopensc.cardctl : SC_CARDCTL_GET_SERIALNR;
-import libopensc.opensc : sc_card_ctl;
-import libopensc.types : sc_serial_number;
 
 import gui : create_dialog_dlg0;
 import util_opensc : connect_card, populate_tree_fs, PKCS15_FILE_TYPE, PKCS15,
     errorDescription, fs, appdf, is_ACOSV3_opmodeV3_FIPS_140_2L3,
-    is_ACOSV3_opmodeV3_FIPS_140_2L3_active, cm_7_3_1_14_get_card_info, tnTypePtr;
+    is_ACOSV3_opmodeV3_FIPS_140_2L3_active, tnTypePtr;
 //    , PRKDF, PUKDF, PUKDF_TRUSTED, SKDF, CDF, CDF_TRUSTED, CDF_USEFUL, DODF, AODF;
-import util_pkcs11 : pkcs11_check_return_value, pkcs11_get_slot;
 import callbacks : btn_sanity_cb,
     config,
     groupCfg,
@@ -72,14 +68,38 @@ import callbacks : btn_sanity_cb,
 import key_asym : keyAsym_initialize_PubObs, prkdf, pukdf;
 import key_sym  : keySym_initialize_PubObs,  skdf;
 
-/*
+/+
 Local imports:
 enum string commands1 : import util_general : ubaIntegral2string;
+                        import libopensc.opensc : sc_card_ctl;
+                        import libopensc.types : sc_serial_number;
+                        import libopensc.cardctl    : SC_CARDCTL_GET_SERIALNR;
+                        import acos5_64_shared_rust : SC_CARDCTL_ACOS5_UPDATE_FILES_HASHMAP;
 main:                   import pkcs11;
-*/
+                        import util_pkcs11 : pkcs11_check_return_value/*, pkcs11_get_slot*/;
++/
 
 int main(string[])
 {
+
+    /* ASN.1 Initialize PKCS#15 declarations, originating from PKCS15.asn,  via libtasn1 (results in: asn1_node  PKCS15; available in module util_opensc) */
+    int parse_result;
+    if (true)
+        parse_result = asn1_array2tree (tasn1_pkcs15_tab, &PKCS15, errorDescription);
+    else
+        parse_result = asn1_parser2tree ("PKCS15.asn", &PKCS15, errorDescription);
+
+    if (parse_result != ASN1_SUCCESS)
+    {
+        writeln(errorDescription);
+        exit(EXIT_FAILURE);
+    }
+/+  once create the array/vector  /* C VECTOR CREATION, to be translated to D */
+    char[ASN1_MAX_ERROR_DESCRIPTION_SIZE] error_desc;
+    parse_result = asn1_parser2array ("PKCS15.asn".ptr,
+                                      "tasn1_pkcs15.c".ptr,
+                                      "tasn1_pkcs15_tab".ptr, error_desc.ptr);
++/
 
 version(I18N)
 {
@@ -90,9 +110,13 @@ version(I18N)
     /*printf("bind_textdomain_codeset: %s\n",*/cast(void) bind_textdomain_codeset("acos5_64_gui", "UTF-8");//);
 }
 
+    /* IUP initialization */
     IupOpenD();
     IupControlsOpen(); // without this, no Matrix etc. will be visible
     version(Windows)  IupSetGlobal("UTF8MODE", IUP_YES);
+
+    /* Shows dialog */
+    create_dialog_dlg0.Show; // this does the mapping; it's early here because some things can be done only after mapping
 
     /* IUP Config */
     int ret;
@@ -129,46 +153,35 @@ version(I18N)
 
     */
 
-    /* ASN.1 */
-    int parse_result;
-    if (true)
-        parse_result = asn1_array2tree (tasn1_pkcs15_tab, &PKCS15, errorDescription);
-    else
-        parse_result = asn1_parser2tree ("PKCS15.asn", &PKCS15, errorDescription);
-
-    if (parse_result != ASN1_SUCCESS)
-    {
-        writeln(errorDescription);
-        exit(EXIT_FAILURE);
-    }
-/+  once create the array/vector  /* C VECTOR CREATION */
-    char[ASN1_MAX_ERROR_DESCRIPTION_SIZE] error_desc;
-    parse_result = asn1_parser2array ("PKCS15.asn".ptr,
-                                      "tasn1_pkcs15.c".ptr,
-                                      "tasn1_pkcs15_tab".ptr, error_desc.ptr);
-+/
-
-
-    /* Shows dialog */
-    create_dialog_dlg0.Show; // this does the mapping; it's here because some things can be done only after mapping
-
-    /* TODO replace cm_7_3_1_14_get_card_info by  int sc_card_ctl(sc_card* card, SC_CARDCTL_GET_SERIALNR, void* arg); */
+    /* get card's serial no., catch up on everything that was lazily done by the driver */
     enum string commands1 = `
+        import libopensc.opensc : sc_card_ctl;
+        import libopensc.types : sc_serial_number;
+        import libopensc.cardctl    : SC_CARDCTL_GET_SERIALNR;
+        import acos5_64_shared_rust : SC_CARDCTL_ACOS5_UPDATE_FILES_HASHMAP;
         import util_general : ubaIntegral2string;
-        ushort   SW1SW2;
-        ubyte    responseLen;
-        ubyte[]  response;
-        if ((rc= cm_7_3_1_14_get_card_info(card, CardInfoType.Serial_Number, 0, SW1SW2, responseLen, response))
-            != SC_SUCCESS)
+
+        /*
+           This is the idea:
+           OpenSC-centric code (including PKCS#15-File-type detection) moves to the driver, ideally no opensc dependency anymore
+           The driver offers functions to get all information about the file system, via sc_card_ctl:
+           sc_card_ctl(card, SC_CARDCTL_ACOS5_UPDATE_FILES_HASHMAP, null); // catch up on everything that was lazily done by the driver
+           sc_card_ctl(card, SC_CARDCTL_ACOS5_GET_FILES_HASHMAP_INFO, CardCtlArray32*); // get the info for a given key/file id
+        */
+        rc = sc_card_ctl(card, SC_CARDCTL_ACOS5_UPDATE_FILES_HASHMAP, null);
+
+        sc_serial_number  serial_number;
+        rc = sc_card_ctl(card, SC_CARDCTL_GET_SERIALNR, &serial_number);
+        if (rc != SC_SUCCESS)
         {
-            writeln("FAILED: cm_7_3_1_14_get_card_info: Serial_Number");
+            writeln("FAILED: SC_CARDCTL_GET_SERIALNR");
             exit(1);
         }
-        groupCfg = ubaIntegral2string(response);
+        groupCfg = ubaIntegral2string(serial_number.value[0..serial_number.len]);
 `;
-    mixin (connect_card!(commands1, "EXIT_FAILURE", "3", "exit(1);"));
+    mixin (connect_card!(commands1, "EXIT_FAILURE", "3"));
 
-    if (config.GetVariableIntDef(groupCfg.toStringz, "seen", 99) == 99)
+    if (config.GetVariableIntDef(groupCfg.toStringz, "seen", 99) == 99) // then not yet seen this card before, do some sanity-check
     {
         config.SetVariableInt(groupCfg.toStringz, "seen", 1);
         AA["sanity_text"].SetString(IUP_APPEND, "Invoked by main, because this card was seen for the first time !");
@@ -184,16 +197,16 @@ version(I18N)
         appDF            = GetVariableStrDef(groupCfg.toStringz, "appDF", "").fromStringz.idup;
     }
 
+    /* TODO Make accessible from GUI only, what makes sense acccording to card contents. E.g. if no MF, then no file system tree-view etc.*/
     if (isMFcreated && isEF_DIRcreated && isappDFdefined && isappDFexists)
     {
         enum string commands2 = `
         populate_tree_fs(); // populates PrKDF, PuKDF (and dropdown key pair id),
 /+
-        import std.range : chunks;
-        import util_opensc : acos5_64_short_select, uploadHexfile;
-        ubyte[6] certPath = [0x3F, 0x00, 0x41, 0x00, 0x41, 0x20];
-        foreach (ubyte[2] fid2; chunks(certPath[], 2))
-            rc= acos5_64_short_select(card, fid2);
+        sc_path  path;
+        sc_format_path("3F0041004120", &path);
+        rc= sc_select_file(card, &path, null);
+
 //        ubyte[8] pin = [0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38];
 //        int tries_left;
 //        rc= sc_verify(card, SC_AC.SC_AC_CHV, 0x81, pin.ptr, pin.length, &tries_left);
@@ -203,7 +216,7 @@ version(I18N)
 //        assert(rc==1664 /*lenWritten*/); // return EXIT_FAILURE;
 +/
 `;
-        mixin (connect_card!(commands2, "EXIT_FAILURE", "3", "exit(1);"));
+        mixin (connect_card!(commands2, "EXIT_FAILURE", "3"));
 /* * /
     writeln("PRKDF.length:         ", PRKDF.length);
     writeln("PUKDF.length:         ", PUKDF.length);
@@ -232,7 +245,8 @@ version(I18N)
     }
 
 /+
-    // testing, that the 2 tree representations (AA["tree_fs"] and fs) are well connnected/synchronized and how to retrieve data via id or the other direction, via tnTypePtr nodeFS:
+    // testing, that the 2 tree representations (AA["tree_fs"] and fs) are well connnected/synchronized and
+         how to retrieve data via id or the other direction, via tnTypePtr nodeFS:
     import std.string;
     auto   tr = cast(iup.iup_plusD.Tree) AA["tree_fs"];
     int cnt = tr.GetInteger("COUNT");
@@ -421,7 +435,7 @@ Also, some files are mandatory for a PKCS#15 file structure and have (acc. stand
 
 Usually, there should be no (unknown meaning) dot-symbol files, except You know what they are for.
 Those existing in this example are:
-5155, 4129: Leftovers from ACOS client kit, subject to removal where possible and still to be compatible with ACS ACOS5-64 driver.
+5155, 4129: Leftovers from ACOS client kit, subject to removal where possible and still to be compatible with ACS ACOS5-64 PKCS#11 library.
 3901-3908 and 4300 + it's sub-files: Temporary dot-symbol files for testing purposes
 
 The checkbox/toggle is not meant to be used by the user: It just visualizes, whether a file is 'activated' and thus subject to acos access control,
@@ -444,7 +458,7 @@ Usually all those 'explicit' operations involve some kind of authorization.
 Also, You should know this about Pins:
 1. opensc is able to cache pin entries for repeated usage (e.g. 10 times) without user consent: This is controlled by the userConsent entry in EF.AOD.
    This is convenient, but my not be what You want. Set userConsent to 1 then.
-2. Whether we like it or not, some mainstream applications like Thunderbird/Firefox ask for the user pin upfront, once a cryptographic module shall be loaded,
+2. Whether we like it or not, some mainstream applications like Thunderbird/Firefox ask for the user pin upfront, once a PKCS#11 library shall be loaded,
    even if it's not required. Worse, there is no information, what the revealed credential is used for.
    This practice absolutely dissatisfies me, and that's why I tend to not rely on the user pin as a security feature and why the acos5_64 driver offers an
    additional level of control against 'misuse' of private RSA keys: By opensc.conf settings, a graphical popup for additional user consent may be enabled,
@@ -486,7 +500,7 @@ PKCS#15 tells, what EF(PrKDF) and EF(PuKDF) are for: They contain essential info
 Any operation done on this page will likely have to update these files to be up to date.
 ACOS stores a RSA key pair as 2 distinct files within the card's filesystem: A RSA public key file (for modulus N and public exponent e + 5 administrative bytes) and
 a RSA private key file (for modulus N and private exponent d + 5 administrative bytes; there is an option to store instead of d the components according to Chinese Remainder Theorem CRT).
-Also note the reason, why there is 'Private key usage ACOS' and 'Private key usage PrKDF' and how they are different. The only combinations that make sense, are there:
+Also note the reason, why there is 'Private key usage ACOS' and 'Private key usage PrKDF' and how they are different. The only combinations that make sense, are these:
 Private key usage:                           ACOS            PrKDF
 Intention: sign (SHA1/SHA256)                sign            sign (,signRecover,nonRepudiation)
 Intention: sign (SHA512)                     decrypt,sign    sign (,signRecover,nonRepudiation)
@@ -634,13 +648,16 @@ The checks may be grouped into these categories:
     Also, I once managed to have 2 files named "1234" within the same directory, impossible acc. to the ref. manual but doable and plain wrong; thus there must be some bug in acos while trying to prevent that.
 `);
 
+/* all the above and any use of mixin (connect_card!... will be logged for [acos5_gui], only the next block scope will be logged for [opensc-pkcs11] */
+
     /*
        One way to access the card/token is via util_connect_card, which uses functions from libopensc.so, but nothing from opensc-pkcs11.so.
-       The other way is through the PKCS#11/Cryptoki interface, used in the following. It uses the specified or preconfigured PKCS#11 module,
+       The other way is through the PKCS#11/Cryptoki interface, used in the following. It uses the specified or preconfigured (p11-kit) PKCS#11 library,
        which may be any one capable to support ACOS5-64, likely opensc-pkcs11.so (or even better if installed: p11-kit-proxy.so)
     */
 //    if (isMFcreated)
     { // scope for scope(exit)  PKCS11.unload();
+        import util_pkcs11 : pkcs11_check_return_value/*, pkcs11_get_slot*/;
         import pkcs11 : PKCS11, NULL_PTR, CKR_OK, CK_RV, CK_ULONG, CK_TRUE, CK_SLOT_ID, CK_SLOT_INFO, CK_TOKEN_INFO,
             CK_INFO, CK_C_INITIALIZE_ARGS, CKF_OS_LOCKING_OK,
             CKF_TOKEN_PRESENT, CKF_REMOVABLE_DEVICE, CKF_HW_SLOT, CKF_RNG, CKF_WRITE_PROTECTED, CKF_LOGIN_REQUIRED,
@@ -651,7 +668,7 @@ The checks may be grouped into these categories:
             C_Initialize, C_Finalize, C_GetSlotList, C_GetSlotInfo, C_GetTokenInfo, C_GetInfo;
 
         // this one-liner enables operating with the module specified
-        PKCS11.load("opensc-pkcs11.so");
+        PKCS11.load("opensc-pkcs11.so"); // or with p11-kit and highest priority for opensc-pkcs11.so: p11-kit-proxy.so
         scope(exit)
             PKCS11.unload();
         // Now PKCS#11 functions can be called, but as latest opensc-pkcs11.so implements Cryptoki API v2.20
@@ -770,18 +787,22 @@ The checks may be grouped into these categories:
                 SetStringId2("", 40,  1, hardwareVersion.major.to!string~"."~hardwareVersion.minor.to!string~" / "~
                                          firmwareVersion.major.to!string~"."~firmwareVersion.minor.to!string);
                 SetStringId2("", 41,  1, cast(string) utcTime[]);
-            }
+            } // what about other data like free space, ROM-SHA1 etc.
         }
     } //  // scope for scope(exit)  PKCS11.unload();
+
     AA["dlg0"].Update;
     AA["tabCtrl"].SetInteger("VALUEPOS", 1); // filesystem
     GC.collect();
-    /* start event loop */
+
+    /* start event loop. From this point, control flow depends on user action and callback functions connected in gui.d, e.g. SetCallback(IUP_SELECTION_CB, cast(Icallback) &selectbranchleaf_cb); */
+    /* Check why GIO (since opensc 0.18.0) crashes this program, Check multi-threading within event loop  */
     IupMainLoop();
+    /* Close/Exit Button was clicked */
     config.SaveConfig();
     IupClose();
 
-    /* Clear the "PKCS15" structure */
+    /* Destroy the "PKCS15" structure */
     asn1_delete_structure (&PKCS15);
 
     return EXIT_SUCCESS;

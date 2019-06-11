@@ -1,0 +1,3 @@
+ACOS564GUI_1.1 {
+  local: *; # hide everything
+};

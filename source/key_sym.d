@@ -58,14 +58,13 @@ import util_general;// : ub22integral;
 import acos5_64_shared;
 import pub;
 
-import util_opensc : connect_card/*, acos5_64_short_select*/, readFile, decompose, PKCS15Path_FileType, pkcs15_names,
+import util_opensc : connect_card, readFile, decompose, PKCS15Path_FileType, pkcs15_names,
     PKCS15_FILE_TYPE, fs, SKDF, AODF,
     PKCS15_ObjectTyp, errorDescription, PKCS15, appdf,
     tnTypePtr, aid, is_ACOSV3_opmodeV3_FIPS_140_2L3,
-    my_pkcs15init_callbacks, tlv_Range_mod, file_type, getIdentifier, is_ACOSV3_opmodeV3_FIPS_140_2L3_active,
-    cry_pso_7_4_3_6_2A_sym_encrypt, cry_pso_7_4_3_7_2A_sym_decrypt, cry_mse_7_4_2_1_22_set, getPath;
+    my_pkcs15init_callbacks, tlv_Range_mod, file_type, getIdentifier, is_ACOSV3_opmodeV3_FIPS_140_2L3_active, getPath;
 
-//import libtasn1 : asn1_node;
+//import wrapper.libtasn1 : asn1_node;
 import pkcs11;
 
 import deimos.openssl.des : DES_cblock, DES_set_odd_parity, DES_is_weak_key;
@@ -519,13 +518,13 @@ class Obs_change_calcSKDF
     void watch(string msg, int v)
     {
         import std.string : toStringz;
-        import libtasn1 : ASN1_SUCCESS, asn1_strerror2, asn1_write_value;
+        import wrapper.libtasn1 : ASN1_SUCCESS, asn1_strerror2, asn1_write_value;
         int asn1_result;
         int outLen;
         switch (msg)
         {
             case "_keySym_Id":
-                import libtasn1 : asn1_create_element, asn1_dup_node, asn1_delete_structure, asn1_der_decoding, asn1_der_coding, asn1_read_value;
+                import wrapper.libtasn1 : asn1_create_element, asn1_dup_node, asn1_delete_structure, asn1_der_decoding, asn1_der_coding, asn1_read_value;
                 if (_SKDFentry.structure_new !is null)
                     asn1_delete_structure(&_SKDFentry.structure_new);
 
@@ -697,7 +696,7 @@ class Obs_change_calcSKDF
             case "_keySym_Modifiable":
                 if (updating_PubObs)
                     return;
-                import libtasn1 : asn1_read_value;
+                import wrapper.libtasn1 : asn1_read_value;
                 ubyte[1] flags; // optional
                 mixin (asn1Read(skFlags, "flags"));
                 if (asn1_result != ASN1_SUCCESS)  mixin (asn1ReadRep(skFlags));
@@ -757,7 +756,7 @@ class Obs_change_calcSKDF
     void watch(string msg, string v)
     {
         import std.string : toStringz;
-        import libtasn1 : ASN1_SUCCESS, asn1_strerror2, asn1_write_value;
+        import wrapper.libtasn1 : ASN1_SUCCESS, asn1_strerror2, asn1_write_value;
         int asn1_result;
         switch (msg)
         {
@@ -778,7 +777,7 @@ class Obs_change_calcSKDF
 
     void present()
     {
-        import libtasn1 : asn1_node, ASN1_SUCCESS, asn1_der_coding, asn1_der_decoding, asn1_create_element, asn1_delete_structure, asn1_strerror2;
+        import wrapper.libtasn1 : asn1_node, ASN1_SUCCESS, asn1_der_coding, asn1_der_decoding, asn1_create_element, asn1_delete_structure, asn1_strerror2;
         _SKDFentry.der_new = new ubyte[_SKDFentry.der.length+32];
         int outDerLen;
         auto asn1_result = asn1_der_coding(_SKDFentry.structure_new, "", _SKDFentry.der_new, outDerLen, errorDescription);
@@ -814,8 +813,8 @@ writefln("#### mismatch [0] and ctn ! ctn: %s", ctn);
             asn1_delete_structure(&_SKDFentry.structure_new);
             _SKDFentry.structure_new = structure_new;
         }
-////writefln("  "~typeof(this).stringof~" object was set");
-////writefln("  _new_encodedData of SKDFentry: %(%02X %)", _SKDFentry.der_new);
+writefln("  "~typeof(this).stringof~" object was set");
+writefln("  _new_encodedData of SKDFentry: %(%02X %)", _SKDFentry.der_new);
         if (_h !is null)
         {
             _h.SetIntegerId2("", _lin, _col, _value);
@@ -859,8 +858,11 @@ auto rangeExtractedSym(PKCS15_ObjectTyp[] skdf) nothrow
         @property ExtractedSym front() nothrow
         {
             ExtractedSym es;
-            try
-                es.ctn = EnumMembers!CtxTagNo.either!(a => getIdentifier(skdf[0], skChoiceName(a)~skID, false, false) > 0);
+            try {
+    assumeWontThrow(writeln("watch point 1"));
+                es.ctn = EnumMembers!CtxTagNo.either!(a => getIdentifier(skdf[0], skChoiceName(a)~skID, false/*, false*/) > 0);
+    assumeWontThrow(writeln("watch point 11"));
+            }
             catch (Exception e) { printf("### Exception in rangeExtractedSym.front either\n");/* todo: handle exception */ }
             assert(es.ctn != CtxTagNo.unknown);
             es.iD = getIdentifier(skdf[0], skChoiceName(es.ctn)~skID);
@@ -911,6 +913,7 @@ version(none)
 
 enum CtxTagNo : ubyte
 {
+    genericSecretKey = 0,
     aesKey  = 15,
     des3Key = 4,
     des2Key = 3,
@@ -925,12 +928,13 @@ string skChoiceName(CtxTagNo ctxTag) nothrow
     try
       return ctxTag.to!string;
     catch (Exception e) { printf("### Exception in skChoiceName\n"); }
-    return "";
+    return "genericSecretKey"; // "";
 }
 
 unittest
 {
-    assert(skChoiceName(CtxTagNo.aesKey)  == "aesKey");
+//  assert(skChoiceName(CtxTagNo.aesKey)  == "aesKey");
+    assert(skChoiceName(CtxTagNo.genericSecretKey)  == "genericSecretKey");
     assert(skChoiceName(CtxTagNo.des3Key) == "des3Key");
     assumeWontThrow(writeln("PASSED: skChoiceName"));
 }
@@ -1731,7 +1735,7 @@ int btn_random_key_cb(Ihandle* ih)
 
     keySym_bytesStockAES.set(tmp, true);
 
-    import deimos.openssl.des : DES_cblock, DES_set_odd_parity, DES_is_weak_key;
+//    import deimos.openssl.des : DES_cblock, DES_set_odd_parity, DES_is_weak_key;
     foreach (i; 0..3)
     {
         auto p = cast(DES_cblock*)(tmp.ptr+i*8);
@@ -1746,57 +1750,8 @@ int btn_random_key_cb(Ihandle* ih)
 }
 
 
-/+
-int btnExternalAuth_cb(Ihandle* ih)
-{
-    import util_opensc : aa_7_2_6_82_external_authentication;
-    enum string commands = `
-//    auto path_val = cast(immutable(ubyte)[])hexString!"3F 00 41 00";
-//    sc_path_set(&path, SC_PATH_TYPE.SC_PATH_TYPE_FILE_ID, path_val.ptr, path_val.length, 0, -1);
-    int rv;
-    sc_path path;
-    sc_format_path("3F004100", &path);
-    if ((rv= sc_select_file(card, &path, null)) != SC_SUCCESS)
-        return IUP_DEFAULT;
-
-//    ubyte[24] key = keySym_bytesStockDES.get[0..keySym_keyLenBits.get/8]; //cast(immutable(ubyte)[])hexString!"F1E0D0C1B0A1890807164504130201F189FEB3C837451694";
-    if ((rv= aa_7_2_6_82_external_authentication(card, cast(ubyte)keySym_keyRef.get /*0x81, null, key*/)) != SC_SUCCESS) {
-        mixin (log!(__FUNCTION__,  "external_authentication failed with error code %d", "rv"));
-        return IUP_DEFAULT;
-    }
-
-/+ some relicts from other tasks / sc_update_record
-    auto newData = cast(immutable(ubyte)[])hexString!"0102030405060708090A0B0C0D0E0F10";
-    auto path    = cast(immutable(ubyte)[])hexString!"3F 00 41 00 39 06";
-
-    foreach (ub2 fid; chunks(path, 2)) {
-        if ((rv= acos5_64_short_select(card, fid)) != SC_SUCCESS)
-        return IUP_DEFAULT;
-    }
-/*
-    ub8 pw = [0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38];
-    int tries_left;
-    if ((rv= sc_verify(card, SC_AC.SC_AC_CHV, 129, pw.ptr, pw.length, &tries_left)) != SC_SUCCESS) {
-        mixin (log!(__FUNCTION__,  "sc_verify failed with error code %d", "rv"));
-        return IUP_DEFAULT;
-    }
-    sc_path path2;
-    sc_path_set(&path2, SC_PATH_TYPE.SC_PATH_TYPE_FILE_ID, path.ptr+4, path.length-4, 0, -1);
-*/
-    if ((rv= sc_update_record(card, 2, newData.ptr, newData.length, 0)) != SC_SUCCESS) {
-        mixin (log!(__FUNCTION__,  "sc_update_record failed with error code %d", "rv"));
-        return IUP_DEFAULT;
-    }
-+/
-`;
-    mixin (connect_card!commands);
-    return IUP_DEFAULT;
-}
-+/
-
-
 const char[] button_radioKeySym_cb_common1 =`
-            import libtasn1 : asn1_node, asn1_dup_node, asn1_delete_structure;
+            import wrapper.libtasn1 : asn1_node, asn1_dup_node, asn1_delete_structure;
 
             int diff;
             diff = doDelete? change_calcSKDF.pkcs15_ObjectTyp.posStart - change_calcSKDF.pkcs15_ObjectTyp.posEnd : change_calcSKDF.get;
@@ -1956,7 +1911,7 @@ assumeWontThrow(writeln(SKDF));
         case "toggle_sym_update", "toggle_sym_updateSMkeyHost", "toggle_sym_updateSMkeyCard", "toggle_sym_create_write":
             if (activeToggle == "toggle_sym_create_write")
             {
-                import libtasn1 : asn1_node, asn1_dup_node, asn1_delete_structure;
+                import wrapper.libtasn1 : asn1_node, asn1_dup_node, asn1_delete_structure;
                 SKDF ~= change_calcSKDF.pkcs15_ObjectTyp;
                 SKDF[$-1].der_new       = null;
                 SKDF[$-1].structure_new = null;
@@ -2042,6 +1997,7 @@ assumeWontThrow(writeln(SKDF));
 
                 if (what_enc_dec=="enc")
                 {
+/*
                     enum string commands = `
                     int rv;
                     mixin(button_radioKeySym_cb_common2);
@@ -2064,9 +2020,11 @@ assumeWontThrow(writeln(SKDF));
                     hstat.SetString(IUP_TITLE, "SUCCESS: Encrypt data fromfile -> tofile");
 `;
                     mixin (connect_card!commands);
+*/
                 }
                 else if (what_enc_dec=="dec")
                 {
+/*
                     enum string commands = `
                     int rv;
                     mixin(button_radioKeySym_cb_common2);
@@ -2084,6 +2042,7 @@ assumeWontThrow(writeln(SKDF));
                     hstat.SetString(IUP_TITLE, "SUCCESS: Decrypt data fromfile -> tofile");
 `;
                     mixin (connect_card!commands);
+*/
                 }
             }
             catch (Exception e) { printf("### Exception in btn_enc_dec_cb() \n"); /* todo: handle exception */ }

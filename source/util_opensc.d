@@ -61,7 +61,6 @@ module util_opensc;
 
 import core.sys.posix.dlfcn;
 
-//import core.runtime : Runtime;
 import core.stdc.stdlib : EXIT_SUCCESS, EXIT_FAILURE, exit, getenv, free, calloc; //, div_t, div, malloc, free;
 import core.stdc.config : c_long, c_ulong;
 import core.stdc.string;
@@ -94,12 +93,12 @@ import pkcs15init.pkcs15init : sc_pkcs15init_bind, sc_pkcs15init_unbind, sc_pkcs
 
 import iup.iup_plusD;
 
-import libtasn1 : asn1_node;
+import wrapper.libtasn1 : asn1_node;
 
 import tree_k_ary;
 import acos5_64_shared;
 import util_general;
-
+import acos5_64_shared_rust : SC_CARDCTL_ACOS5_GET_COUNT_FILES_CURR_DF, SC_CARDCTL_ACOS5_GET_FILE_INFO, CardCtlArray8, CardCtlArray32, SC_CARDCTL_ACOS5_GET_FILES_HASHMAP_INFO;
 
 struct PKCS15_ObjectTyp
 {
@@ -259,16 +258,6 @@ void*               lh; // library handle
 bool  is_ACOSV3_opmodeV3_FIPS_140_2L3;
 bool  is_ACOSV3_opmodeV3_FIPS_140_2L3_active;
 
-ft_acos5_64_short_select                    acos5_64_short_select;
-ft_cm_7_3_1_14_get_card_info                cm_7_3_1_14_get_card_info;
-ft_cry_mse_7_4_2_1_22_set                   cry_mse_7_4_2_1_22_set;
-ft_cry_pso_7_4_3_8_2A_asym_encrypt_RSA      cry_pso_7_4_3_8_2A_asym_encrypt_RSA;
-ft_cry_____7_4_4___46_generate_keypair_RSA  cry_____7_4_4___46_generate_keypair_RSA;
-ft_cry_pso_7_4_3_6_2A_sym_encrypt           cry_pso_7_4_3_6_2A_sym_encrypt;
-ft_cry_pso_7_4_3_7_2A_sym_decrypt           cry_pso_7_4_3_7_2A_sym_decrypt;
-//ft_uploadHexfile                            uploadHexfile;
-//ft_aa_7_2_6_82_external_authentication      aa_7_2_6_82_external_authentication;
-
 sc_pkcs15init_callbacks  my_pkcs15init_callbacks = { &get_pin_callback, null };
 
 /*
@@ -323,7 +312,7 @@ extern(C) int get_pin_callback(sc_profile* profile, int /*id*/, const(sc_pkcs15_
 int getIdentifier(const ref PKCS15_ObjectTyp ot, string nodeName, bool new_=false, bool dolog=true) nothrow
 {
     /* Identifier ::= OCTET STRING (SIZE (0..255)) */
-    import libtasn1 : asn1_read_value, asn1_strerror2, ASN1_SUCCESS;
+    import wrapper.libtasn1 : asn1_read_value, asn1_strerror2, ASN1_SUCCESS;
     ubyte[2]  str;
     int outLen;
     int asn1_result;
@@ -339,7 +328,7 @@ int getIdentifier(const ref PKCS15_ObjectTyp ot, string nodeName, bool new_=fals
 
 ubyte[] getPath(const ref PKCS15_ObjectTyp ot, string nodeName, bool new_=false, bool dolog=true) nothrow
 {
-    import libtasn1 : asn1_read_value, asn1_strerror2, ASN1_SUCCESS;
+    import wrapper.libtasn1 : asn1_read_value, asn1_strerror2, ASN1_SUCCESS;
     ubyte[16]  str;
     int outLen;
     int asn1_result;
@@ -358,7 +347,7 @@ ubyte[] getPath(const ref PKCS15_ObjectTyp ot, string nodeName, bool new_=false,
     */
 string someScanner(int mode, const(char)[] line)
 {
-    import libtasn1 : ASN1_PRINT_NAME, ASN1_PRINT_NAME_TYPE;
+    import wrapper.libtasn1 : ASN1_PRINT_NAME, ASN1_PRINT_NAME_TYPE;
     import std.string : indexOf;
 
     string res;
@@ -642,92 +631,10 @@ autofound:
     assert(card.driver);
     lh = card.driver.dll;
     assert(lh); // lh is valid until sc_release_context runs
-    char* error;
-
-    // some exported functions to call directly into libacos5_64.so
-    acos5_64_short_select = cast(ft_acos5_64_short_select) dlsym(lh, "acos5_64_short_select");
-    error = dlerror();
-    if (error)
-    {
-        printf("dlsym error acos5_64_short_select: %s\n", error);
-        exit(1);
-    }
-////    printf("acos5_64_short_select() function is found\n");
-/+
-    uploadHexfile = cast(ft_uploadHexfile) dlsym(lh, "uploadHexfile");
-    error = dlerror();
-    if (error)
-    {
-        printf("dlsym error uploadHexfile: %s\n", error);
-        exit(1);
-    }
-////    printf("uploadHexfile() function is found\n");
-+/
-    cm_7_3_1_14_get_card_info = cast(ft_cm_7_3_1_14_get_card_info) dlsym(lh, "cm_7_3_1_14_get_card_info");
-    error = dlerror();
-    if (error)
-    {
-        printf("dlsym error cm_7_3_1_14_get_card_info: %s\n", error);
-        exit(1);
-    }
-////    printf("cm_7_3_1_14_get_card_info() function is found\n");
-/* */
-    cry_mse_7_4_2_1_22_set = cast(ft_cry_mse_7_4_2_1_22_set) dlsym(lh, "cry_mse_7_4_2_1_22_set");
-    error = dlerror();
-    if (error)
-    {
-        printf("dlsym error cry_mse_7_4_2_1_22_set: %s\n", error);
-        exit(1);
-    }
-////    printf("cry_mse_7_4_2_1_22_set() function is found\n");
-/* */
-    cry_pso_7_4_3_8_2A_asym_encrypt_RSA = cast(ft_cry_pso_7_4_3_8_2A_asym_encrypt_RSA) dlsym(lh, "cry_pso_7_4_3_8_2A_asym_encrypt_RSA");
-    error = dlerror();
-    if (error)
-    {
-        printf("dlsym error cry_pso_7_4_3_8_2A_asym_encrypt_RSA: %s\n", error);
-        exit(1);
-    }
-////    printf("cry_pso_7_4_3_8_2A_asym_encrypt_RSA() function is found\n");
-    cry_____7_4_4___46_generate_keypair_RSA = cast(ft_cry_____7_4_4___46_generate_keypair_RSA) dlsym(lh, "cry_____7_4_4___46_generate_keypair_RSA");
-    error = dlerror();
-    if (error)
-    {
-        printf("dlsym error cry_____7_4_4___46_generate_keypair_RSA: %s\n", error);
-        exit(1);
-    }
-////    printf("cry_____7_4_4___46_generate_keypair_RSA() function is found\n");
-/* * /
-    aa_7_2_6_82_external_authentication = cast(ft_aa_7_2_6_82_external_authentication) dlsym(lh, "aa_7_2_6_82_external_authentication");
-    error = dlerror();
-    if (error)
-    {
-        printf("dlsym error aa_7_2_6_82_external_authentication: %s\n", error);
-        exit(1);
-    }
-////    printf("aa_7_2_6_82_external_authentication() function is found\n");
-/ * */
-    cry_pso_7_4_3_6_2A_sym_encrypt = cast(ft_cry_pso_7_4_3_6_2A_sym_encrypt) dlsym(lh, "cry_pso_7_4_3_6_2A_sym_encrypt");
-    error = dlerror();
-    if (error)
-    {
-        printf("dlsym error cry_pso_7_4_3_6_2A_sym_encrypt: %s\n", error);
-        exit(1);
-    }
-////    printf("cry_pso_7_4_3_6_2A_sym_encrypt() function is found\n");
-    cry_pso_7_4_3_7_2A_sym_decrypt = cast(ft_cry_pso_7_4_3_7_2A_sym_decrypt) dlsym(lh, "cry_pso_7_4_3_7_2A_sym_decrypt");
-    error = dlerror();
-    if (error)
-    {
-        printf("dlsym error cry_pso_7_4_3_7_2A_sym_decrypt: %s\n", error);
-        exit(1);
-    }
-////    printf("cry_pso_7_4_3_7_2A_sym_decrypt() function is found\n");
-
     return 0;
 } // util_connect_card
 
-template connect_card(string commands, string returning="IUP_CONTINUE", string level="0", string returning_no_card_statement="")
+template connect_card(string commands, string returning="IUP_CONTINUE", string level="0")
 {
     const char[] connect_card =`
     {
@@ -740,7 +647,6 @@ template connect_card(string commands, string returning="IUP_CONTINUE", string l
 
         import acos5_64_shared;
         import std.exception : assumeWontThrow;
-        import core.runtime : Runtime;
         import std.string : toStringz;
         /* connect to card */
         string debug_file = "/tmp/opensc-debug.log";
@@ -769,82 +675,43 @@ template connect_card(string commands, string returning="IUP_CONTINUE", string l
         rc = util_connect_card(ctx, &card, null/*opt_reader*/, 0/*opt_wait*/, 1 /*do_lock*/, `~level~`/*SC_LOG_DEBUG_NORMAL*//*verbose*/); // does: sc_lock(card) including potentially card.sm_ctx.ops.open
 
         mixin (log!(__FUNCTION__, " util_connect_card returning with: %d (%s)", "rc", "sc_strerror(rc)"));
-//        writeln("PASSED: util_connect_card");
         scope(exit)
         {
             if (card)
             {
-/*
-Dlang runtime management:
-The Dlang driver so needs the DRuntime and it doesn't know, in which environment it will be loaded, thus it calls once: Runtime.initialize().via  driver's sc_module_init
-Only then GC is available and static module constucor(s) will run etc.
-
-That call must be paired with a Runtime.terminate() when the driver get's unloaded, so that static module destucor(s) will run.
-But there is no OpenSC function like sc_module_finalize where to place Runtime.terminate().
-With version (Win32), there was never an impaired problem, as the Dlang runtime management is included via SimpleDllMain.
-Similar with version(unittest) referring to Dlang driver so.
-
-It looks like: If the process that (in)directly loaded Dlang driver terminates, then there is an exception to the pair-it rule, as the DRuntime will be closed anyway.
-This seems to be true as the removal of Runtime.terminate() from acos5_64_finish is gone for a long time (it doesn't always get called !),
-and it works fine from C main() code like opensc-tool.
-
-acos5_64_gui as Dlang executable does behind the scenes both Runtime.initialize() and Runtime.terminate() once (, same as the test-runner does).
-In-between, there are arbitrary number of Dlang driver load and unload by opensc code, but with calls to Runtime.initialize() only.
-In order to comply with the pair-it rule, below is the 'missing' call to Runtime.terminate() for the Dlang driver.
-
-Note, that the DRuntime only terminates actually, when it's internal counter is down to zero.
-All this hassle will be gone with the new Rust driver.
-*/
-version(Windows) {}
-else
-{
-    version(unittest) {}
-    else
-    {
-                if (! assumeWontThrow(Runtime.terminate()))  // this is for the Dlang driver, not for acos5_64_gui (decreases DRuntime usage counter; remove when switching to Rust driver)
-                {
-                    assumeWontThrow(writeln("Failed to do: Runtime.terminate()"));
-                    `~returning_no_card_statement~`
-                }
-    }
-}
-
                 sc_unlock(card);
                 sc_disconnect_card(card);
             }
 
             if (ctx)
                 sc_release_context(ctx);
-//            {
-//                auto f = File(debug_file, "w"); // open for writing, i.e. Create an empty file for output operations. If a file with the same name already exists, its contents are discarded and the file is treated as a new empty file.
-//            }
         } // scope(exit)
         if (rc || !card)
             return `~returning~`;
 /* */ //TODO it's required only once for SC_CARD_TYPE_ACOS5_64_V3, not with every connect_card: inefficient.
-        import util_opensc: cm_7_3_1_14_get_card_info;
+        import acos5_64_shared_rust : SC_CARDCTL_ACOS5_GET_OP_MODE_BYTE, SC_CARDCTL_ACOS5_GET_FIPS_COMPLIANCE;
+
         if (card.type==SC_CARD_TYPE_ACOS5_64_V3)
         {
-            ushort   SW1SW2 = 0xFFFF;
-            ubyte    responseLen;
-            ubyte[]  response;
-            if ((rc= cm_7_3_1_14_get_card_info(card, CardInfoType.Operation_Mode_Byte_Setting, 0, SW1SW2, responseLen, response)) != SC_SUCCESS)
+            uint  op_mode_byte = 0x7FFF_FFFF;
+            rc = sc_card_ctl(card, SC_CARDCTL_ACOS5_GET_OP_MODE_BYTE, &op_mode_byte);
+            if (rc != SC_SUCCESS)
             {
-                assumeWontThrow(writeln("FAILED: cm_7_3_1_14_get_card_info: Operation_Mode_Byte_Setting"));
+                assumeWontThrow(writeln("FAILED: SC_CARDCTL_ACOS5_GET_OP_MODE_BYTE"));
 //                return rc;
             }
-            is_ACOSV3_opmodeV3_FIPS_140_2L3 = cast(ubyte)SW1SW2==0? true : false;
+            is_ACOSV3_opmodeV3_FIPS_140_2L3 = op_mode_byte==0? true : false;
             AA["slot_token"].SetStringId2("", 42,  1, is_ACOSV3_opmodeV3_FIPS_140_2L3? "Yes" : "No");
             if (is_ACOSV3_opmodeV3_FIPS_140_2L3)
             {
-                SW1SW2 = 0;
-
-                if ((rc= cm_7_3_1_14_get_card_info(card, CardInfoType.Verify_FIPS_Compliance, 0, SW1SW2, responseLen, response)) != SC_SUCCESS)
+                uint  is_fips_compliant;
+                rc = sc_card_ctl(card, SC_CARDCTL_ACOS5_GET_FIPS_COMPLIANCE, &is_fips_compliant);
+                if (rc != SC_SUCCESS)
                 {
-                    assumeWontThrow(writeln("FAILED: cm_7_3_1_14_get_card_info: Verify_FIPS_Compliance"));
+                    assumeWontThrow(writeln("FAILED: SC_CARDCTL_ACOS5_GET_FIPS_COMPLIANCE"));
 //                    return rc;
                 }
-                is_ACOSV3_opmodeV3_FIPS_140_2L3_active = SW1SW2==0x9000;
+                is_ACOSV3_opmodeV3_FIPS_140_2L3_active = is_fips_compliant==1;
                 AA["slot_token"].SetStringId2("", 43,  1, is_ACOSV3_opmodeV3_FIPS_140_2L3_active? "Yes" : "No");
             }
         }
@@ -912,25 +779,25 @@ int enum_dir(int depth, tnTypePtr pos, ref PKCS15Path_FileType[] collector) noth
             return rv;
         }
 
-        ushort   SW1SW2;
-        ubyte    responseLen;
-        ubyte[]  response;
-        if ((rv= cm_7_3_1_14_get_card_info(card, CardInfoType.count_files_under_current_DF, 0, SW1SW2, responseLen, response)) != SC_SUCCESS)
+        size_t  count_files_curr_df;
+        rv = sc_card_ctl(card, SC_CARDCTL_ACOS5_GET_COUNT_FILES_CURR_DF, &count_files_curr_df);
+        if (rv != SC_SUCCESS)
         {
-            assumeWontThrow(writeln("FAILED: cm_7_3_1_14_get_card_info: count_files_under_current_DF"));
+            assumeWontThrow(writeln("FAILED: SC_CARDCTL_ACOS5_GET_COUNT_FILES_CURR_DF"));
             return rv;
         }
-        assert(responseLen==0);
-        foreach (ubyte fno; 0 .. cast(ubyte)SW1SW2)  // x"90 xx" ; XX is count files
+        foreach (ubyte fno; 0 .. cast(ubyte)count_files_curr_df)
         {
             ub32 info; // acos will deliver 8 bytes: [FDB, DCB(always 0), FILE ID, FILE ID, SIZE or MRL, SIZE or NOR, SFI, LCSI]
-            if ((rv= cm_7_3_1_14_get_card_info(card, CardInfoType.File_Information, fno, SW1SW2, responseLen, response)) != SC_SUCCESS)
+            CardCtlArray8 file_info;
+            file_info.reference = fno;
+            rv = sc_card_ctl(card, SC_CARDCTL_ACOS5_GET_FILE_INFO, &file_info);
+            if (rv != SC_SUCCESS)
             {
-                assumeWontThrow(writeln("FAILED: cm_7_3_1_14_get_card_info: File_Information"));
+                assumeWontThrow(writeln("FAILED: SC_CARDCTL_ACOS5_GET_FILE_INFO"));
                 return rv;
             }
-            assert(responseLen==8);
-            info[0..8] = response[0..8];
+            info[0..8] = file_info.value;
             info[6] = 0xFF;
 //assumeWontThrow(writefln("info[2..4]: %(%02X %)", info[2..4]));
             if (!collector.empty && collector[0].path.equal(pos.data[8..8+pos.data[1]]~info[2..4]) )
@@ -957,6 +824,14 @@ int enum_dir(int depth, tnTypePtr pos, ref PKCS15Path_FileType[] collector) noth
                     info[1] = cast(ubyte)(pos.data[1]+2);
                     info[8..8+info[1]] = collector[0].path[0..info[1]];
 
+                    CardCtlArray32 files_hashmap_info;
+                    files_hashmap_info.key = ub22integral([info[6+info[1]], info[7+info[1]]]);
+                    rv = sc_card_ctl(card, SC_CARDCTL_ACOS5_GET_FILES_HASHMAP_INFO, &files_hashmap_info);
+//                    if (rv == SC_SUCCESS)
+                    info[24..32] = files_hashmap_info.value[24..32];
+//                    else
+//                        exit(1);
+/+
                     foreach (ub2 fid2; chunks(info[8..8+info[1]], 2))
                     {
                         // ubyte[MAX_FCI_GET_RESPONSE_LEN] rbuf;
@@ -965,7 +840,7 @@ int enum_dir(int depth, tnTypePtr pos, ref PKCS15Path_FileType[] collector) noth
                         info[24..32] = info2.sac[];
                         //assumeWontThrow(writefln("fci: 0X[ %(%02X %) ]", rbuf));
                     }
-
++/
                     collector = collector.remove(0);
                     assert(collector.empty);
                     uba path5031 = info[8..8+info[1]]~[ubyte(0x50), ubyte(0x31)];
@@ -994,7 +869,7 @@ assumeWontThrow(writefln("### expectedFileType(%s), detectedFileType(%s)", expec
                 }
             } // if (!collector.empty && collector[0].path.equal...
             fs.insertAsChildLast(pos, info);
-        } // foreach (ubyte fno; 0 .. cast(ubyte)SW1SW2)
+        } // foreach (ubyte fno; 0 .. cast(ubyte)count_files_curr_df)
 
         try
             foreach (node; fs.rangeSiblings(pos).retro)
@@ -1148,7 +1023,7 @@ alias  tnTypePtr  = TreeTypeFS.nodeType*;
   void* GetUserId(int id) { return IupTreeGetUserId(_ih, id); }
   int GetId(void* userid) { return IupTreeGetId(_ih, userid); }
 
-  FIXME: overhaul the processing started by populate_tree_fs: It shouldn't depend on the order of files reported by cm_7_3_1_14_get_card_info(card, CardInfoType.File_Information ...
+  FIXME: overhaul the processing started by populate_tree_fs: It shouldn't depend on the order of files reported by SC_CARDCTL_ACOS5_GET_FILE_INFO
 */
 int populate_tree_fs() nothrow
 {
@@ -1191,7 +1066,16 @@ int populate_tree_fs() nothrow
 void readFile_wrapped(ubyte[] info, tnTypePtr pn/*, const ubyte /*expectedFileType*/, ref ubyte detectedFileType, bool doExtract, ref PKCS15Path_FileType[] collector) nothrow
 {
     assert(info[1]);
-    int rv;
+    int  rv;
+    sc_path  path;
+    sc_format_path(ubaIntegral2string(info[8..8+info[1]]).toStringz , &path);
+    rv= sc_select_file(card, &path, null);
+
+    CardCtlArray32 files_hashmap_info;
+    files_hashmap_info.key = ub22integral([info[6+info[1]], info[7+info[1]]]);
+    rv= sc_card_ctl(card, SC_CARDCTL_ACOS5_GET_FILES_HASHMAP_INFO, &files_hashmap_info);
+    info[24..32] = files_hashmap_info.value[24..32];
+/+
     foreach (ub2 fid2; chunks(info[8..8+info[1]], 2))
     {
 //        ubyte[MAX_FCI_GET_RESPONSE_LEN] rbuf;
@@ -1200,7 +1084,7 @@ void readFile_wrapped(ubyte[] info, tnTypePtr pn/*, const ubyte /*expectedFileTy
         info[24..32] = info2.sac;
 //        assumeWontThrow(writefln("fci: 0X[ %(%02X %) ]", rbuf));
     }
-
++/
     PKCS15Path_FileType[]  pkcs15Extracted;
     ub2  fid2 = info[2..4];
     EFDB fdb2 = cast(EFDB) info[0];
@@ -1225,10 +1109,11 @@ selectbranchleaf_cb(Ihandle* ih, int id, int status)
     populate_list_op_file_possible(pn, info.fid, cast(EFDB)info.fdb, size_or_MRL_NOR, pn.data[7], info.sac);
         readFile(pn, fid, fdb, decompose(fdb, size_or_MRL_NOR).expand, expectedFileType, detectedFileType, pkcs15Extracted);
 */
-void readFile(tnTypePtr pn, ub2 fid, EFDB fdb, ubyte sacRead, ushort size, ubyte mrl, ubyte nor, ubyte expectedFileType, ref ubyte PKCS15fileType, out PKCS15Path_FileType[] pkcs15Extracted, bool doExtract=false) nothrow
+void readFile(tnTypePtr pn, ub2 fid, EFDB fdb, ubyte sacRead, ushort size, ubyte mrl, ubyte nor,
+    ubyte expectedFileType, ref ubyte PKCS15fileType, out PKCS15Path_FileType[] pkcs15Extracted, bool doExtract=false) nothrow
 {
 //assumeWontThrow(writefln("readFile(ub2 %s, EFDB %s, expectedFileType %s)", fid, fdb, expectedFileType));
-    import libtasn1 : asn1_get_length_der, asn1_create_element, asn1_delete_structure, asn1_dup_node, ASN1_SUCCESS, asn1_strerror2,
+    import wrapper.libtasn1 : asn1_get_length_der, asn1_create_element, asn1_delete_structure, asn1_dup_node, ASN1_SUCCESS, asn1_strerror2,
         asn1_der_decoding, asn1_visit_structure, ASN1_PRINT_NAME_TYPE_VALUE, asn1_read_value, ASN1_ELEMENT_NOT_FOUND;
     with (EFDB)
     if (!fdb.among(Transparent_EF, Linear_Fixed_EF, Linear_Variable_EF, Cyclic_EF, RSA_Key_EF /*omit reading CHV_EF, Sym_Key_EF*/, Purse_EF, SE_EF))
@@ -1278,8 +1163,8 @@ void readFile(tnTypePtr pn, ub2 fid, EFDB fdb, ubyte sacRead, ushort size, ubyte
 
             if (offsetTable.length<2)
                 offsetTable ~= cast(uint)buf.length;
-//assumeWontThrow(writefln("offsetTable[0]: %s, offsetTable[$-1]: %s", offsetTable[0], offsetTable[$-1]));
-//assumeWontThrow(writefln("offsetTable[]: %s", offsetTable));
+////assumeWontThrow(writefln("offsetTable[0]: %s, offsetTable[$-1]: %s", offsetTable[0], offsetTable[$-1]));
+////assumeWontThrow(writefln("offsetTable[]: %s", offsetTable));
             break;
         case Linear_Fixed_EF, Linear_Variable_EF, SE_EF:
             foreach (rec_idx; 1 .. 1+nor)
@@ -1309,10 +1194,13 @@ if (rv != buf.length)
             // these types don't get ASN.1 decoded
             return;
         case RSA_Key_EF:
+//assumeWontThrow(writefln("sc_get_data params: offset: 0, buf.ptr: %s, buf.length: %s", buf.ptr, buf.length));
             rv= sc_get_data(card, 0, buf.ptr, buf.length);
-            if (rv != buf.length) return;
-//            if (rv != buf.length)
-//assumeWontThrow(writefln("### returned length from sc_get_data to short: Received %s, but expected %s. fid: %(%02X %)", rv, buf.length, fid));
+            if (rv != buf.length || rv==0) {
+                // if rv==0 it's probably because the file is non-readable
+//                assumeWontThrow(writefln("### returned length from sc_get_data to short: Received %s, but expected %s. fid: %(%02X %)", rv, buf.length, fid));
+                return;
+            }
             h.SetString("APPEND", " ");
             foreach (chunk; chunks(buf, 48))
             {
@@ -1320,7 +1208,7 @@ if (rv != buf.length)
                 h.SetString("APPEND",  assumeWontThrow(format!"%(%02X %)"(chunk)));
             }
 //            assert(rv==buf.length /*rv>0 && rv <= buf.length*/);
-//            assumeWontThrow(writefln("0x[%(%02X %)]", buf));
+//assumeWontThrow(writefln("0x[%(%02X %)]", buf));
 //            foreach (chunk; chunks(buf, 64))
 //                assumeWontThrow(writefln([%(%02X %)]", chunk));
             if (buf[0] != 0  || !canFind(iota(4, 34, 2), buf[1]))
@@ -1328,6 +1216,7 @@ if (rv != buf.length)
 //assumeWontThrow(writeln(rsaPublicOpensshFormatted(fid, buf)));
             AA["fs_text_asn1"].SetStringVALUE(rsaPublicOpensshFormatted(fid, buf));
             {
+                // https://stackoverflow.com/questions/18039401/how-can-i-transform-between-the-two-styles-of-public-key-format-one-begin-rsa
                 sc_path path;
                 sc_path_set(&path, SC_PATH_TYPE.SC_PATH_TYPE_PATH, pn.data.ptr+8, pn.data[1], 0, -1);
                 if ((rv= card.ops.read_public_key(card, SC_ALGORITHM_RSA, &path, 0, decode_key_RSA_ModulusBitLen(buf[1]), &response, &responselen)) != SC_SUCCESS) return;

@@ -38,6 +38,7 @@ import libopensc.types;
 import libopensc.errors;
 import libopensc.log;
 import libopensc.cards;
+import libopensc.iso7816;
 
 import iup.iup_plusD;
 
@@ -46,7 +47,7 @@ import libintl : _, __;
 import util_general;// : ub22integral;
 import acos5_64_shared;
 
-import util_opensc : connect_card, acos5_64_short_select, readFile, decompose, PKCS15Path_FileType, PKCS15_FILE_TYPE,
+import util_opensc : connect_card, readFile, decompose, PKCS15Path_FileType, PKCS15_FILE_TYPE,
     is_ACOSV3_opmodeV3_FIPS_140_2L3, is_ACOSV3_opmodeV3_FIPS_140_2L3_active, tnTypePtr, tlv_Range_mod, fsInfoSize;
 
 
@@ -154,6 +155,7 @@ int slot_token_dropcheck_cb(Ihandle* self, int /*lin*/, int /*col*/)
   return IUP_IGNORE; // draw nothing
 }
 
+
 int selectbranchleaf_cb(Ihandle* /*ih*/, int id, int status)
 { // status==1 (enter);  status==0 (leave the node)
     import std.range : chunks, enumerate, retro;
@@ -176,7 +178,7 @@ int selectbranchleaf_cb(Ihandle* /*ih*/, int id, int status)
 //    printf("selectbranchleaf_cb id(%d), status(%d), data(%s)\n", id, status, sc_dump_hex(pn.data.ptr, pn.data.length)); // selectbranchleaf_cb id(2), status(1), data(0A04000115010105 3F00 0001)
     // selectbranchleaf_cb id(5), status(1), data(01 04 2F00 00 21 00 05  3F00 2F00)
 
-    FCISEInfo info;
+////    FCISEInfo info;
 //    FCISEInfo info_df;
     int rv;
 
@@ -184,12 +186,43 @@ int selectbranchleaf_cb(Ihandle* /*ih*/, int id, int status)
         assert(pn.data[1]);
         ubyte[MAX_FCI_GET_RESPONSE_LEN] rbuf;
         ubyte len2 = pn.data[1]/2;
-        int i = 1;
+////        int i = 1;
         AA["fs_text"].SetString(IUP_APPEND, "Header/meta infos (FCI):");
-        foreach (ub2 fid; chunks(pn.data[8..8+pn.data[1]], 2))
-        {
-            info = FCISEInfo.init;
+
+            ubyte len;
+            sc_path path;
+            sc_file* file;
+        if (len2>1) { // for file's directory
             rbuf = typeof(rbuf).init;
+            sc_format_path(ubaIntegral2string(pn.data[8..6+2*len2]).toStringz , &path);
+            if ((rv= sc_select_file(card, &path, &file)) == SC_SUCCESS) {
+                rbuf[0] = ISO7816_TAG_FCI;
+                rbuf[1] = len  = cast(ubyte) file.prop_attr_len;
+                rbuf[2..2+len] = file.prop_attr[0..len];
+                sc_file_free(file);
+                ptrdiff_t pos = max(1, countUntil!"a>0"(rbuf[].retro))-1; // if possible, show 00 at the end for AB
+                AA["fs_text"].SetString(IUP_APPEND,  assumeWontThrow(format!"%(%02X %)"(rbuf[0..$-pos])));
+            }
+        }
+        { // for the file itself
+            rbuf = typeof(rbuf).init;
+            sc_format_path(ubaIntegral2string(pn.data[6+2*len2..8+2*len2]).toStringz , &path);
+            path.type = SC_PATH_TYPE_FILE_ID;
+            if ((rv= sc_select_file(card, &path, &file)) == SC_SUCCESS) {
+                rbuf[0] = ISO7816_TAG_FCI;
+                rbuf[1] = len  = cast(ubyte) file.prop_attr_len;
+                rbuf[2..2+len] = file.prop_attr[0..len];
+                sc_file_free(file);
+                ptrdiff_t pos = max(1, countUntil!"a>0"(rbuf[].retro))-1; // if possible, show 00 at the end for AB
+                AA["fs_text"].SetString(IUP_APPEND,  assumeWontThrow(format!"%(%02X %)"(rbuf[0..$-pos])));
+            }
+        }
+/+
+        foreach (ub2 fid; chunks(pn.data[8..8+2*len2], 2))
+        {
+//            info = FCISEInfo.init;
+            rbuf = typeof(rbuf).init;
+
             rv= acos5_64_short_select(card, fid, &info, rbuf);
             if (i.among(len2, len2==1? 1 : len2-1))
             {
@@ -202,16 +235,24 @@ int selectbranchleaf_cb(Ihandle* /*ih*/, int id, int status)
             }
             ++i;
         }
++/
 //        with (PKCS15_FILE_TYPE) if (pn.data[6].among(PKCS15_Pin, PKCS15_SecretKey, PKCS15_RSAPrivateKey))
-        with (EFDB) if (pn.data[0].among(CHV_EF, Sym_Key_EF) && pn.data[6]!=PKCS15_FILE_TYPE.PKCS15_RSAPublicKey)
+        with (EFDB) if (pn.data[0].among(CHV_EF, Sym_Key_EF/*, RSA_Key_EF*/) && pn.data[6]!=PKCS15_FILE_TYPE.PKCS15_RSAPublicKey)
             return IUP_DEFAULT;
         AA["fs_text"].SetString(IUP_APPEND, "\nContent:");
 
 //        assumeWontThrow(writefln("fci: 0X[ %(%02X %) ]", rbuf));
 //assumeWontThrow(writeln(info)); //writefln("0x[%(%02X %)]", fid);
-        assert(info.fdb.among(EnumMembers!EFDB));
-        ub2 size_or_MRL_NOR = pn.data[4..6];
-        populate_list_op_file_possible(pn, info.fid, cast(EFDB)info.fdb, size_or_MRL_NOR, pn.data[7], info.sac);
+//        assert(info.fdb.among(EnumMembers!EFDB));
+//        ub2 size_or_MRL_NOR = pn.data[4..6];
+
+        populate_list_op_file_possible(pn,
+                                       [ pn.data[2], pn.data[3] ], // info.fid,
+                                       cast(EFDB)pn.data[0], // cast(EFDB)info.fdb,
+                                       pn.data[4..6], // size_or_MRL_NOR,
+                                       pn.data[7],
+                                       pn.data[24..32], // info.sac
+                                       );
 `;
     mixin (connect_card!commands);
     return IUP_DEFAULT;
@@ -293,21 +334,16 @@ int btn_sanity_cb(Ihandle* ih)
     with (card.version_)
     h.SetStringId2 ("", 2, 1, hw_major.to!string~"."~hw_minor.to!string);
     int rv;
-    if (card.type==16004)
+    if (card.type==SC_CARD_TYPE_ACOS5_64_V3)
     {
-        ushort   SW1SW2;
-        ubyte    responseLen;
-        ubyte[]  response;
-        if ((rv= cm_7_3_1_14_get_card_info(card, CardInfoType.Operation_Mode_Byte_Setting, 0, SW1SW2, responseLen,
-                                           response)) < 0)
+        uint  op_mode_byte = 0x7FFF_FFFF;
+        rv = sc_card_ctl(card, SC_CARDCTL_ACOS5_GET_OP_MODE_BYTE, &op_mode_byte);
+        if (rv < 0)
             return IUP_DEFAULT;
-        assert(responseLen==0);
-        ubyte sw2 = cast(ubyte)SW1SW2;
-        assert(canFind([ 0,1,2,16 ], sw2));
         with (h)
-        switch (sw2)
+        switch (op_mode_byte)
         {
-            case  0: SetStringId2 ("",   3, 1, "FIPS 140-2 Level 3–Compliant Mode"); break;
+            case  0: SetStringId2 ("",   3, 1, "FIPS 140-2 Level 3 Mode (The card is not necessarily FIPS-compliant in that mode)"); break;
             case  1: SetStringId2 ("",   3, 1, "Emulated 32K Mode"); break;
             case  2: SetStringId2 ("",   3, 1, "Non-FIPS 64K Mode"); break;
             case 16: SetStringId2 ("",   3, 1, "NSH-1 Mode"); break;
@@ -317,25 +353,29 @@ int btn_sanity_cb(Ihandle* ih)
 
     sc_path path;
     sc_format_path("3F00", &path);
-    rc= sc_select_file(card, &path, null);
+    rc = sc_select_file(card, &path, null);
     isMFcreated =  rc==SC_SUCCESS? 1 : 0;
     config.SetVariableInt(groupCfg.toStringz, "isMFcreated", isMFcreated);
     AA["sanity_text"].SetString(IUP_APPEND, "isMFcreated = "~isMFcreated.to!string);
     if (!isMFcreated)
         return IUP_DEFAULT;//assert(0);
 
-//    sc_format_path("3F002F00", &path);
-//    rc= sc_select_file(card, &path, null);
-
-    ub2 fid = [0x2F, 0];
-    ubyte[MAX_FCI_GET_RESPONSE_LEN] fci_2f00;
-    rc = acos5_64_short_select(card, fid, null, fci_2f00);
+    ubyte[MAX_FCI_GET_RESPONSE_LEN] fci_2f00; // without leading 0x6F and L_byte
+////    ub2 fid = [0x2F, 0];
+////    rc = acos5_64_short_select(card, fid, null, fci_2f00);
+    // the new rust driver uses sc_file_set_prop_attr, where the fci_2f00 can be read from
+    sc_file* file;
+    sc_format_path("3F002F00", &path);
+    rc = sc_select_file(card, &path, &file);
     isEF_DIRcreated =  rc==SC_SUCCESS? 1 : 0;
+    if (isEF_DIRcreated)
+        fci_2f00[0..file.prop_attr_len] = file.prop_attr[0..file.prop_attr_len];
+    sc_file_free(file);
     AA["sanity_text"].SetString(IUP_APPEND, "isEF_DIRcreated = "~isEF_DIRcreated.to!string);
     if (isEF_DIRcreated)
     {
         ushort size_2f00;
-        foreach (d,T,L,V; tlv_Range_mod(fci_2f00[2..$]))
+        foreach (d,T,L,V; tlv_Range_mod(fci_2f00/*[2..$]*/))
              if (T==0x80)
                 size_2f00 = ub22integral(V);
 
@@ -353,16 +393,11 @@ int btn_sanity_cb(Ihandle* ih)
             }
 
         sc_format_path(appDF.toStringz, &path);
-        rc= sc_select_file(card, &path, null);
+        rc = sc_select_file(card, &path, null);
         isappDFexists =  rc==SC_SUCCESS? 1 : 0;
         AA["sanity_text"].SetString(IUP_APPEND, "isappDFexists = "~isappDFexists.to!string);
     }
 `;
-/*
-    ub2 fid = [0x2F, 0];
-    ubyte[MAX_FCI_GET_RESPONSE_LEN] outbuf;
-    rc = acos5_64_short_select(card, fid, null, outbuf);
-*/
     mixin (connect_card!commands);
 
     with (config)
@@ -373,6 +408,5 @@ int btn_sanity_cb(Ihandle* ih)
         SetVariableStr(groupCfg.toStringz, "appDF",           appDF.toStringz);
         SetVariableInt(groupCfg.toStringz, "isappDFexists",   isappDFexists);
     }
-
     return IUP_DEFAULT;
 } // btn_sanity_cb

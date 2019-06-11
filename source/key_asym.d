@@ -105,14 +105,17 @@ import util_general;// : ub22integral;
 import acos5_64_shared;
 import pub;
 
-import util_opensc : connect_card, acos5_64_short_select, readFile, decompose, PKCS15Path_FileType, pkcs15_names,
-    PKCS15_FILE_TYPE, fs, PRKDF, PUKDF, AODF, SKDF, cry_____7_4_4___46_generate_keypair_RSA,
+import util_opensc : connect_card, readFile, decompose, PKCS15Path_FileType, pkcs15_names,
+    PKCS15_FILE_TYPE, fs, PRKDF, PUKDF, AODF, SKDF,
     PKCS15_ObjectTyp, errorDescription, PKCS15, appdf, tnTypePtr,
     aid, is_ACOSV3_opmodeV3_FIPS_140_2L3, is_ACOSV3_opmodeV3_FIPS_140_2L3_active,
-    my_pkcs15init_callbacks, tlv_Range_mod, file_type, cry_pso_7_4_3_8_2A_asym_encrypt_RSA, getIdentifier;
+    my_pkcs15init_callbacks, tlv_Range_mod, file_type, getIdentifier;
+
+import acos5_64_shared_rust : CardCtl_generate_crypt_asym, SC_CARDCTL_ACOS5_GENERATE_KEY_FILES_EXIST, SC_CARDCTL_ACOS5_ENCRYPT_ASYM;
+//SC_CARDCTL_ACOS5_GET_COUNT_FILES_CURR_DF, SC_CARDCTL_ACOS5_GET_FILE_INFO, CardCtlArray8, CardCtlArray32, SC_CARDCTL_ACOS5_GET_FILES_HASHMAP_INFO;
 
 //import asn1_pkcs15 : CIO_RSA_private, CIO_RSA_public, CIO_Auth_Pin, encodeEntry_PKCS15_PRKDF, encodeEntry_PKCS15_PUKDF;
-import libtasn1;
+import wrapper.libtasn1;
 import pkcs11;
 
 private import key_sym : nextUniqueKeyId;
@@ -285,7 +288,8 @@ class PubA2(T, V=int)
 {
     mixin(commonConstructor);
 
-    @property ub2  getub2() const nothrow /*pure*/ @safe { return  fidub2; }
+    @property ub2    getub2()    const nothrow /*pure*/ @safe { return  fidub2; }
+    @property ushort getushort() const nothrow /*pure*/ @safe { return  ub22integral(fidub2); }
 
 /*
 V[2] mapping:
@@ -1197,7 +1201,6 @@ int set_more_for_keyAsym_Id(int keyAsym_Id) nothrow
         keyAsym_authId.set(authId[0], true);
     }
 
-
     { // make label inaccessible when leaving the scope
         char[] label = new char[65]; // optional
         label[0..65] = '\0';
@@ -1896,7 +1899,7 @@ int btn_RSA_cb(Ihandle* ih)
             case 6: pre_result = 3; break;
             default: assert(0);
         }
-        return cast(ubyte) (pre_result+ crtModeGenerate? 3 : 0);
+        return cast(ubyte) (pre_result+ (crtModeGenerate != 0 ? 3 : 0));
     }
 
     Handle hstat = AA["statusbar"];
@@ -1987,6 +1990,18 @@ int btn_RSA_cb(Ihandle* ih)
             catch (Exception e) { printf("### Exception in btn_RSA_cb() for toggle_RSA_key_pair_regenerate\n"); return IUP_DEFAULT; /* todo: handle exception */ }
             assert(prFile);
             assert(puFile);
+
+            CardCtl_generate_crypt_asym  cga = {
+                file_id_priv: fidRSAprivate.getushort(), file_id_pub: fidRSApublic.getushort(),
+                exponent_std: true, key_len_code: cast(ubyte)(keyAsym_RSAmodulusLenBits.get/128),
+                key_priv_type_code: code(keyAsym_crtModeGenerate.get, keyAsym_usageGenerate.get), perform_mse: true
+            };
+            if (any(valuePublicExponent.get[0..8]) || ub82integral(valuePublicExponent.get[8..16]) != 0x10001) {
+                cga.exponent_std = false;
+                cga.exponent = valuePublicExponent.get;
+            }
+//assumeWontThrow(writeln("cga", cga));
+
             enum string commands = `
             int rv;
             // from tools/pkcs15-init.c  main
@@ -2018,13 +2033,6 @@ int btn_RSA_cb(Ihandle* ih)
                     sc_pkcs15_unbind(p15card);
             }
 
-            uba  lv_key_len_type_data = [0x02, cast(ubyte)(keyAsym_RSAmodulusLenBits.get/128), code(keyAsym_crtModeGenerate.get, keyAsym_usageGenerate.get)];
-            if (any(valuePublicExponent.get[0..8]) || ub82integral(valuePublicExponent.get[8..16])!=0x10001)
-            {
-                lv_key_len_type_data[0] = 0x12;
-                lv_key_len_type_data ~= valuePublicExponent.get;
-            }
-
             sc_path_set(&file.path, SC_PATH_TYPE.SC_PATH_TYPE_PATH, &prFile.data[8], prFile.data[1], 0, -1);
             rv = sc_pkcs15init_authenticate(profile, p15card, file, SC_AC_OP.SC_AC_OP_UPDATE);
             if (rv < 0)
@@ -2034,42 +2042,8 @@ int btn_RSA_cb(Ihandle* ih)
             if (rv < 0)
                 return IUP_DEFAULT;
 
-            {
-                sc_security_env  env; // = { SC_SEC_ENV_ALG_PRESENT | SC_SEC_ENV_FILE_REF_PRESENT, SC_SEC_OPERATION_GENERATE_RSAPRIVATE, SC_ALGORITHM_RSA };
-                with (env)
-                {
-                    operation = SC_SEC_OPERATION_GENERATE_RSAPRIVATE;
-                    flags     = /*SC_SEC_ENV_ALG_PRESENT |*/ SC_SEC_ENV_FILE_REF_PRESENT;
-//                    algorithm = SC_ALGORITHM_RSA;
-                    file_ref.len         = 2;
-                    file_ref.value[0..2] = fidRSAprivate.getub2;
-                }
-                if ((rv= sc_set_security_env(card, &env, 0)) < 0)
-                {
-                    mixin (log!(__FUNCTION__,  "sc_set_security_env failed for SC_SEC_OPERATION_GENERATE_RSAPRIVATE"));
-                    hstat.SetString(IUP_TITLE, "sc_set_security_env failed for SC_SEC_OPERATION_GENERATE_RSAPRIVATE");
-                    return IUP_DEFAULT;
-                }
-            }
-            {
-                sc_security_env  env; // = { SC_SEC_ENV_ALG_PRESENT | SC_SEC_ENV_FILE_REF_PRESENT, SC_SEC_OPERATION_GENERATE_RSAPUBLIC, SC_ALGORITHM_RSA };
-                with (env)
-                {
-                    operation = SC_SEC_OPERATION_GENERATE_RSAPUBLIC;
-                    flags     = /*SC_SEC_ENV_ALG_PRESENT |*/ SC_SEC_ENV_FILE_REF_PRESENT;
-//                    algorithm = SC_ALGORITHM_RSA;
-                    file_ref.len         = 2;
-                    file_ref.value[0..2] = fidRSApublic.getub2;
-                }
-                if ((rv= sc_set_security_env(card, &env, 0)) < 0)
-                {
-                    mixin (log!(__FUNCTION__,  "sc_set_security_env failed for SC_SEC_OPERATION_GENERATE_RSAPUBLIC"));
-                    hstat.SetString(IUP_TITLE, "sc_set_security_env failed for SC_SEC_OPERATION_GENERATE_RSAPUBLIC");
-                    return IUP_DEFAULT;
-                }
-            }
-
-            if ((rv= cry_____7_4_4___46_generate_keypair_RSA(card, lv_key_len_type_data)) != SC_SUCCESS)
+            rv= sc_card_ctl(card, SC_CARDCTL_ACOS5_GENERATE_KEY_FILES_EXIST, &cga);
+            if (rv != SC_SUCCESS)
             {
                 mixin (log!(__FUNCTION__,  "regenerate_keypair_RSA failed"));
                 hstat.SetString(IUP_TITLE, "FAILURE: Generate new RSA key pair content");
@@ -2092,6 +2066,7 @@ int btn_RSA_cb(Ihandle* ih)
 `;
             mixin (connect_card!commands);
             hstat.SetString(IUP_TITLE, "SUCCESS: Regenerate RSA key pair content in existing files");
+/+ +/
             return IUP_DEFAULT; // case "toggle_RSA_key_pair_regenerate"
 
         case "toggle_RSA_key_pair_delete":
@@ -2224,6 +2199,7 @@ int btn_RSA_cb(Ihandle* ih)
             return IUP_DEFAULT; // case "toggle_RSA_key_pair_delete"
 
         case "toggle_RSA_key_pair_create_and_generate":
+/+
             ubyte keyAsym_IdCurrent = cast(ubyte)keyAsym_Id.get;
             { // scope for the Cryptoki session; upon leaving, everything related get's closed/released
                 import core.sys.posix.dlfcn : dlsym, dlerror;
@@ -2503,16 +2479,19 @@ int btn_RSA_cb(Ihandle* ih)
             keyAsym_Id.set(keyAsym_IdCurrent, true);
             hstat.SetString(IUP_TITLE, "SUCCESS: RSA_key_pair_create_and_generate");
             GC.collect(); // just a check
++/
             return IUP_DEFAULT; // case "toggle_RSA_key_pair_create_and_generate"
 
         case "toggle_RSA_key_pair_try_sign":
+/+ +/
             /* convert the 'textual' hex to an ubyte[] hex (first 64 chars = 32 byte) ; sadly std.conv.hexString works for literals only */
             string tmp_str = AA["hash_to_be_signed"].GetStringVALUE();
             tmp_str.length = 64;
-            ubyte[] hash = string2ubaIntegral(tmp_str);
+            auto prefix_sha1   = (cast(immutable(ubyte)[])hexString!"30 21 30 09 06 05 2b 0e 03 02 1a 05 00 04 14");
+            auto prefix_sha256 = (cast(immutable(ubyte)[])hexString!"30 31 30 0d 06 09 60 86 48 01 65 03 04 02 01 05 00 04 20");
 
-////            assumeWontThrow(writefln("\n### hash_to_be_signed: %(%02X %)", hash));
-
+            ubyte[] digestInfo = prefix_sha256 ~ string2ubaIntegral(tmp_str)[0..32];
+////            assumeWontThrow(writefln("\n### digestInfo_to_be_signed: %(%02X %)", digestInfo));
 //            auto       pos_parent = new sitTypeFS(appdf);
             tnTypePtr  prFile, puFile;
             try
@@ -2522,6 +2501,8 @@ int btn_RSA_cb(Ihandle* ih)
             }
             catch (Exception e) { printf("### Exception in btn_RSA_cb() for toggle_RSA_key_pair_try_sign\n"); return IUP_DEFAULT; /* todo: handle exception */ }
             assert(prFile && puFile);
+
+            CardCtl_generate_crypt_asym  cga = { file_id_pub: fidRSApublic.getushort(), perform_mse: true };
             enum string commands = `
             int rv;
             // from tools/pkcs15-init.c  main
@@ -2559,11 +2540,11 @@ int btn_RSA_cb(Ihandle* ih)
                 return IUP_DEFAULT;
 
             {
-                sc_security_env  env; // = { SC_SEC_ENV_ALG_PRESENT | SC_SEC_ENV_FILE_REF_PRESENT, SC_SEC_OPERATION_SIGN, SC_ALGORITHM_RSA };
+                sc_security_env  env; // = { /*SC_SEC_ENV_ALG_PRESENT |*/ SC_SEC_ENV_FILE_REF_PRESENT, SC_SEC_OPERATION_SIGN, SC_ALGORITHM_RSA };
                 with (env)
                 {
                     operation = SC_SEC_OPERATION_SIGN;
-                    flags     = SC_SEC_ENV_ALG_PRESENT | SC_SEC_ENV_FILE_REF_PRESENT;
+                    flags     = /*SC_SEC_ENV_ALG_PRESENT |*/ SC_SEC_ENV_FILE_REF_PRESENT;
                     algorithm = SC_ALGORITHM_RSA;
                     file_ref.len         = 2;
                     file_ref.value[0..2] = fidRSAprivate.getub2;
@@ -2575,11 +2556,12 @@ int btn_RSA_cb(Ihandle* ih)
                     return IUP_DEFAULT;
                 }
             }
+
             auto sigLen = cast(ushort)keyAsym_RSAmodulusLenBits.get/8;
             // 512 bit key is to short for sha384 and sha512, thus require at least 768 bit if those will be allowed too; here it's okay: sha256 32 + digestheader 19 +11 < 64
             ubyte[] signature = new ubyte[sigLen];
 //            ubyte[32] data = iota(ubyte(1), ubyte(33), ubyte(1)).array[]; // simulates a SHA256 hash
-            if ((rv= sc_compute_signature(card, hash.ptr, hash.length, signature.ptr, signature.length)) != sigLen)
+            if ((rv= sc_compute_signature(card, digestInfo.ptr, digestInfo.length, signature.ptr, signature.length)) != sigLen)
             {
                     mixin (log!(__FUNCTION__,  "sc_compute_signature failed"));
                     hstat.SetString(IUP_TITLE, "sc_compute_signature failed");
@@ -2588,45 +2570,29 @@ int btn_RSA_cb(Ihandle* ih)
             hstat.SetString(IUP_TITLE, "SUCCESS: Signature generation, printed to stdout");
             assumeWontThrow(writefln("### signature: %(%02X %)", signature));
 
-            /* the acos command for verifying a signature is very limited in that it works only for signatures created from a SHA1 hash. Thus the driver doesn't implement that and anyway, it's better done in opensc with openssl
-               but cry_pso_7_4_3_8_2A_asym_encrypt_RSA can do similar for "verification", the last hashLen bytes are the ones to compare: */
-
             sc_path_set(&file.path, SC_PATH_TYPE.SC_PATH_TYPE_PATH, &puFile.data[8], puFile.data[1], 0, -1);
             rv = sc_pkcs15init_authenticate(profile, p15card, file, SC_AC_OP.SC_AC_OP_GENERATE);
             if (rv < 0)
                 return IUP_DEFAULT;
-            {
-                sc_security_env  env; // = { SC_SEC_ENV_ALG_PRESENT | SC_SEC_ENV_FILE_REF_PRESENT, SC_SEC_OPERATION_ENCIPHER_RSAPUBLIC, SC_ALGORITHM_RSA };
-                with (env)
-                {
-                    operation = SC_SEC_OPERATION_ENCIPHER_RSAPUBLIC;
-                    flags     = /*SC_SEC_ENV_ALG_PRESENT |*/ SC_SEC_ENV_FILE_REF_PRESENT;
-//                    algorithm = SC_ALGORITHM_RSA;
-                    file_ref.len         = 2;
-                    file_ref.value[0..2] = fidRSApublic.getub2;
-                }
-                if ((rv= sc_set_security_env(card, &env, 0)) < 0)
-                {
-                    mixin (log!(__FUNCTION__,  "sc_set_security_env failed for SC_SEC_OPERATION_ENCIPHER_RSAPUBLIC"));
-                    hstat.SetString(IUP_TITLE, "sc_set_security_env failed for SC_SEC_OPERATION_ENCIPHER_RSAPUBLIC");
-                    return IUP_DEFAULT;
-                }
-            }
 
-            ubyte[]  encryptedSignature = new ubyte[sigLen];
-            if ((rv= cry_pso_7_4_3_8_2A_asym_encrypt_RSA(card, signature, encryptedSignature)) < 0)
+//            ubyte[]  encryptedSignature = new ubyte[sigLen];
+            cga.data_len = sigLen;
+            cga.data[0..sigLen] = signature[0..sigLen];
+
+            rv= sc_card_ctl(card, SC_CARDCTL_ACOS5_ENCRYPT_ASYM, &cga);
+            if (rv < 0)
                 return IUP_DEFAULT;
-            assert(equal(encryptedSignature[$-hash.length..$], hash[]));
-            hstat.SetString(IUP_TITLE, "SUCCESS: Signature generation and encryption of signature, printed to stdout");
-            assumeWontThrow(writefln("### encrypted signature: %(%02X %)", encryptedSignature));
+            assert(equal(cga.data[sigLen-digestInfo.length..sigLen], digestInfo[]));
+            hstat.SetString(IUP_TITLE, "SUCCESS: Signature generation and signature verification (same hash), printed to stdout");
+            assumeWontThrow(writefln("### encrypted signature: %(%02X %)", cga.data[0..sigLen] /*encryptedSignature*/));
             // strip PKCS#1-v1.5 padding01 and digestInfo/oid from encryptedSignature
-            encryptedSignature = encryptedSignature[1..$];
-            encryptedSignature = find(encryptedSignature, 0);
-            encryptedSignature = encryptedSignature[1..$];
-            encryptedSignature = encryptedSignature[encryptedSignature[3]+6..$];
-            assert(equal(hash[], encryptedSignature));
-            assumeWontThrow(writefln("### encrypted signature, padding and digestInfo/oid stripped: %(%02X %)", encryptedSignature));
-
+//            encryptedSignature = encryptedSignature[1..$];
+//            encryptedSignature = find(encryptedSignature, 0);
+//            encryptedSignature = encryptedSignature[1..$];
+//            encryptedSignature = encryptedSignature[encryptedSignature[3]+6..$];
+//            assert(equal(hash[], encryptedSignature));
+            assumeWontThrow(writefln("### encrypted signature, padding and digestInfo/oid stripped: %(%02X %)", cga.data[sigLen-digestInfo.length+19..sigLen] /*encryptedSignature*/));
+/+
             // try encryption and decryption
             ubyte[] ciphertext = new ubyte[sigLen];
             ubyte[] msg        = new ubyte[sigLen];
@@ -2657,7 +2623,12 @@ int btn_RSA_cb(Ihandle* ih)
                     return IUP_DEFAULT;
                 }
             }
-            if ((rv= cry_pso_7_4_3_8_2A_asym_encrypt_RSA(card, msg, ciphertext)) < 0)
+            /* the acos command for verifying a signature is very limited in that it works only for signatures created from a SHA1 hash.
+               Thus the driver doesn't implement that and anyway, it's better done in opensc with openssl
+               but cry_pso_7_4_3_8_2A_asym_encrypt_RSA can do similar for "verification", the last hashLen bytes are the ones to compare: */
+            rv= cry_pso_7_4_3_8_2A_asym_encrypt_RSA(card, msg, ciphertext);
+//            rv= sc_card_ctl(card, SC_CARDCTL_ACOS5_ENCRYPT_ASYM, &cga);
+            if (rv < 0)
                 return IUP_DEFAULT;
             assumeWontThrow(writefln("\n### encrypted hash (with 'self-made' padding): %(%02X %)", ciphertext));
 
@@ -2692,11 +2663,12 @@ int btn_RSA_cb(Ihandle* ih)
             msg2 = find(msg2, 0);
             msg2 = msg2[1..$];
             assumeWontThrow(writefln("### decrypted hash, padding stripped: %(%02X %)", msg2));
-
++/
             hstat.SetString(IUP_TITLE, "SUCCESS: Signature generation and encryption of signature, printed to stdout. The key is capable to decrypt");
 `;
             mixin (connect_card!commands);
             GC.collect(); // just a check
+
             return IUP_DEFAULT; // case "toggle_RSA_key_pair_try_sign"
 
         default:  assert(0);

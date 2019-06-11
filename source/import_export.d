@@ -24,6 +24,7 @@ module import_export;
 
 import std.stdio;
 import std.conv: to;
+import std.string : /*fromStringz,*/ toStringz;
 import std.exception : assumeWontThrow;
 import std.algorithm.comparison : /*min, max, clamp, equal, mismatch,*/ among;
 import std.range : iota, chunks;
@@ -42,7 +43,7 @@ import iup.iup_plusD;
 import util_general;// : ub22integral, ubaIntegral2string;
 import acos5_64_shared;
 
-import util_opensc : connect_card, acos5_64_short_select, readFile, decompose, PKCS15Path_FileType, fs, TreeTypeFS,
+import util_opensc : connect_card, readFile, decompose, PKCS15Path_FileType, fs, TreeTypeFS,
     PKCS15_FILE_TYPE, tlv_Range_mod, is_ACOSV3_opmodeV3_FIPS_140_2L3, is_ACOSV3_opmodeV3_FIPS_140_2L3_active;
 
 struct ExportData
@@ -77,19 +78,21 @@ int btn_exportArchive_cb(Ihandle* ih)
         auto f_commands_create  = File("/tmp/commands_create", "w");  // open for writing, i.e. Create an empty file for output operations. If a file with the same name already exists, its contents are discarded and the file is treated as a new empty file.
         auto f_toc_files_active = File("/tmp/toc_files_active", "w"); // dito
 
-        ubyte[MAX_FCI_GET_RESPONSE_LEN]  rbuf;
+        ubyte[MAX_FCI_GET_RESPONSE_LEN]  rbuf = void;
         enum string commands = `
         foreach (e; fs.rangePreOrder())
         {
-            foreach (ub2 fid2; chunks(e.data[8..8+e.data[1]], 2))
-            {
-                rv= acos5_64_short_select(card, fid2, null, rbuf);
-//        assumeWontThrow(writefln("fci: 0X[ %(%02X %) ]", rbuf));
+            rbuf = typeof(rbuf).init;
+            rbuf[0] = ISO7816_TAG_FCP;
+            ubyte len;
+            sc_path path;
+            sc_file* file;
+            sc_format_path(ubaIntegral2string(e.data[8..8+e.data[1]]).toStringz , &path);
+            if ((rv= sc_select_file(card, &path, &file)) == SC_SUCCESS) {
+                rbuf[1] = len  = cast(ubyte) file.prop_attr_len;
+                rbuf[2..2+len] = file.prop_attr[0..len];
+                sc_file_free(file);
             }
-
-            if (rbuf[0] == ISO7816_TAG_FCI)
-                rbuf[0] =  /*ISO7816_TAG_FCP_.*/ISO7816_TAG_FCP;
-            ubyte len = rbuf[1];
 
             ExportData ed;
             foreach (d,T,L,V; tlv_Range_mod(rbuf[2..2+len]))
