@@ -74,7 +74,7 @@ enum string commands1 : import util_general : ubaIntegral2string;
                         import libopensc.opensc : sc_card_ctl;
                         import libopensc.types : sc_serial_number;
                         import libopensc.cardctl    : SC_CARDCTL_GET_SERIALNR;
-                        import acos5_64_shared_rust : SC_CARDCTL_ACOS5_UPDATE_FILES_HASHMAP;
+                        import acos5_64_shared_rust : SC_CARDCTL_ACOS5_HASHMAP_SET_FILE_INFO;
 main:                   import pkcs11;
                         import util_pkcs11 : pkcs11_check_return_value/*, pkcs11_get_slot*/;
 +/
@@ -157,18 +157,8 @@ version(I18N)
     enum string commands1 = `
         import libopensc.opensc : sc_card_ctl;
         import libopensc.types : sc_serial_number;
-        import libopensc.cardctl    : SC_CARDCTL_GET_SERIALNR;
-        import acos5_64_shared_rust : SC_CARDCTL_ACOS5_UPDATE_FILES_HASHMAP;
+        import libopensc.cardctl : SC_CARDCTL_GET_SERIALNR;
         import util_general : ubaIntegral2string;
-
-        /*
-           This is the idea:
-           OpenSC-centric code (including PKCS#15-File-type detection) moves to the driver, ideally no opensc dependency anymore
-           The driver offers functions to get all information about the file system, via sc_card_ctl:
-           sc_card_ctl(card, SC_CARDCTL_ACOS5_UPDATE_FILES_HASHMAP, null); // catch up on everything that was lazily done by the driver
-           sc_card_ctl(card, SC_CARDCTL_ACOS5_GET_FILES_HASHMAP_INFO, CardCtlArray32*); // get the info for a given key/file id
-        */
-        rc = sc_card_ctl(card, SC_CARDCTL_ACOS5_UPDATE_FILES_HASHMAP, null);
 
         sc_serial_number  serial_number;
         rc = sc_card_ctl(card, SC_CARDCTL_GET_SERIALNR, &serial_number);
@@ -201,6 +191,18 @@ version(I18N)
     if (isMFcreated && isEF_DIRcreated && isappDFdefined && isappDFexists)
     {
         enum string commands2 = `
+        import libopensc.opensc : sc_card_ctl;
+        import acos5_64_shared_rust : SC_CARDCTL_ACOS5_HASHMAP_SET_FILE_INFO;
+
+        /*
+           This is the idea:
+           OpenSC-centric code (including PKCS#15-File-type detection) moves to the driver, ideally no opensc dependency anymore
+           The driver offers functions to get all information about the file system, via sc_card_ctl:
+           sc_card_ctl(card, SC_CARDCTL_ACOS5_HASHMAP_SET_FILE_INFO, null); // catch up on everything that was lazily done by the driver
+           sc_card_ctl(card, SC_CARDCTL_ACOS5_HASHMAP_GET_FILE_INFO, CardCtlArray32*); // get the info for a given key/file id
+        */
+
+        rc = sc_card_ctl(card, SC_CARDCTL_ACOS5_HASHMAP_SET_FILE_INFO, null);
         populate_tree_fs(); // populates PrKDF, PuKDF (and dropdown key pair id),
 /+
         sc_path  path;
@@ -218,16 +220,20 @@ version(I18N)
 `;
         mixin (connect_card!(commands2, "EXIT_FAILURE", "3"));
 /* * /
-    writeln("PRKDF.length:         ", PRKDF.length);
-    writeln("PUKDF.length:         ", PUKDF.length);
-    writeln("PUKDF_TRUSTED.length: ", PUKDF_TRUSTED.length);
+        writeln("PRKDF.length:         ", PRKDF.length);
+        writeln("PUKDF.length:         ", PUKDF.length);
+        writeln("PUKDF_TRUSTED.length: ", PUKDF_TRUSTED.length);
 
-    writeln("SKDF.length:          ", SKDF.length);
-    writeln("CDF.length:           ", CDF.length);
-    writeln("CDF_TRUSTED.length:   ", CDF_TRUSTED.length);
-    writeln("CDF_USEFUL.length:    ", CDF_USEFUL.length);
-    writeln("DODF.length:          ", DODF.length);
-    writeln("AODF.length:          ", AODF.length);
+        writeln("SKDF.length:          ", SKDF.length);
+        writeln("CDF.length:           ", CDF.length);
+        writeln("CDF_TRUSTED.length:   ", CDF_TRUSTED.length);
+        writeln("CDF_USEFUL.length:    ", CDF_USEFUL.length);
+        writeln("DODF.length:          ", DODF.length);
+        writeln("AODF.length:          ", AODF.length);
+
+        foreach (nodeFS; fs.rangePreOrder()) {
+            writefln("0x[%(%02X %)]", nodeFS.data);
+        }
 / * */
 
         prkdf = fs.rangePreOrder().locate!"a.data[6]==b"(PKCS15_FILE_TYPE.PKCS15_PRKDF);
@@ -425,7 +431,7 @@ There are 2 kind of trees maintained by this application:
    Only files with 'sheet of paper'-image are known to PKCS#15/opensc (+ the internal Elementary Files of type Pin, Symkey and SecEnv,
    which are shown without any image at all: They (usually all 3, maybe except Symkey) are core files for security and access control in each directory.
    written-'sheet of paper'-image files are organizational (object directory) files.
-   blank-'sheet of paper'-image files are the leaf files containing specific objects like RSA, certificate etc. .
+   blank-'sheet of paper'-image files are the leaf files containing specific objects like RSA key, certificate etc. .
 
 Also, some files are mandatory for a PKCS#15 file structure and have (acc. standard) a meaning by file id, which are:
 3F00 : MF, the file system root
@@ -463,7 +469,8 @@ Also, You should know this about Pins:
    This practice absolutely dissatisfies me, and that's why I tend to not rely on the user pin as a security feature and why the acos5_64 driver offers an
    additional level of control against 'misuse' of private RSA keys: By opensc.conf settings, a graphical popup for additional user consent may be enabled,
    which pops up when a private RSA key shall be used for signing or decrypting, effectively giving control from case to case.
-   This is a warmly recommended feature (though not enabled by default currently; diable that only temporarily for pkcs11-tool --test).
+   This is a warmly recommended feature (though not enabled by default currently; disable that only temporarily for pkcs11-tool --test).
+   (UPDATE: For some unknown reason that doesn't work and isn't yet implemented by the Rust driver)
   `);
 
     AA["cst_text"].SetString(IUP_APPEND, `

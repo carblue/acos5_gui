@@ -324,6 +324,12 @@ int toggle_auto_decode_asn1_cb(Ihandle* ih, int /*state*/)
     return IUP_DEFAULT;
 }
 
+int btn_exit_cb(Ihandle* /*ih*/)
+{
+  /* Exits the main loop */
+  return IUP_CLOSE;
+}
+
 int btn_sanity_cb(Ihandle* ih)
 {
 //    printf("btn_sanity_cb: IupGetName(ih): %s", IupGetName(ih)); // btn_sanity_cb: IupGetName(ih): btn_sanity

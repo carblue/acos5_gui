@@ -33,6 +33,7 @@ import callbacks;
 import import_export;
 
 import key_asym :
+r_AC_Crypto_RSAprivateFile_RSApublicFile,
 r_AC_Create_Delete_RSADir,
 r_acos_internal,
 r_keyAsym_RSAmodulusLenBits,
@@ -62,13 +63,61 @@ matrixKeyAsym_drop_cb,
 matrixKeyAsym_dropselect_cb,
 matrixKeyAsym_edition_cb,
 matrixKeyAsym_togglevalue_cb,
-btn_RSA_cb,
 
-toggle_radioKeyAsym_cb
+toggle_radioKeyAsym_cb,
+button_radioKeyAsym_cb
 ;
 
-import key_sym; // matrixKeySym_dropcheck_cb
+import key_sym :
+    r_keySym_Id,                        // dropdown
+    r_keySym_recordNo,                  // dropdown
+//    r_keySym_keyRef,                  // hidden
+    r_keySym_global_local,              // toggle
+    r_keySym_fid,                       // readonly
+    r_keySym_fidAppDir,                 // readonly
 
+    r_keySym_Label,
+    r_keySym_Modifiable,                // toggle
+//    r_keySym_usageSKDF,               // hidden
+    r_keySym_authId,                    // readonly
+
+    r_keySym_algoFamily,                // dropdown,  AES or DES-based
+    r_keySym_keyLenBits,                // dropdown
+//    r_keySym_algoStore,               // hidden
+
+    r_keySym_IntAuthYN,                 // toggle
+    r_keySym_IntAuthUsageCounterYN,     // toggle
+    r_keySym_IntAuthUsageCounterValue,
+
+    r_keySym_ExtAuthYN,                 // toggle
+    r_keySym_ExtAuthErrorCounterYN,     // toggle
+    r_keySym_ExtAuthErrorCounterValue,
+
+    r_keySym_bytesStockAES,
+    r_keySym_bytesStockDES,
+    r_keySym_ByteStringStore,           // readonly
+
+    r_row_empty,                        // readonly
+    r_fromfile,
+    r_tofile,
+//    r_iv,
+    r_mode,
+    r_enc_dec,
+    r_change_calcSKDF,                  // readonly
+    r_AC_Update_SKDF,                   // readonly
+    r_AC_Update_Crypto_keySymFile,      // readonly
+
+    matrixKeySym_dropcheck_cb,
+    matrixKeySym_drop_cb,
+    matrixKeySym_dropselect_cb,
+    matrixKeySym_edition_cb,
+    matrixKeySym_togglevalue_cb,
+
+    toggle_radioKeySym_cb,
+    button_radioKeySym_cb,
+
+    btn_random_key_cb
+;
 
 private Hbox create_cryptoki_slot_tokeninfo_tab()
 {
@@ -311,7 +360,7 @@ private Vbox create_KeyASym_tab()
     {
         SetAttribute(IUP_SIZE, "800");
         SetAttribute(IUP_MULTILINE, IUP_YES);
-        SetAttribute(IUP_VISIBLELINES, "8");
+        SetAttribute(IUP_VISIBLELINES, "7");
         SetAttribute(IUP_WORDWRAP, IUP_YES);
     }
     child_array ~= text1;
@@ -332,7 +381,7 @@ The IGNORERADIO can be used in any of these children types to disable this funct
         __("Regenerate RSA key pair content in existing files (select by key pair id)"));
     child_array_toggles ~= toggle3;
     auto toggle4 = new Toggle("toggle_RSA_key_pair_create_and_generate",
-        __("Create new RSA key pair files and generate RSA key pair content"));
+        __("### CURRENTLY DEACTIVATED ###  Create new RSA key pair files and generate RSA key pair content"));
     child_array_toggles ~= toggle4;
     auto toggle5 = new Toggle("toggle_RSA_key_pair_try_sign",
         __("Sign SHA1/SHA256 hash (select key pair id) and Verify.  Use to test the signing capability for selected id, input (first 20/32 bytes) from text box below, output to stdout"));
@@ -354,7 +403,7 @@ VALUE_HANDLE (non inheritable): Changes the active toggle. The value passed must
     auto text2 = new Text("hash_to_be_signed");
     with (text2)
     {
-        SetAttribute(IUP_SIZE, "500");
+        SetAttribute(IUP_SIZE, "450");
         SetAttribute(IUP_READONLY, IUP_YES);
         SetStringVALUE("0102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F20    to be signed: 20/32 bytes");
     }
@@ -363,10 +412,10 @@ VALUE_HANDLE (non inheritable): Changes the active toggle. The value passed must
     auto text3 = new Text();
     with (text3)
     {
-        SetAttribute(IUP_SIZE, "500");
+        SetAttribute(IUP_SIZE, "750");
         SetAttribute(IUP_READONLY, IUP_YES);
         SetStringVALUE(
-"Integer entry for private key usage/capability: 2(decrypt) +4(sign) +8(signRecover) +32(unwrap) +512(nonRepudiation)");
+"Integer entry for private key usage/capability: 2(decrypt) +4(sign) +8(signRecover) +32(unwrap) +512(nonRepudiation); the public key's usage will be set congruently");
     }
     child_array ~= text3;
 
@@ -380,8 +429,8 @@ So the existence of this callback defines the matrix operation mode.
     auto matrix = new Matrix("matrixKeyAsym");
     with (matrix)
     {
-        SetInteger(IUP_NUMLIN,         r_AC_Create_Delete_RSADir);
-        SetInteger(IUP_NUMLIN_VISIBLE, r_AC_Create_Delete_RSADir);
+        SetInteger(IUP_NUMLIN,         r_AC_Crypto_RSAprivateFile_RSApublicFile);
+        SetInteger(IUP_NUMLIN_VISIBLE, r_AC_Crypto_RSAprivateFile_RSApublicFile);
         SetInteger(IUP_NUMCOL,          2);
         SetInteger(IUP_NUMCOL_VISIBLE,  2);
         SetAttribute(IUP_RESIZEMATRIX, IUP_YES);
@@ -451,6 +500,9 @@ So the existence of this callback defines the matrix operation mode.
         __("Access Control condition for Update / Delete: Public key file"));
         SetAttributeId2("",  r_AC_Create_Delete_RSADir,        0,
         __("Access Control condition for Create / Delete EF within enclosing DF"));
+        SetAttributeId2("",  r_AC_Crypto_RSAprivateFile_RSApublicFile,        0,
+        __("Access Control condition for Perform Crypto Operation  priv. / pub."));
+
         SetAttribute(IUP_TOGGLECENTERED, IUP_YES);
 
 
@@ -463,11 +515,11 @@ So the existence of this callback defines the matrix operation mode.
     }
     child_array ~= matrix;
 
-    auto btn_RSA = new Button("btn_RSA",  __("PrKDF/PuKDF only: Change some administrative (PKCS#15) data")); // this(string CN, const(char)* title)
-    btn_RSA.SetCallback(IUP_ACTION, &btn_RSA_cb);
-    btn_RSA.SetAttribute(IUP_TIP, __("The action performed depends on the radio button setting"));
+    auto button_radioKeyAsym = new Button("button_radioKeyAsym",  __("PrKDF/PuKDF only: Change some administrative (PKCS#15) data")); // this(string CN, const(char)* title)
+    button_radioKeyAsym.SetCallback(IUP_ACTION, &button_radioKeyAsym_cb);
+    button_radioKeyAsym.SetAttribute(IUP_TIP, __("The action performed depends on the radio button setting"));
     Control[] child_array3;
-    child_array3 ~= btn_RSA;
+    child_array3 ~= button_radioKeyAsym;
     child_array ~= new Hbox(child_array3, FILL_TYPE.FILL_FRONT_AND_BACK);
 
     auto vbox = new Vbox(child_array/*, FILL_TYPE.FILL_FRONT_AND_BACK_AND_BETWEEN*/);
@@ -477,6 +529,7 @@ So the existence of this callback defines the matrix operation mode.
 
 private Vbox create_KeySym_tab()
 {
+    import std.file : getcwd;
     Control[]  child_array, child_array_toggles;
 
     auto toggle1 = new Toggle("toggle_sym_SKDF_change",
@@ -506,7 +559,7 @@ private Vbox create_KeySym_tab()
     child_array_toggles ~= toggle6;
 
     auto toggle7 = new Toggle("toggle_sym_enc_dec",
-    __("Encrypt or Decrypt fromfile -> tofile"));
+    __("### CURRENTLY DEACTIVATED ###  Encrypt or Decrypt fromfile -> tofile"));
     child_array_toggles ~= toggle7;
 
     foreach (i,toggle; child_array_toggles)
@@ -519,8 +572,8 @@ private Vbox create_KeySym_tab()
     auto matrix = new Matrix("matrixKeySym");
     with (matrix)
     {
-        SetInteger(IUP_NUMLIN,         r_change_calcSKDF);
-        SetInteger(IUP_NUMLIN_VISIBLE, r_change_calcSKDF);
+        SetInteger(IUP_NUMLIN,         r_AC_Update_Crypto_keySymFile);
+        SetInteger(IUP_NUMLIN_VISIBLE, r_AC_Update_Crypto_keySymFile);
         SetInteger(IUP_NUMCOL,          2);
         SetInteger(IUP_NUMCOL_VISIBLE,  2);
         SetAttribute(IUP_RESIZEMATRIX, IUP_YES);
@@ -568,7 +621,7 @@ private Vbox create_KeySym_tab()
         SetAttributeId2("",  r_keySym_authId,           2,   "SKDF");
 
         SetAttributeId2("",  r_keySym_algoFamily,         0,
-        __("Algorithm type selection AES or one of DES, 3DES_128bit, 3DES_192bit"));
+        __("Algorithm family type selection AES or DES")); // AES or one of DES, 3DES_128bit, 3DES_192bit"));
         SetAttributeId2("",  r_keySym_algoFamily,         2,    "SKDF, keySym file");
 
         SetAttributeId2("",  r_keySym_keyLenBits,        0,   __("Key bitLength"));
@@ -578,21 +631,21 @@ private Vbox create_KeySym_tab()
 //        SetAttributeId2("",  r_keySym_algoStore,       0,   __("keySym_algoStore"));
 //        SetAttributeId2("",  r_keySym_algoStore,       2,    "keySym file");
 
-        SetAttributeId2("",  r_keySym_IntAuthYN,           0,   __("keySym_IntAuthYN"));
+        SetAttributeId2("",  r_keySym_IntAuthYN,           0,   __("keySym_IntAuthYN  whether this key shall be usable for Internal Authentication"));
         SetAttributeId2("",  r_keySym_IntAuthYN,           2,    "keySym file");
 
         SetAttributeId2("",  r_keySym_IntAuthUsageCounterYN,     0,
-        __("keySym_IntAuthUsageCounterYN  Yes only, if want to limit the no. usages in IntAuth., followed by key invalidation"));
+        __("keySym_IntAuthUsageCounterYN  Yes only for 3DES and if a limit on no. usages in IntAuth. shall apply, followed by key invalidation"));
         SetAttributeId2("",  r_keySym_IntAuthUsageCounterYN,     2,    "keySym file");
 
-        SetAttributeId2("",  r_keySym_IntAuthUsageCounterValue,  0,   __("keySym_IntAuthUsageCounterValue"));
+        SetAttributeId2("",  r_keySym_IntAuthUsageCounterValue,  0,   __("keySym_IntAuthUsageCounterValue 1..65534"));
         SetAttributeId2("",  r_keySym_IntAuthUsageCounterValue,  2,    "keySym file");
 
-        SetAttributeId2("",  r_keySym_ExtAuthYN,           0,   __("keySym_ExtAuthYN"));
+        SetAttributeId2("",  r_keySym_ExtAuthYN,           0,   __("keySym_ExtAuthYN  whether this key shall be usable for External Authentication"));
         SetAttributeId2("",  r_keySym_ExtAuthYN,           2,    "keySym file");
 
         SetAttributeId2("",  r_keySym_ExtAuthErrorCounterYN,     0,
-        __("keySym_ExtAuthErrorCounterYN  Yes only, if want to limit the no. of errors in ExtAuth., followed by key invalidation"));
+        __("keySym_ExtAuthErrorCounterYN  Yes only for 3DES and if a limit on no. of consecutive errors in ExtAuth. shall apply, followed by key invalidation"));
         SetAttributeId2("",  r_keySym_ExtAuthErrorCounterYN,     2,    "keySym file");
 
         SetAttributeId2("",  r_keySym_ExtAuthErrorCounterValue,  0,   __("keySym_ExtAut_ErrorCounterValue 1..14"));
@@ -606,7 +659,7 @@ private Vbox create_KeySym_tab()
 //        SetAttributeId2("",  r_keySym_bytesStockDES,            1,    "0102030405060708090A0B0C0D0E0F101112131415161718");
 //        SetAttributeId2("",  r_keySym_bytesStockDES,            2,    "keySym file");
 
-        SetAttributeId2("",  r_keySym_ByteStringStore,              0,   __("This will be written to file/record"));
+        SetAttributeId2("",  r_keySym_ByteStringStore,              0,   __("This will/would be written to file/record"));
         SetAttributeId2("",  r_keySym_ByteStringStore,              2,    "keySym file");
 
         SetAttributeId2("",  r_keySym_fid,              0,   __("Id of keySym File selected"));
@@ -616,14 +669,14 @@ private Vbox create_KeySym_tab()
         SetAttributeId2("",  r_keySym_fidAppDir,        0,   __("Id of enclosing DF (appDF or MF)"));
         SetAttributeId2("",  r_keySym_fidAppDir,        2,   "SKDF");
 //SetRGBId2(IUP_BGCOLOR, r_keySym_fidAppDir,       1,  255,0,255);
-        SetAttributeId2("",  r_fromfile,        0,   "fromfile");
-        SetAttributeId2("",  r_fromfile,        1,   "$HOME/workspace/acos5_64_GUI/acos_fromfile.hex");
+        SetAttributeId2("",  r_fromfile,        0,   "fromfile (don't use huge files: Card crypto is slow and the result must be cached)");
+        SetStringId2   ("",  r_fromfile,        1,   getcwd() ~ "/acos_fromfile.hex");
         SetAttributeId2("",  r_tofile,          0,   "tofile");
-        SetAttributeId2("",  r_tofile,          1,   "$HOME/workspace/acos5_64_GUI/acos_tofile.hex");
+        SetStringId2   ("",  r_tofile,          1,   getcwd() ~ "/acos_tofile.hex");
 
-        SetAttributeId2("",  r_iv,          0,   "iv");
-        SetAttributeId2("",  r_iv,          1,   "11223344556677881122334455667788");
-        SetAttributeId2("",  r_mode,            0,   "cbc or ecb");
+//        SetAttributeId2("",  r_iv,          0,   "iv (hex.; first blockSize bytes will be used)");
+//        SetAttributeId2("",  r_iv,          1,   "11223344556677881122334455667788");
+        SetAttributeId2("",  r_mode,            0,   "cbc or ecb (cbc: the IV will be zero bytes until OpenSC release 0.20.0)");
         SetAttributeId2("",  r_mode,            1,   "cbc");
         SetAttributeId2("",  r_enc_dec,         0,   "enc or dec");
         SetAttributeId2("",  r_enc_dec,         1,   "enc");
@@ -631,6 +684,11 @@ private Vbox create_KeySym_tab()
         SetAttributeId2("",  r_change_calcSKDF,        0,
         __("SKDF change calc. (How many bytes more or less will be required to store the changes)")); //  / unused available A/A
         SetAttributeId2("",  r_change_calcSKDF,        1,   "?");
+
+        SetAttributeId2("",  r_AC_Update_SKDF,   0,
+        __("Access Control condition for Update: SKDF (SCB hex shown; 0x00 means unrestricted)"));
+        SetAttributeId2("",  r_AC_Update_Crypto_keySymFile,        0,
+        __("Access Control condition for Update / Perform Crypto Operation: Secret key file"));
 
         SetAttribute(IUP_TOGGLECENTERED, IUP_YES);
 
@@ -644,7 +702,21 @@ private Vbox create_KeySym_tab()
     }
     child_array ~= matrix;
 //
-    auto btn_random_key = new Button("btn_random_key",  __("Perform randomize key (and if it's DES-type, care for odd-parity bytes)"));
+    version(Posix) {
+        /* display entropy_avail */
+        import std.process : executeShell; // executeShell is not @nogc and not nothrow
+        import std.string : chop;
+        auto cat = executeShell("cat /proc/sys/kernel/random/entropy_avail");
+        auto text = new Text("entropy_avail_text");
+        with (text)
+        {
+            SetAttribute(IUP_SIZE, "100");
+            SetAttribute(IUP_READONLY, IUP_YES);
+            SetStringVALUE("entropy_avail: " ~ (cat.status == 0 ? chop(cat.output) : "0"));
+        }
+        child_array ~= text;
+    }
+    auto btn_random_key = new Button("btn_random_key",  __("Perform randomize key's byte stock via openssl (and if it's DES-type, care for odd-parity bytes)"));
     btn_random_key.SetCallback(IUP_ACTION, &btn_random_key_cb);
     child_array ~= btn_random_key;
 /+
@@ -768,7 +840,7 @@ Dialog create_dialog_dlg0()
 {
     /* Example of i18n usage */
     auto btn_exit    = new Button(  __("Exit")); // __("Beenden")
-////  btn_exit.SetCallback(IUP_ACTION, &dlg0_exit);
+    btn_exit.SetCallback(IUP_ACTION, &btn_exit_cb);
     btn_exit.SetAttribute(IUP_TIP, __("more to come"));
 
     auto hbox = new Hbox([ btn_exit ], FILL_TYPE.FILL_FRONT_AND_BACK_AND_BETWEEN);

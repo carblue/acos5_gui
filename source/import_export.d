@@ -36,6 +36,8 @@ import libopensc.log;
 import libopensc.cards;
 import libopensc.iso7816;
 
+import acos5_64_shared_rust;
+
 import iup.iup_plusD;
 
 //import libintl : _, __;
@@ -97,9 +99,9 @@ int btn_exportArchive_cb(Ihandle* ih)
             ExportData ed;
             foreach (d,T,L,V; tlv_Range_mod(rbuf[2..2+len]))
             {
-                if      (T == /*ISO7816_TAG_FCP_.*/ISO7816_TAG_FCP_SIZE)
+                if      (T == ISO7816_TAG_FCP_SIZE)
                     ed.fileSize = ub22integral(V[0..2]);
-                else if (T == /*ISO7816_TAG_FCP_.*/ISO7816_TAG_FCP_TYPE)
+                else if (T == ISO7816_TAG_FCP_TYPE)
                 {
                     ed.fdb = V[0];
                     if (iEF_FDB_to_structure(cast(EFDB)ed.fdb)&6  &&  L.among(5,6))  // then it's a record-based fdb
@@ -108,23 +110,23 @@ int btn_exportArchive_cb(Ihandle* ih)
                         ed.NOR = V[L-1];
                     }
                 }
-                else if (T == /*ISO7816_TAG_FCP_.*/ISO7816_TAG_FCP_FID)
+                else if (T == ISO7816_TAG_FCP_FID)
                     ed.fid = V[0..2];
-                else if (T == /*ISO7816_TAG_FCP_.*/ISO7816_TAG_FCP_DF_NAME)
+                else if (T == ISO7816_TAG_FCP_DF_NAME)
                     ed.df_name[0..L] = V[0..L];
-                else if (T == /*ISO7816_TAG_FCP_.*/ISO7816_TAG_FCP_LCS)
+                else if (T == ISO7816_TAG_FCP_LCS)
                 {
                     ed.lcsi = V[0];
                     V[0] = 1;
                 }
-                else if (T == ISO7816_RFU_TAG_FCP_.ISO7816_RFU_TAG_FCP_SAC)
+                else if (T == ISO7816_RFU_TAG_FCP_SAC)
                 {
                     ed.ambSAC[0..L] = V[0..L];
                     ed.readable = ! ( L>1  &&  (V[0]&1)  &&  V[L-1]==0xFF);
                 }
-                else if (T == ISO7816_RFU_TAG_FCP_.ISO7816_RFU_TAG_FCP_SEID)
+                else if (T == ISO7816_RFU_TAG_FCP_SEID)
                     ed.seid = V[0..2];
-                else if (T == ISO7816_RFU_TAG_FCP_.ISO7816_RFU_TAG_FCP_SAE)
+                else if (T == ISO7816_RFU_TAG_FCP_SAE)
                 {
                 // this is alway listed in the end, thus it's safe to omit  AB 00; and it must be omitted for non-DF/MF
                     ed.sae[0..L] = V[0..L];
@@ -144,7 +146,7 @@ int btn_exportArchive_cb(Ihandle* ih)
                     // possible fdb:
                     if (/*true*/ed.readable)
                     {
-                        rv = sc_read_record(card, i, buf.ptr, buf.length, 0 /*flags*/);
+                        rv = sc_read_record(card, i, buf.ptr, buf.length, SC_RECORD_BY_REC_NR);
                         if (!(rv>0 && rv==buf.length))
                         {
 assumeWontThrow(writeln("### rv: ", rv));

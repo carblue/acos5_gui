@@ -112,7 +112,7 @@ import util_opensc : connect_card, readFile, decompose, PKCS15Path_FileType, pkc
     my_pkcs15init_callbacks, tlv_Range_mod, file_type, getIdentifier;
 
 import acos5_64_shared_rust : CardCtl_generate_crypt_asym, SC_CARDCTL_ACOS5_GENERATE_KEY_FILES_EXIST, SC_CARDCTL_ACOS5_ENCRYPT_ASYM;
-//SC_CARDCTL_ACOS5_GET_COUNT_FILES_CURR_DF, SC_CARDCTL_ACOS5_GET_FILE_INFO, CardCtlArray8, CardCtlArray32, SC_CARDCTL_ACOS5_GET_FILES_HASHMAP_INFO;
+//SC_CARDCTL_ACOS5_GET_COUNT_FILES_CURR_DF, SC_CARDCTL_ACOS5_GET_FILE_INFO, CardCtlArray8, CardCtlArray32;
 
 //import asn1_pkcs15 : CIO_RSA_private, CIO_RSA_public, CIO_Auth_Pin, encodeEntry_PKCS15_PRKDF, encodeEntry_PKCS15_PUKDF;
 import wrapper.libtasn1;
@@ -172,6 +172,7 @@ enum /* matrixKeyAsymRowName */
     r_AC_Update_Delete_RSAprivateFile,  // readonly
     r_AC_Update_Delete_RSApublicFile,   // readonly
     r_AC_Create_Delete_RSADir,          // readonly
+    r_AC_Crypto_RSAprivateFile_RSApublicFile,  // readonly
 }
 
 
@@ -205,8 +206,8 @@ Pub!_keyAsym_authId             keyAsym_authId;
 Obs_statusInput                 statusInput;
 
 Pub!(_AC_Update_PrKDF_PuKDF,          ubyte[2])  AC_Update_PrKDF_PuKDF;
-Pub!(_AC_Update_Delete_RSAprivateFile,ubyte[2])  AC_Update_Delete_RSAprivateFile;
-Pub!(_AC_Update_Delete_RSApublicFile, ubyte[2])  AC_Update_Delete_RSApublicFile;
+//Pub!(_AC_Update_Delete_RSAprivateFile,ubyte[2])  AC_Update_Delete_RSAprivateFile;
+//Pub!(_AC_Update_Delete_RSApublicFile, ubyte[2])  AC_Update_Delete_RSApublicFile;
 Pub!(_AC_Create_Delete_RSADir,        ubyte[2])  AC_Create_Delete_RSADir;
 
 void keyAsym_initialize_PubObs()
@@ -226,8 +227,8 @@ void keyAsym_initialize_PubObs()
     fidRSApublic              = new PubA2!_fidRSApublic           (r_fidRSApublic,              AA["matrixKeyAsym"]);
     valuePublicExponent       = new PubA16!_valuePublicExponent   (r_valuePublicExponent,       AA["matrixKeyAsym"]);
     AC_Update_PrKDF_PuKDF           = new Pub!(_AC_Update_PrKDF_PuKDF,          ubyte[2]) (r_AC_Update_PrKDF_PuKDF,           AA["matrixKeyAsym"]);
-    AC_Update_Delete_RSAprivateFile = new Pub!(_AC_Update_Delete_RSAprivateFile,ubyte[2]) (r_AC_Update_Delete_RSAprivateFile, AA["matrixKeyAsym"]);
-    AC_Update_Delete_RSApublicFile  = new Pub!(_AC_Update_Delete_RSApublicFile, ubyte[2]) (r_AC_Update_Delete_RSApublicFile,  AA["matrixKeyAsym"]);
+//  AC_Update_Delete_RSAprivateFile = new Pub!(_AC_Update_Delete_RSAprivateFile,ubyte[2]) (r_AC_Update_Delete_RSAprivateFile, AA["matrixKeyAsym"]);
+//  AC_Update_Delete_RSApublicFile  = new Pub!(_AC_Update_Delete_RSApublicFile, ubyte[2]) (r_AC_Update_Delete_RSApublicFile,  AA["matrixKeyAsym"]);
     AC_Create_Delete_RSADir         = new Pub!(_AC_Create_Delete_RSADir,        ubyte[2]) (r_AC_Create_Delete_RSADir,         AA["matrixKeyAsym"]);
 
     keyAsym_usagePuKDF      = new Obs_usagePuKDF  (0/*r_keyAsym_usagePuKDF,  AA["matrixKeyAsym"]*/); // visual representation removed
@@ -1271,18 +1272,14 @@ int set_more_for_keyAsym_Id(int keyAsym_Id) nothrow
     fidRSApublic.set( [ub22integral(str[outLen-2..outLen]), 0], true );
 
     tnTypePtr rsaPriv, rsaPub;
-    with (AA["matrixKeyAsym"])
-    try
-    {
-        rsaPriv = fs.rangePreOrder().locate!"equal(a.data[2..4], b[])"(fidRSAprivate.getub2);
-//        SetStringId2("", r_AC_Update_Delete_RSAprivateFile, 1, rsaPriv is null? "unknown / unknown" : format!"%02X"(rsaPriv.data[25])~" / "~format!"%02X"(rsaPriv.data[30]));
-        AC_Update_Delete_RSAprivateFile.set(rsaPriv is null? [ubyte(0xFF), ubyte(0xFF)] : [rsaPriv.data[25], rsaPriv.data[30]], true);
+    rsaPriv = fs.rangePreOrder().locate!"equal(a.data[2..4], b[])"(fidRSAprivate.getub2);
+    rsaPub  = fs.rangePreOrder().locate!"equal(a.data[2..4], b[])"(fidRSApublic.getub2);
+    assert(rsaPriv);
+    assert(rsaPub);
+    AA["matrixKeyAsym"].SetStringId2("", r_AC_Update_Delete_RSAprivateFile,        1, assumeWontThrow(format!"%02X"(rsaPriv.data[25])) ~" / "~ assumeWontThrow(format!"%02X"(rsaPriv.data[30])));
+    AA["matrixKeyAsym"].SetStringId2("", r_AC_Update_Delete_RSApublicFile,         1, assumeWontThrow(format!"%02X"(rsaPub.data[25]))  ~" / "~ assumeWontThrow(format!"%02X"(rsaPub.data[30])));
+    AA["matrixKeyAsym"].SetStringId2("", r_AC_Crypto_RSAprivateFile_RSApublicFile, 1, assumeWontThrow(format!"%02X"(rsaPriv.data[26])) ~" / "~ assumeWontThrow(format!"%02X"(rsaPub.data[26])));
 
-        rsaPub  = fs.rangePreOrder().locate!"equal(a.data[2..4], b[])"(fidRSApublic.getub2);
-//        SetStringId2("", r_AC_Update_Delete_RSApublicFile,  1, rsaPub is null?  "unknown / unknown" : format!"%02X"(rsaPub.data[25]) ~" / "~format!"%02X"(rsaPub.data[30]));
-        AC_Update_Delete_RSApublicFile.set(rsaPub is null? [ubyte(0xFF), ubyte(0xFF)]   : [rsaPub.data[25],  rsaPub.data[30]], true);
-    }
-    catch (Exception e) { printf("### Exception in set_more_for_keyAsym_Id()\n"); /* todo: handle exception */ }
 ////
     if (isNewKeyPairId)
     {
@@ -1311,44 +1308,7 @@ int set_more_for_keyAsym_Id(int keyAsym_Id) nothrow
 
 extern(C) nothrow :
 
-/*
-enum  {
-    r_keyAsym_Id = 1,             // dropdown
-    r_keyAsym_Label,
-    r_keyAsym_Modifiable,         // toggle
-    r_keyAsym_usagePrKDF,
-//  r_keyAsym_usagePuKDF,         // hidden
-    r_keyAsym_authId,             // readonly
 
-    r_keyAsym_RSAmodulusLenBits,  // dropdown
-    r_valuePublicExponent,
-
-r_acos_internal,              // readonly
-    r_keyAsym_crtModeGenerate,    // toggle
-    r_keyAsym_usageGenerate,
-
-    r_fidRSAprivate,              // readonly
-    r_fidRSApublic,               // readonly
-    r_keyAsym_fidAppDir,          // readonly
-
-    r_change_calcPrKDF,           // readonly
-    r_change_calcPuKDF,           // readonly
-
-    r_sizeNewRSAprivateFile,      // readonly
-    r_sizeNewRSApublicFile,       // readonly
-
-    r_statusInput,                // readonly
-
-    r_AC_Update_PrKDF_PuKDF,            // readonly
-    r_AC_Update_Delete_RSAprivateFile,  // readonly
-    r_AC_Update_Delete_RSApublicFile,   // readonly
-    r_AC_Create_Delete_RSADir,          // readonly
-
-callback called:
-matrixKeyAsym_dropselect_cb
-toggle_radioKeyAsym_cb
-}
-*/
 int matrixKeyAsym_dropcheck_cb(Ihandle* /*self*/, int lin, int col)
 {
     if (col!=1 || lin>r_keyAsym_crtModeGenerate)
@@ -1699,7 +1659,7 @@ int toggle_radioKeyAsym_cb(Ihandle* ih, int state)
         return IUP_DEFAULT;
     }
 
-    Handle hButton = AA["btn_RSA"];
+    Handle hButton = AA["button_radioKeyAsym"];
 ////    printf("toggle_radioKeyAsym_cb (%d) %s\n", state, activeToggle.toStringz);
 
 /*
@@ -1786,7 +1746,7 @@ int toggle_radioKeyAsym_cb(Ihandle* ih, int state)
 } // toggle_radioKeyAsym_cb
 
 
-const char[] btn_RSA_cb_common1 =`
+const char[] button_radioKeyAsym_cb_common1 =`
             int diff;
             diff = doDelete? change_calcPrKDF.pkcs15_ObjectTyp.posStart - change_calcPrKDF.pkcs15_ObjectTyp.posEnd : change_calcPrKDF.get;
 
@@ -1876,10 +1836,10 @@ const char[] btn_RSA_cb_common1 =`
 //assumeWontThrow(writeln("  ### check change_calcPuKDF.pkcs15_ObjectTyp: ", change_calcPuKDF.pkcs15_ObjectTyp));
 //assumeWontThrow(writeln("  ### check haystackPubl:                      ", haystackPubl));
 `;
-//mixin(btn_RSA_cb_common1);
+//mixin(button_radioKeyAsym_cb_common1);
 
 
-int btn_RSA_cb(Ihandle* ih)
+int button_radioKeyAsym_cb(Ihandle* ih)
 {
     import std.math : abs;
 
@@ -1924,7 +1884,7 @@ int btn_RSA_cb(Ihandle* ih)
 
             //Does statusInput check, that the bytes to be written to PrKDF and PuKDF are there in "free space"
             immutable bool doDelete;// = false;
-            mixin(btn_RSA_cb_common1);
+            mixin(button_radioKeyAsym_cb_common1);
 
             enum string commands = `
             int rv;
@@ -1977,7 +1937,7 @@ int btn_RSA_cb(Ihandle* ih)
 
         case "toggle_RSA_key_pair_regenerate":
             immutable bool doDelete; // = false;
-            mixin(btn_RSA_cb_common1);
+            mixin(button_radioKeyAsym_cb_common1);
 
 //            auto       pos_parent = new sitTypeFS(appdf);
             tnTypePtr  prFile, puFile;
@@ -1987,7 +1947,7 @@ int btn_RSA_cb(Ihandle* ih)
 //                pos_parent = new sitTypeFS(appdf);
                 puFile = fs.rangeSiblings(appdf).locate!"equal(a.data[2..4], b[])"(fidRSApublic.getub2);
             }
-            catch (Exception e) { printf("### Exception in btn_RSA_cb() for toggle_RSA_key_pair_regenerate\n"); return IUP_DEFAULT; /* todo: handle exception */ }
+            catch (Exception e) { printf("### Exception in button_radioKeyAsym_cb() for toggle_RSA_key_pair_regenerate\n"); return IUP_DEFAULT; /* todo: handle exception */ }
             assert(prFile);
             assert(puFile);
 
@@ -2077,7 +2037,7 @@ int btn_RSA_cb(Ihandle* ih)
         */
             immutable doDelete = true;
             immutable keyAsym_Id_old = keyAsym_Id.get;
-            mixin(btn_RSA_cb_common1);
+            mixin(button_radioKeyAsym_cb_common1);
 
 //            auto       pos_parent = new sitTypeFS(appdf);
             tnTypePtr  prFile, puFile;
@@ -2087,7 +2047,7 @@ int btn_RSA_cb(Ihandle* ih)
 //                pos_parent = new sitTypeFS(appdf);
                 puFile = fs.rangeSiblings(appdf).locate!"equal(a.data[2..4], b[])"(fidRSApublic.getub2);
             }
-            catch (Exception e) { printf("### Exception in btn_RSA_cb() for toggle_RSA_key_pair_delete\n"); return IUP_DEFAULT; /* todo: handle exception */ }
+            catch (Exception e) { printf("### Exception in button_radioKeyAsym_cb() for toggle_RSA_key_pair_delete\n"); return IUP_DEFAULT; /* todo: handle exception */ }
             assert(prFile);
             assert(puFile);
 
@@ -2173,7 +2133,7 @@ int btn_RSA_cb(Ihandle* ih)
                     }
                 }
             }
-            catch (Exception e) { printf("### Exception in btn_RSA_cb() for toggle_RSA_key_pair_delete\n"); return IUP_DEFAULT; /* todo: handle exception */}
+            catch (Exception e) { printf("### Exception in button_radioKeyAsym_cb() for toggle_RSA_key_pair_delete\n"); return IUP_DEFAULT; /* todo: handle exception */}
 
             int rv;
             Handle h = AA["matrixKeyAsym"];
@@ -2499,7 +2459,7 @@ int btn_RSA_cb(Ihandle* ih)
                 prFile = fs.rangeSiblings(appdf).locate!"equal(a.data[2..4], b[])"(fidRSAprivate.getub2);
                 puFile = fs.rangeSiblings(appdf).locate!"equal(a.data[2..4], b[])"(fidRSApublic.getub2);
             }
-            catch (Exception e) { printf("### Exception in btn_RSA_cb() for toggle_RSA_key_pair_try_sign\n"); return IUP_DEFAULT; /* todo: handle exception */ }
+            catch (Exception e) { printf("### Exception in button_radioKeyAsym_cb() for toggle_RSA_key_pair_try_sign\n"); return IUP_DEFAULT; /* todo: handle exception */ }
             assert(prFile && puFile);
 
             CardCtl_generate_crypt_asym  cga = { file_id_pub: fidRSApublic.getushort(), perform_mse: true };
@@ -2673,4 +2633,4 @@ int btn_RSA_cb(Ihandle* ih)
 
         default:  assert(0);
     } // switch (activeToggle)
-} // btn_RSA_cb
+} // button_radioKeyAsym_cb

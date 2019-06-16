@@ -27,37 +27,69 @@
 
 module acos5_64_shared_rust;
 
+/+
+version(Have_acos5_64) {
+	enum ISO7816_RFU_TAG_FCP_ : ubyte {
+		ISO7816_RFU_TAG_FCP_SFI  = 0x88,  /* L:1,    V: Short File Identifier (SFI). 5 LSbs of File ID if unspecified. Applies to: Any file */
+		ISO7816_RFU_TAG_FCP_SAC  = 0x8C,  /* L:0-8,  V: Security Attribute Compact (SAC). Applies to: Any file */
+		ISO7816_RFU_TAG_FCP_SEID = 0x8D,  /* L:2,    V: Security Environment File identifier (SE File associated with this DF). Applies to: DFs */
+		ISO7816_RFU_TAG_FCP_SAE  = 0xAB,  /* L:0-32, V: Security Attribute Extended (SAE). Applies to: DFs */
+	}
+	mixin FreeEnumMembers!ISO7816_RFU_TAG_FCP_;
+}
++/
+/+
+enum /*ISO7816_RFU_TAG_FCP_ */ : ubyte {
+	ISO7816_RFU_TAG_FCP_SFI  = 0x88,  /* L:1,    V: Short File Identifier (SFI). 5 LSbs of File ID if unspecified. Applies to: Any file */
+	ISO7816_RFU_TAG_FCP_SAC  = 0x8C,  /* L:0-8,  V: Security Attribute Compact (SAC). Applies to: Any file */
+	ISO7816_RFU_TAG_FCP_SEID = 0x8D,  /* L:2,    V: Security Environment File identifier (SE File associated with this DF). Applies to: DFs */
+	ISO7816_RFU_TAG_FCP_SAE  = 0xAB,  /* L:0-32, V: Security Attribute Extended (SAE). Applies to: DFs */
+}
+
+SC_SEC_OPERATION numbering will change (with OpenSC v0.20.0 released?) see constants_types.rs
++/
+
+enum ubyte BLOCKCIPHER_PAD_TYPE_ZEROES              =  0; // as for  CKM_AES_CBC: adds max block size minus one null bytes (0 ≤ N < B Blocksize)
+enum ubyte BLOCKCIPHER_PAD_TYPE_ONEANDZEROES        =  1; // Unconditionally add a byte of value 0x80 followed by as many zero bytes as is necessary to fill the input to the next exact multiple of B
+// be careful with BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5: It can't unambiguously be detected, what is padding, what is payload
+enum ubyte BLOCKCIPHER_PAD_TYPE_ONEANDZEROES_ACOS5  =  2; // Used in ACOS5 SM: Only if in_len isn't a multiple of blocksize, then add a byte of value 0x80 followed by as many zero bytes as is necessary to fill the input to the next exact multiple of B
+// BLOCKCIPHER_PAD_TYPE_PKCS5 is the recommended one, otherwise BLOCKCIPHER_PAD_TYPE_ONEANDZEROES and BLOCKCIPHER_PAD_TYPE_ANSIX9_23 (BLOCKCIPHER_PAD_TYPE_W3C) also exhibit unambiguity
+enum ubyte BLOCKCIPHER_PAD_TYPE_PKCS5               =  3; // as for CKM_AES_CBC_PAD: If the block length is B then add N padding bytes (1 < N ≤ B Blocksize) of value N to make the input length up to the next exact multiple of B. If the input length is already an exact multiple of B then add B bytes of value B
+enum ubyte BLOCKCIPHER_PAD_TYPE_ANSIX9_23           =  4; // If N padding bytes are required (1 < N ≤ B Blocksize) set the last byte as N and all the preceding N-1 padding bytes as zero.
+// BLOCKCIPHER_PAD_TYPE_W3C is not recommended
+//um ubyte BLOCKCIPHER_PAD_TYPE_W3C                 =  5; // If N padding bytes are required (1 < N ≤ B Blocksize) set the last byte as N and all the preceding N-1 padding bytes as arbitrary byte values.
+
 /*
  * Proprietary card_ctl calls
  */
 //alias card_ctl_tf = int function(sc_card* card, c_ulong request, void* data);
 
-enum uint SC_CARDCTL_ACOS5_GET_COUNT_FILES_CURR_DF   =  0x0000_0011; // data: size_t* (*mut usize),  get_count_files_curr_DF
-enum uint SC_CARDCTL_ACOS5_GET_FILE_INFO             =  0x0000_0012; // data: CardCtlArray8*,  get_file_info
-enum uint SC_CARDCTL_ACOS5_GET_FREE_SPACE            =  0x0000_0014; // data: uint* (*mut c_uint),  get_free_space
-enum uint SC_CARDCTL_ACOS5_GET_IDENT_SELF            =  0x0000_0015; // data: uint* (*mut c_uint),  get_ident_self
-enum uint SC_CARDCTL_ACOS5_GET_COS_VERSION           =  0x0000_0016; // data: CardCtlArray8*,  get_cos_version
+enum uint SC_CARDCTL_ACOS5_GET_COUNT_FILES_CURR_DF   =  0x0000_0011; // data: size_t* (*mut usize)
+enum uint SC_CARDCTL_ACOS5_GET_FILE_INFO             =  0x0000_0012; // data: CardCtlArray8*
+enum uint SC_CARDCTL_ACOS5_GET_FREE_SPACE            =  0x0000_0014; // data: uint* (*mut c_uint)
+enum uint SC_CARDCTL_ACOS5_GET_IDENT_SELF            =  0x0000_0015; // data: uint* (*mut c_uint)
+enum uint SC_CARDCTL_ACOS5_GET_COS_VERSION           =  0x0000_0016; // data: CardCtlArray8*
 /* available only since ACOS5-64 V3: */
-enum uint SC_CARDCTL_ACOS5_GET_ROM_MANUFACTURE_DATE  =  0x0000_0017; // data: uint* (*mut c_uint),  get_manufacture_date
-enum uint SC_CARDCTL_ACOS5_GET_ROM_SHA1              =  0x0000_0018; // data: CardCtlArray20*,  get_rom_sha1
-enum uint SC_CARDCTL_ACOS5_GET_OP_MODE_BYTE          =  0x0000_0019; // data: uint* (*mut c_uint),  get_op_mode_byte
-enum uint SC_CARDCTL_ACOS5_GET_FIPS_COMPLIANCE       =  0x0000_001A; // data: uint* (*mut c_uint),  get_fips_compliance
-enum uint SC_CARDCTL_ACOS5_GET_PIN_AUTH_STATE        =  0x0000_001B; // data: CardCtlAuthState*,  get_pin_auth_state
-enum uint SC_CARDCTL_ACOS5_GET_KEY_AUTH_STATE        =  0x0000_001C; // data: CardCtlAuthState*,  get_key_auth_state
+enum uint SC_CARDCTL_ACOS5_GET_ROM_MANUFACTURE_DATE  =  0x0000_0017; // data: uint* (*mut c_uint)
+enum uint SC_CARDCTL_ACOS5_GET_ROM_SHA1              =  0x0000_0018; // data: CardCtlArray20*
+enum uint SC_CARDCTL_ACOS5_GET_OP_MODE_BYTE          =  0x0000_0019; // data: uint* (*mut c_uint)
+enum uint SC_CARDCTL_ACOS5_GET_FIPS_COMPLIANCE       =  0x0000_001A; // data: uint* (*mut c_uint)
+enum uint SC_CARDCTL_ACOS5_GET_PIN_AUTH_STATE        =  0x0000_001B; // data: CardCtlAuthState*
+enum uint SC_CARDCTL_ACOS5_GET_KEY_AUTH_STATE        =  0x0000_001C; // data: CardCtlAuthState*
 
-enum uint SC_CARDCTL_ACOS5_UPDATE_FILES_HASHMAP      =  0x0000_0020; // data: null
-enum uint SC_CARDCTL_ACOS5_GET_FILES_HASHMAP_INFO    =  0x0000_0021; // data: *mut CardCtlArray32,  get_files_hashmap_info
+enum uint SC_CARDCTL_ACOS5_HASHMAP_SET_FILE_INFO     =  0x0000_0020; // data: null
+enum uint SC_CARDCTL_ACOS5_HASHMAP_GET_FILE_INFO     =  0x0000_0021; // data: *mut CardCtlArray32
 
-enum uint SC_CARDCTL_ACOS5_GENERATE_KEY_FILES_EXIST  =  0x0000_0022; // data: *mut CardCtl_generate_asym, do_generate_asym;  RSA files exist, sec_env setting excluded
-enum uint SC_CARDCTL_ACOS5_GENERATE_KEY_FILES_CREATE =  0x0000_0023; // data: *mut CardCtl_generate_asym, do_generate_asym;  RSA files must be created, sec_env setting excluded
-enum uint SC_CARDCTL_ACOS5_GENERATE_KEY_FILES_EXIST_MSE  =  0x0000_0024; // data: *mut CardCtl_generate_asym, do_generate_asym;  RSA files exist, sec_env setting included
-enum uint SC_CARDCTL_ACOS5_GENERATE_KEY_FILES_CREATE_MSE =  0x0000_0025; // data: *mut CardCtl_generate_asym, do_generate_asym;  RSA files must be created, sec_env setting included
+enum uint SC_CARDCTL_ACOS5_GENERATE_KEY_FILES_EXIST  =  0x0000_0022; // data: *mut CardCtl_generate_asym;  RSA files exist, sec_env setting excluded
+enum uint SC_CARDCTL_ACOS5_GENERATE_KEY_FILES_CREATE =  0x0000_0023; // data: *mut CardCtl_generate_asym;  RSA files must be created, sec_env setting excluded
+enum uint SC_CARDCTL_ACOS5_GENERATE_KEY_FILES_EXIST_MSE  =  0x0000_0024; // data: *mut CardCtl_generate_asym;  RSA files exist, sec_env setting included
+enum uint SC_CARDCTL_ACOS5_GENERATE_KEY_FILES_CREATE_MSE =  0x0000_0025; // data: *mut CardCtl_generate_asym;  RSA files must be created, sec_env setting included
 
-enum uint SC_CARDCTL_ACOS5_ENCRYPT_SYM               =  0x0000_0026; // data: *mut CardCtl_crypt_sym,  do_encrypt_sym
-enum uint SC_CARDCTL_ACOS5_ENCRYPT_ASYM              =  0x0000_0027; // data: *mut CardCtl_crypt_asym, do_encrypt_asym; Signature verification with public key
+enum uint SC_CARDCTL_ACOS5_ENCRYPT_SYM               =  0x0000_0026; // data: *mut CardCtl_crypt_sym
+enum uint SC_CARDCTL_ACOS5_ENCRYPT_ASYM              =  0x0000_0027; // data: *mut CardCtl_crypt_asym; Signature verification with public key
 
-//enum uint SC_CARDCTL_ACOS5_DECRYPT_SYM             =  0x0000_0028; // data: *mut CardCtl_crypt_sym,  do_decrypt_sym
-////enum uint SC_CARDCTL_ACOS5_DECRYPT_ASYM          =  0x0000_0029; // data: *mut CardCtl_crypt_asym, do_decrypt_asym; is available via decipher
+enum uint SC_CARDCTL_ACOS5_DECRYPT_SYM               =  0x0000_0028; // data: *mut CardCtl_crypt_sym
+////enum uint SC_CARDCTL_ACOS5_DECRYPT_ASYM          =  0x0000_0029; // data: *mut CardCtl_crypt_asym; is available via decipher
 
 /* common types and general function(s) */
 
@@ -93,6 +125,28 @@ struct CardCtl_generate_crypt_asym {
     bool       exponent_std;   // whether the default exponent 0x10001 shall be used and the exponent field disregarded; otherwise all 16 bytes from exponent will be used
     ubyte      key_len_code;   //
     ubyte      key_priv_type_code; // as required by cos5 Generate RSA Key Pair
-    bool       perform_mse;    // IN parameter, whether MSE Manage Security Env. shall be done prior to generation
-    bool       op_success;     // OUT parameter, whether generation succeeded
+    bool       perform_mse;    // IN parameter, whether MSE Manage Security Env. shall be done prior to crypto operation
+//    bool       op_success;     // OUT parameter, whether generation succeeded
+}
+
+struct CardCtl_crypt_sym {
+    const(char)*  infile; //  path/to/file where the indata may be read from, interpreted as an [c_uchar]; if!= null has preference over indata
+    ubyte[64]     indata;
+    size_t        indata_len;
+    const(char)*  outfile; //  path/to/file where the outdata may be written to, interpreted as an [c_uchar]; if!= null has preference over outdata
+    ubyte[80]     outdata;
+    size_t        outdata_len;
+    ubyte[16]     iv;
+    size_t        iv_len; // 0==unused or equal to block_size, i.e. 16 for AES, else 8
+
+//  ubyte key_id; // how the key is known by OpenSC in SKDF: id
+    ubyte key_ref; // how the key is known by cos5: e.g. internal local key with id 3 has key_ref: 0x83
+    ubyte block_size; // 16: AES; 8: 3DES or DES
+    ubyte key_len; // in bytes
+    ubyte pad_type; // BLOCKCIPHER_PAD_TYPE_*
+//  bool  use_sess_key; // if true, the session key will be used and key_ref ignored
+    bool  local;   // whether local or global key to use; used to select MF or appDF where the key file resides
+    bool  cbc;     // true: CBC Mode, false: ECB
+    bool  enc_dec; // true: encrypt,  false: decrypt
+    bool  perform_mse;    // IN parameter, whether MSE Manage Security Env. shall be done prior to crypto operation
 }

@@ -64,8 +64,11 @@ import util_opensc : connect_card, readFile, decompose, PKCS15Path_FileType, pkc
     tnTypePtr, aid, is_ACOSV3_opmodeV3_FIPS_140_2L3,
     my_pkcs15init_callbacks, tlv_Range_mod, file_type, getIdentifier, is_ACOSV3_opmodeV3_FIPS_140_2L3_active, getPath;
 
+import acos5_64_shared_rust : CardCtl_crypt_sym, SC_CARDCTL_ACOS5_ENCRYPT_SYM, SC_CARDCTL_ACOS5_DECRYPT_SYM,
+    BLOCKCIPHER_PAD_TYPE_PKCS5, BLOCKCIPHER_PAD_TYPE_ZEROES;
+
 //import wrapper.libtasn1 : asn1_node;
-import pkcs11;
+//import pkcs11;
 
 import deimos.openssl.des : DES_cblock, DES_set_odd_parity, DES_is_weak_key;
 
@@ -116,10 +119,12 @@ enum /* matrixKeySymRowName */
     r_row_empty,                        // readonly
     r_fromfile,
     r_tofile,
-    r_iv,
+////    r_iv,                               // IV will be supported in OpenSC beginning from v0.20.0
     r_mode,
     r_enc_dec,
     r_change_calcSKDF,                  // readonly
+    r_AC_Update_SKDF,                   // readonly
+    r_AC_Update_Crypto_keySymFile,      // readonly
 }
 
 tnTypePtr   skdf;
@@ -440,7 +445,7 @@ class Obs_keySym_ByteStringStore
         _value = _value.init;
         _value[0] = 0x80 | cast(ubyte) _keySym_recordNo; // valid and key id (1-31) // Key ID 1 byte
 
-        if (ctxTagNofromAlgoKeySym(_keySym_algoStore) != CtxTagNo.aesKey) // with AES, IntAuth and ExtAuth is unusable  TODO prevent that it can be set then
+        if (ctxTagNofromAlgoKeySym(_keySym_algoStore) != CtxTagNo.genericSecretKey /*.aesKey*/) // with AES, IntAuth and ExtAuth is unusable  TODO prevent that it can be set then
             _value[1] = cast(ubyte) (2*_keySym_IntAuthYN + _keySym_ExtAuthYN); // IntAuth and/or ExtAuth // Key Type 1 byte
         // Key Info  0-3 byte
         if (_keySym_IntAuthYN && _value[1]) // first UsageCounter, then ErrorCounterValueMod
@@ -666,7 +671,7 @@ class Obs_change_calcSKDF
                   assert(keyLenBits%64==0 && keyLenBits>=64  && keyLenBits<=256);
                   keySym_keyLenBits.set(keyLenBits, true);
                 }
-                keySym_algoFamily.set(ctn==CtxTagNo.aesKey? "AES" : "DES", true);
+                keySym_algoFamily.set(ctn==CtxTagNo.genericSecretKey /*.aesKey*/? "AES" : "DES", true);
 
                 ubyte[3] index; // optional, but do require that here !  INTEGER (0..65535)
                 mixin (asn1Read(skRecNo, "index"));
@@ -791,8 +796,14 @@ class Obs_change_calcSKDF
             _SKDFentry.der_new.length = outDerLen;
         _value = cast(int)(_SKDFentry.der_new.length - _SKDFentry.der.length);
 
-
-        if (ctn != CtxTagNo.unknown && _SKDFentry.der_new[0] != (0xA0|ctn))
+        assert(ctn != CtxTagNo.unknown);
+        switch (ctn) {
+            case 2,3,4, 15:  _SKDFentry.der_new[0] = 0xA0|ctn; break;
+            case 254:        _SKDFentry.der_new[0] = 0x30; break;
+            default:         break;
+        }
+        if (ctn != CtxTagNo.unknown && _SKDFentry.der_new[0] != (0xA0|ctn) &&
+                                       _SKDFentry.der_new[0] != 0x30)
         {
 writefln("#### mismatch [0] and ctn ! ctn: %s", ctn);
             _SKDFentry.der_new[0] = 0xA0|ctn;
@@ -813,8 +824,8 @@ writefln("#### mismatch [0] and ctn ! ctn: %s", ctn);
             asn1_delete_structure(&_SKDFentry.structure_new);
             _SKDFentry.structure_new = structure_new;
         }
-writefln("  "~typeof(this).stringof~" object was set");
-writefln("  _new_encodedData of SKDFentry: %(%02X %)", _SKDFentry.der_new);
+//writefln("  "~typeof(this).stringof~" object was set");
+//writefln("  _new_encodedData of SKDFentry: %(%02X %)", _SKDFentry.der_new);
         if (_h !is null)
         {
             _h.SetIntegerId2("", _lin, _col, _value);
@@ -859,9 +870,9 @@ auto rangeExtractedSym(PKCS15_ObjectTyp[] skdf) nothrow
         {
             ExtractedSym es;
             try {
-    assumeWontThrow(writeln("watch point 1"));
-                es.ctn = EnumMembers!CtxTagNo.either!(a => getIdentifier(skdf[0], skChoiceName(a)~skID, false/*, false*/) > 0);
-    assumeWontThrow(writeln("watch point 11"));
+//    assumeWontThrow(writeln("watch point 1"));
+                es.ctn = EnumMembers!CtxTagNo.either!(a => getIdentifier(skdf[0], skChoiceName(a)~skID, false, false) > 0);
+//    assumeWontThrow(writeln("watch point 11"));
             }
             catch (Exception e) { printf("### Exception in rangeExtractedSym.front either\n");/* todo: handle exception */ }
             assert(es.ctn != CtxTagNo.unknown);
@@ -874,6 +885,8 @@ auto rangeExtractedSym(PKCS15_ObjectTyp[] skdf) nothrow
             { assert(0); }
 
             es.elem = skdf[0];
+//    assumeWontThrow(writeln("watch point 12"));
+//    assumeWontThrow(writeln("ExtractedSym es: ", es));
             return es;
         }
 
@@ -913,13 +926,13 @@ version(none)
 
 enum CtxTagNo : ubyte
 {
-    genericSecretKey = 0,
-    aesKey  = 15,
     des3Key = 4,
     des2Key = 3,
     desKey  = 2,
+    aesKey  = 15,            // OpenSC doesn't support this context tag; use genericSecretKey instead for AES
 
-    unknown = 255
+    genericSecretKey = 254,  // this is no context tag !!!
+    unknown = 255            // this is no context tag !!!
 }
 
 
@@ -928,14 +941,15 @@ string skChoiceName(CtxTagNo ctxTag) nothrow
     try
       return ctxTag.to!string;
     catch (Exception e) { printf("### Exception in skChoiceName\n"); }
-    return "genericSecretKey"; // "";
+    return "";
 }
 
 unittest
 {
-//  assert(skChoiceName(CtxTagNo.aesKey)  == "aesKey");
     assert(skChoiceName(CtxTagNo.genericSecretKey)  == "genericSecretKey");
+    assert(skChoiceName(CtxTagNo.aesKey)  == "aesKey");
     assert(skChoiceName(CtxTagNo.des3Key) == "des3Key");
+    assert(skChoiceName(CtxTagNo.des2Key) == "des2Key");
     assumeWontThrow(writeln("PASSED: skChoiceName"));
 }
 
@@ -975,7 +989,11 @@ void set_more_for_global_local() nothrow
 
     tnTypePtr  keySym_file;
     int NOR = getNOR(keySym_file);
+    assert(keySym_file);
     keySym_fid.set(keySym_file is null? 0 : ub22integral(keySym_file.data[2..4]), true);
+    assert(skdf);
+    AA["matrixKeySym"].SetStringId2("", r_AC_Update_SKDF,              1, assumeWontThrow(format!"%02X"(       skdf.data[25])));
+    AA["matrixKeySym"].SetStringId2("", r_AC_Update_Crypto_keySymFile, 1, assumeWontThrow(format!"%02X"(keySym_file.data[25])) ~" / "~ assumeWontThrow(format!"%02X"(keySym_file.data[26])));
 
     if (AA["radioKeySym"].GetStringVALUE() != "toggle_sym_create_write")
     {
@@ -1258,7 +1276,7 @@ int matrixKeySym_edition_cb(Ihandle* ih, int lin, int col, int mode, int /*updat
 
                               r_fromfile,
                               r_tofile,
-                              r_iv,
+//                              r_iv,
                               r_mode,
                               r_enc_dec
                 ))
@@ -1280,7 +1298,7 @@ int matrixKeySym_edition_cb(Ihandle* ih, int lin, int col, int mode, int /*updat
 
                               r_fromfile,
                               r_tofile,
-                              r_iv,
+//                              r_iv,
                               r_mode,
                               r_enc_dec
                 ))
@@ -1292,7 +1310,7 @@ int matrixKeySym_edition_cb(Ihandle* ih, int lin, int col, int mode, int /*updat
 
                               r_fromfile,
                               r_tofile,
-                              r_iv,
+//                              r_iv,
                               r_mode,
                               r_enc_dec
                 ))
@@ -1309,7 +1327,7 @@ int matrixKeySym_edition_cb(Ihandle* ih, int lin, int col, int mode, int /*updat
 
                               r_fromfile,
                               r_tofile,
-                              r_iv,
+//                              r_iv,
                               r_mode,
                               r_enc_dec
                 ))
@@ -1326,7 +1344,7 @@ int matrixKeySym_edition_cb(Ihandle* ih, int lin, int col, int mode, int /*updat
 
                               r_fromfile,
                               r_tofile,
-                              r_iv,
+//                              r_iv,
                               r_mode,
                               r_enc_dec
                 ))
@@ -1338,7 +1356,7 @@ int matrixKeySym_edition_cb(Ihandle* ih, int lin, int col, int mode, int /*updat
 
                               r_fromfile,
                               r_tofile,
-                              r_iv,
+//                              r_iv,
                               r_mode,
                               r_enc_dec
                 ))
@@ -1559,7 +1577,7 @@ bool doSelectNew = true;
                                r_keySym_IntAuthYN,  r_keySym_IntAuthUsageCounterYN,  r_keySym_IntAuthUsageCounterValue,
                                r_keySym_ExtAuthYN,  r_keySym_ExtAuthErrorCounterYN,  r_keySym_ExtAuthErrorCounterValue,
                                r_keySym_bytesStockAES, r_keySym_bytesStockDES,
-                               r_fromfile, r_tofile, r_iv, r_mode, r_enc_dec ]);
+                               r_fromfile, r_tofile/*, r_iv*/, r_mode, r_enc_dec ]);
             break;
 
         case "toggle_sym_delete":
@@ -1571,7 +1589,7 @@ bool doSelectNew = true;
                                r_keySym_IntAuthYN,  r_keySym_IntAuthUsageCounterYN,  r_keySym_IntAuthUsageCounterValue,
                                r_keySym_ExtAuthYN,  r_keySym_ExtAuthErrorCounterYN,  r_keySym_ExtAuthErrorCounterValue,
                                r_keySym_bytesStockAES, r_keySym_bytesStockDES,
-                               r_fromfile, r_tofile, r_iv, r_mode, r_enc_dec ]);
+                               r_fromfile, r_tofile/*, r_iv*/, r_mode, r_enc_dec ]);
             break;
         case "toggle_sym_update":
             hButton.SetString(IUP_TITLE, "Update/Write a key file record");
@@ -1582,7 +1600,7 @@ bool doSelectNew = true;
                                r_keySym_ExtAuthYN,  r_keySym_ExtAuthErrorCounterYN,  r_keySym_ExtAuthErrorCounterValue,
                                r_keySym_bytesStockAES, r_keySym_bytesStockDES ]);
             setColorForbidden([r_keySym_recordNo,   r_keySym_global_local,
-                               r_fromfile, r_tofile, r_iv, r_mode, r_enc_dec ]);
+                               r_fromfile, r_tofile/*, r_iv*/, r_mode, r_enc_dec ]);
             break;
 
         case "toggle_sym_updateSMkeyHost":
@@ -1595,7 +1613,7 @@ bool doSelectNew = true;
                                r_keySym_algoFamily, r_keySym_keyLenBits,
                                r_keySym_IntAuthYN,  r_keySym_IntAuthUsageCounterYN,  r_keySym_IntAuthUsageCounterValue,
                                r_keySym_ExtAuthYN,
-                               r_fromfile, r_tofile, r_iv, r_mode, r_enc_dec ]);
+                               r_fromfile, r_tofile/*, r_iv*/, r_mode, r_enc_dec ]);
 // if key SMkeyHost doesn't exist already, then this is not suitable: change to "toggle_sym_create_write" with some pre-settings
 // otherwise select the iD and set it
             auto res = rangeExtractedSym(SKDF).find!(a => a.sameGlobalLocalAndRecNo(1, 1));
@@ -1617,7 +1635,7 @@ bool doSelectNew = true;
                                r_keySym_algoFamily, r_keySym_keyLenBits,
                                r_keySym_IntAuthYN,
                                r_keySym_ExtAuthYN,  r_keySym_ExtAuthErrorCounterYN,  r_keySym_ExtAuthErrorCounterValue,
-                               r_fromfile, r_tofile, r_iv, r_mode, r_enc_dec ]);
+                               r_fromfile, r_tofile/*, r_iv*/, r_mode, r_enc_dec ]);
 // if key SMkeyCard doesn't exist already, then this is not suitable: change to "toggle_sym_create_write" with some pre-settings
 // otherwise select the iD and set it
             auto res = rangeExtractedSym(SKDF).find!(a => a.sameGlobalLocalAndRecNo(1, 2));
@@ -1637,7 +1655,7 @@ bool doSelectNew = true;
                                r_keySym_ExtAuthYN,  r_keySym_ExtAuthErrorCounterYN,  r_keySym_ExtAuthErrorCounterValue,
                                r_keySym_bytesStockAES, r_keySym_bytesStockDES ]);
             setColorForbidden([r_keySym_Id,
-                               r_fromfile, r_tofile, r_iv, r_mode, r_enc_dec ]);
+                               r_fromfile, r_tofile/*, r_iv*/, r_mode, r_enc_dec ]);
             // must select a record in file global/local, that isn't present in SKDF
             keySym_global_local.set(true, true);
             change_calcSKDF.setIsNewKeyId;
@@ -1645,9 +1663,9 @@ bool doSelectNew = true;
             break;
 
         case "toggle_sym_enc_dec":
-            hButton.SetString(IUP_TITLE, "Encrypt or Decrypt fromfile -> tofile");
+            hButton.SetString(IUP_TITLE, "Encrypt or Decrypt fromfile -> tofile  (with key selected by id)");
             setColorAllowed  ([r_keySym_Id,
-                               r_fromfile, r_tofile, r_iv, r_mode, r_enc_dec ]);
+                               r_fromfile, r_tofile/*, r_iv*/, r_mode, r_enc_dec ]);
             setColorForbidden([r_keySym_recordNo,   r_keySym_global_local,
                                r_keySym_Label,      r_keySym_Modifiable,
                                r_keySym_algoFamily, r_keySym_keyLenBits,
@@ -1712,9 +1730,9 @@ CtxTagNo ctxTagNofromAlgoKeySym(int algoKeySym)
 {
     switch (algoKeySym)
     {
-        case 0x02, 0x03: /*  AES */ return CtxTagNo.aesKey;
-        case 0x12, 0x13: /*  AES */ return CtxTagNo.aesKey;
-        case 0x22, 0x23: /*  AES */ return CtxTagNo.aesKey;
+        case 0x02, 0x03: /*  AES */ return CtxTagNo.genericSecretKey; // CtxTagNo.aesKey;
+        case 0x12, 0x13: /*  AES */ return CtxTagNo.genericSecretKey; // CtxTagNo.aesKey;
+        case 0x22, 0x23: /*  AES */ return CtxTagNo.genericSecretKey; // CtxTagNo.aesKey;
         case 0x04:       /* 3DES */ return CtxTagNo.des2Key;
         case 0x14:       /* 3DES */ return CtxTagNo.des3Key;
         case 0x05:       /*  DES */ return CtxTagNo.desKey;
@@ -1732,6 +1750,18 @@ int btn_random_key_cb(Ihandle* ih)
     ubyte[32] tmp;
     if ((rv= RAND_bytes(tmp.ptr, 32)) == 0)
         return IUP_DEFAULT;
+
+    version(Posix) {
+        /* display entropy_avail */
+        import std.process : executeShell; // executeShell is not @nogc and not nothrow
+        import std.string : chop;
+        try {
+            auto cat = executeShell("cat /proc/sys/kernel/random/entropy_avail");
+            auto text = cast(Text)AA["entropy_avail_text"];
+            text.SetStringVALUE("entropy_avail: " ~ (cat.status == 0 ? chop(cat.output) : "0"));
+        }
+        catch (Exception e) { printf("### Exception in btn_random_key_cb() \n"); /* todo: handle exception */ }
+    }
 
     keySym_bytesStockAES.set(tmp, true);
 
@@ -1836,13 +1866,15 @@ int button_radioKeySym_cb(Ihandle* ih)
 
     switch (activeToggle)
     {
-//        case "toggle_sym_SKDF_change",
-//             "toggle_sym_delete",
-//             "toggle_sym_update",
-//             "toggle_sym_updateSMkeyHost",
-//             "toggle_sym_updateSMkeyCard",
-//             "toggle_sym_create_write",
-//             "toggle_sym_enc_dec":  break;
+/*
+        case "toggle_sym_SKDF_change",
+             "toggle_sym_delete",
+             "toggle_sym_update",
+             "toggle_sym_updateSMkeyHost",
+             "toggle_sym_updateSMkeyCard",
+             "toggle_sym_create_write",
+             "toggle_sym_enc_dec":  break;
+*/
         case "toggle_sym_SKDF_change":
             immutable bool doDelete;// = false;
             mixin(button_radioKeySym_cb_common1);
@@ -1885,7 +1917,7 @@ int button_radioKeySym_cb(Ihandle* ih)
                 return IUP_DEFAULT;
             ubyte MRL = skFile.data[4];
             auto buf_delete = new ubyte[MRL];
-            rv= sc_update_record(card, keySym_recordNo.get, buf_delete.ptr, buf_delete.length, 0);
+            rv= sc_update_record(card, keySym_recordNo.get, buf_delete.ptr, buf_delete.length, SC_RECORD_BY_REC_NR);
             assert(rv == buf_delete.length);
 `;
             mixin (connect_card!commands);
@@ -1945,7 +1977,7 @@ assumeWontThrow(writeln(SKDF));
                 rv = sc_pkcs15init_authenticate(profile, p15card, file, SC_AC_OP.SC_AC_OP_UPDATE);
                 if (rv < 0)
                     return IUP_DEFAULT;
-                rv= sc_update_record(card, keySym_recordNo.get, keySym_ByteStringStore.get.ptr, keySym_ByteStringStore.getLen, 0);
+                rv= sc_update_record(card, keySym_recordNo.get, keySym_ByteStringStore.get.ptr, keySym_ByteStringStore.getLen, SC_RECORD_BY_REC_NR);
                 assert(rv == keySym_ByteStringStore.getLen);
             }
 `;
@@ -1963,41 +1995,67 @@ assumeWontThrow(writeln(SKDF));
             break; // case "toggle_sym_update", "toggle_sym_updateSMkeyHost", "toggle_sym_updateSMkeyCard", "toggle_sym_create_write":
 
         case "toggle_sym_enc_dec":
-            import std.file : getSize;
+            import std.string : toStringz;
+            import std.file;
             Handle mtx = AA["matrixKeySym"];
             immutable fromfile     = mtx.GetStringId2("", r_fromfile, 1);
             immutable tofile       = mtx.GetStringId2("", r_tofile, 1);
             immutable what_enc_dec = mtx.GetStringId2("", r_enc_dec, 1);
             immutable what_mode    = mtx.GetStringId2("", r_mode, 1);
-            immutable what_iv      = string2ubaIntegral(mtx.GetStringId2("", r_iv, 1)).idup;
-            assert(what_iv.length==16);
+////            immutable what_iv      = string2ubaIntegral(mtx.GetStringId2("", r_iv, 1)).idup;
+//            assert(what_iv.length==16);
             immutable cbc = what_mode=="cbc";
             immutable ub2 fid      = integral2uba!2(keySym_fidAppDir.get); /* */
             immutable ubyte algoECB_MSE = algoECB_MSEfromAlgoKeySym(keySym_algoStore.get); /* */
             ubyte blocksize             =   blocksizefromAlgoKeySym(keySym_algoStore.get); /* */
-
+/*
+            if (cbc && what_iv.length < blocksize)
+            {
+                IupMessage("Feedback upon IV", assumeWontThrow(format!"There are %d, less than blockSize (%d) bytes for the IV: Fill up and retry"(what_iv.length, blocksize).toStringz));
+                return IUP_DEFAULT;
+            }
+*/
             ubyte algoMSE = algoECB_MSE;
             ubyte[] tlv_crt_sym_encdec = (cast(immutable(ubyte)[])hexString!"B8 FF  95 01 40  80 01 FF  83 01 FF").dup;
             if (cbc)
             {
                 algoMSE += 2;
-                tlv_crt_sym_encdec ~= [ubyte(0x87), blocksize] ~ what_iv[0..blocksize];
+                tlv_crt_sym_encdec ~= [ubyte(0x87), blocksize] /*~ what_iv[0..blocksize]*/;
             }
             assert(tlv_crt_sym_encdec.length>=2);
             tlv_crt_sym_encdec[1]  = cast(ubyte) (tlv_crt_sym_encdec.length-2);
             tlv_crt_sym_encdec[7]  = algoMSE;
             tlv_crt_sym_encdec[10] = cast(ubyte) keySym_keyRef.get;
 
+//            auto f = File(fromfile, "rb");
+            CardCtl_crypt_sym  crypt_sym_data = {
+                infile: fromfile.toStringz,
+//                indata_len = getSize(fromfile),
+
+                outfile: tofile.toStringz,
+                iv_len: blocksize,
+                key_ref: cast(ubyte) keySym_keyRef.get,
+                block_size: blocksize,
+                key_len: cast(ubyte) keySym_keyLenBits.get,
+                pad_type: BLOCKCIPHER_PAD_TYPE_ZEROES, // BLOCKCIPHER_PAD_TYPE_PKCS5,
+                local: true,
+                cbc:     what_mode=="cbc",
+                enc_dec: what_enc_dec=="enc",
+                perform_mse: true,
+            };
+////            crypt_sym_data.iv[0..blocksize] = what_iv[0..blocksize];
+//            f.close();
+/+
             try
             {
-                auto f = File(fromfile, "rb");
-                immutable sizeFromfile = getSize(fromfile);
-                auto inData = f.rawRead(new ubyte[sizeFromfile]);
-                f.close();
+//                auto f = File(fromfile, "rb");
+//                immutable sizeFromfile = getSize(fromfile);
+//                auto inData = f.rawRead(new ubyte[sizeFromfile]);
+//                f.close();
 
                 if (what_enc_dec=="enc")
                 {
-/*
+
                     enum string commands = `
                     int rv;
                     mixin(button_radioKeySym_cb_common2);
@@ -2007,6 +2065,13 @@ assumeWontThrow(writeln(SKDF));
                     if (rv < 0)
                         return IUP_DEFAULT;
 
+                    rv= sc_card_ctl(card, SC_CARDCTL_ACOS5_ENCRYPT_SYM, &crypt_sym_data);
+                    if (rv != SC_SUCCESS)
+                        hstat.SetString(IUP_TITLE, "FAILURE: Encrypt data fromfile -> tofile");
+                    else
+                        hstat.SetString(IUP_TITLE, "SUCCESS: Encrypt data fromfile -> tofile");
+
+/*
                     if ((rv= cry_mse_7_4_2_1_22_set(card, tlv_crt_sym_encdec)) < 0) {
                         writeln("  ### FAILED: Something went wrong with set MSE for sym_encrypt");
                         return IUP_DEFAULT;
@@ -2017,10 +2082,11 @@ assumeWontThrow(writeln(SKDF));
                         writeln("  ### FAILED: Something went wrong with cry_pso_7_4_3_6_2A_sym_encrypt");
 ////                writefln("[ %(%02X %) ]", ciphertext);
                     toFile(ciphertext, tofile);
-                    hstat.SetString(IUP_TITLE, "SUCCESS: Encrypt data fromfile -> tofile");
+*/
+//                    hstat.SetString(IUP_TITLE, "SUCCESS: Encrypt data fromfile -> tofile");
 `;
                     mixin (connect_card!commands);
-*/
+
                 }
                 else if (what_enc_dec=="dec")
                 {
@@ -2046,6 +2112,7 @@ assumeWontThrow(writeln(SKDF));
                 }
             }
             catch (Exception e) { printf("### Exception in btn_enc_dec_cb() \n"); /* todo: handle exception */ }
++/
             break;
 
         default:  assert(0);

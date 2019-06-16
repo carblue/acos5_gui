@@ -46,8 +46,8 @@ struct _keyAsym_authId{}
 struct _keyAsym_fidAppDir{}
 
 struct _AC_Update_PrKDF_PuKDF{}            //SCB
-struct _AC_Update_Delete_RSAprivateFile{}
-struct _AC_Update_Delete_RSApublicFile{}
+//struct _AC_Update_Delete_RSAprivateFile{}
+//struct _AC_Update_Delete_RSApublicFile{}
 struct _AC_Create_Delete_RSADir{}
 //Obs
 //struct _keyAsym_usagePuKDF{}
@@ -164,8 +164,8 @@ class Pub(T, V=int)
                 if (programmatically && _h !is null)
                     _h.SetStringId2 ("", _lin, _col, _value);
             }
-            else static if (is(T==_AC_Update_PrKDF_PuKDF) || is(T==_AC_Create_Delete_RSADir) ||
-                is(T==_AC_Update_Delete_RSAprivateFile) || is(T==_AC_Update_Delete_RSApublicFile))
+            else static if (is(T==_AC_Update_PrKDF_PuKDF) || is(T==_AC_Create_Delete_RSADir)
+                /* || is(T==_AC_Update_Delete_RSAprivateFile) || is(T==_AC_Update_Delete_RSApublicFile)*/)
             {
                 if (programmatically && _h !is null)
                     _h.SetStringId2 ("", _lin, _col, format!"%02X"(_value[0])  ~" / "~format!"%02X"(_value[1]));
