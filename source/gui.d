@@ -631,7 +631,7 @@ private Vbox create_KeySym_tab()
 //        SetAttributeId2("",  r_keySym_algoStore,       0,   __("keySym_algoStore"));
 //        SetAttributeId2("",  r_keySym_algoStore,       2,    "keySym file");
 
-        SetAttributeId2("",  r_keySym_IntAuthYN,           0,   __("keySym_IntAuthYN  whether this key shall be usable for Internal Authentication"));
+        SetAttributeId2("",  r_keySym_IntAuthYN,           0,   __("keySym_IntAuthYN  whether this key shall be usable for Internal Authentication (not applicable for AES keys)"));
         SetAttributeId2("",  r_keySym_IntAuthYN,           2,    "keySym file");
 
         SetAttributeId2("",  r_keySym_IntAuthUsageCounterYN,     0,
@@ -641,7 +641,7 @@ private Vbox create_KeySym_tab()
         SetAttributeId2("",  r_keySym_IntAuthUsageCounterValue,  0,   __("keySym_IntAuthUsageCounterValue 1..65534"));
         SetAttributeId2("",  r_keySym_IntAuthUsageCounterValue,  2,    "keySym file");
 
-        SetAttributeId2("",  r_keySym_ExtAuthYN,           0,   __("keySym_ExtAuthYN  whether this key shall be usable for External Authentication"));
+        SetAttributeId2("",  r_keySym_ExtAuthYN,           0,   __("keySym_ExtAuthYN  whether this key shall be usable for External Authentication (not applicable for AES keys)"));
         SetAttributeId2("",  r_keySym_ExtAuthYN,           2,    "keySym file");
 
         SetAttributeId2("",  r_keySym_ExtAuthErrorCounterYN,     0,

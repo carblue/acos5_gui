@@ -81,7 +81,7 @@ import std.algorithm.searching : canFind, countUntil, all, any, find;
 import std.algorithm.mutation : remove;
 //import std.algorithm.iteration : uniq;
 //import std.algorithm.sorting : sort;
-import std.typecons : Tuple, tuple;
+//import std.typecons : Tuple, tuple;
 import std.string : /*chomp, */  toStringz, fromStringz, representation;
 import std.signals;
 
@@ -105,7 +105,7 @@ import util_general;// : ub22integral;
 import acos5_64_shared;
 import pub;
 
-import util_opensc : connect_card, readFile, decompose, PKCS15Path_FileType, pkcs15_names,
+import util_opensc : connect_card, readFile/*, decompose*/, PKCS15Path_FileType, pkcs15_names,
     PKCS15_FILE_TYPE, fs, PRKDF, PUKDF, AODF, SKDF,
     PKCS15_ObjectTyp, errorDescription, PKCS15, appdf, tnTypePtr,
     aid, is_ACOSV3_opmodeV3_FIPS_140_2L3, is_ACOSV3_opmodeV3_FIPS_140_2L3_active,
@@ -121,9 +121,6 @@ import pkcs11;
 private import key_sym : nextUniqueKeyId;
 
 // tag types
-//PubA2
-struct _fidRSAprivate{}
-struct _fidRSApublic{}
 //PubA16
 struct _valuePublicExponent{}   // publicExponentRSA
 //Obs
@@ -135,7 +132,6 @@ struct _sizeNewRSApublicFile{}
 tnTypePtr   prkdf;
 tnTypePtr   pukdf;
 
-bool isNewKeyPairId;
 int  nextUniqueId; //= nextUniqueKeyId();
 int  nextUniquePairNo;
 
@@ -284,79 +280,6 @@ void keyAsym_initialize_PubObs()
 //    AA["toggle_RSA_PrKDF_PuKDF_change"].SetIntegerVALUE(1); // Doesn't invoke toggle_radioKeyAsym_cb
 }
 
-
-class PubA2(T, V=int)
-{
-    mixin(commonConstructor);
-
-    @property ub2    getub2()    const nothrow /*pure*/ @safe { return  fidub2; }
-    @property ushort getushort() const nothrow /*pure*/ @safe { return  ub22integral(fidub2); }
-
-/*
-V[2] mapping:
- 0: fid
- 1: fid_size
-
- if locate fid within appDF fails, set both to zero
-
- accepts a new fid from v[0] only, if acceptable
- and depending on that, retrieves the file's size into v[1];
-
- usable for both fidRSAprivate and fidRSApublic
-*/
-    @property void set(V[2] v, bool programmatically=false)  nothrow
-    {
-//assumeWontThrow(writeln(T.stringof~" object is about to be set"));
-        auto t = Tuple!(ushort, ubyte, ubyte)(0,0,0);
-        tnTypePtr  privORpub;
-//        sitTypeFS  pos_parent;
-        try
-        {
-        /*if (v != _value)*/
-        {
-            /* locate */
-/*
-            ub2 ub2keyAsym_fidAppDir = integral2uba!2(keyAsym_fidAppDir.get)[0..2];
-            if (equal([0,0], ub2keyAsym_fidAppDir[]))
-                appdf = fs.preOrderRange(fs.begin(), fs.end()).locate!"a[6]==b"(PKCS15_FILE_TYPE.PKCS15_APPDF);
-            else
-                appdf = fs.preOrderRange(fs.begin(), fs.end()).locate!"equal(a[2..4], b[])"(ub2keyAsym_fidAppDir);
-            if (appdf is null) {
-                _value = [0,0];
-                programmatically = true;
-                goto end;
-            }
-*/
-//            pos_parent = new sitTypeFS(appdf);
-            privORpub = fs.rangeSiblings(appdf).locate!"equal(a.data[2..4], b)"(integral2uba!2(v[0]));
-            if (privORpub is null)
-            {
-                programmatically = true;
-                _value = isNewKeyPairId? [v[0],0] : [0,0];
-            }
-            else
-            {
-                t = decompose(cast(EFDB) privORpub.data[0], privORpub.data[4..6]);
-                v[1] = t[0];
-                _value = v;
-            }
-//end:
-            fidub2 = integral2uba!2(_value[0])[0..2];
-////assumeWontThrow(writefln(T.stringof~" object was set to values %04X, %s", _value[0], _value[1]));
-            if (programmatically &&  _h !is null)
-                _h.SetStringId2 ("", _lin, _col, format!"%04X"(_value[0]));
-            emit(T.stringof, _value);
-            }
-            return;
-        }
-        catch (Exception e) { printf("### Exception in PubA2.set()\n"); /* todo: handle exception */ }
-////assumeWontThrow(writefln(T.stringof~"### object was set (without emit) to values %04X, %s", _value[0], _value[1]));
-    }
-
-    mixin Pub_boilerplate!(T,V[2]);
-
-    ub2  fidub2;
-}
 
 class PubA16(T, V=ubyte)
 {

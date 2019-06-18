@@ -141,7 +141,7 @@ Pub!(_keySym_algoFamily,string)   keySym_algoFamily;
 Pub!_keySym_keyLenBits            keySym_keyLenBits;
 
 Pub!_keySym_fidAppDir             keySym_fidAppDir;
-Pub!_keySym_fid                   keySym_fid;
+PubA2!_keySym_fid                 keySym_fid;
 
 Pub!_keySym_ExtAuthYN             keySym_ExtAuthYN;
 Pub!_keySym_ExtAuthErrorCounterYN keySym_ExtAuthErrorCounterYN;
@@ -176,7 +176,7 @@ void keySym_initialize_PubObs()
     keySym_algoFamily            = new Pub!(_keySym_algoFamily,string)   (r_keySym_algoFamily,            AA["matrixKeySym"]);
     keySym_keyLenBits            = new Pub!_keySym_keyLenBits            (r_keySym_keyLenBits,            AA["matrixKeySym"]);
 
-    keySym_fid                   = new Pub!_keySym_fid                   (r_keySym_fid,                   AA["matrixKeySym"], true);
+    keySym_fid                   = new PubA2!_keySym_fid                 (r_keySym_fid,                   AA["matrixKeySym"]);
     keySym_fidAppDir             = new Pub!_keySym_fidAppDir             (r_keySym_fidAppDir,             AA["matrixKeySym"], true);
 
     keySym_ExtAuthYN             = new Pub!_keySym_ExtAuthYN             (r_keySym_ExtAuthYN,             AA["matrixKeySym"]);
@@ -227,6 +227,7 @@ void keySym_initialize_PubObs()
     keySym_IntAuthUsageCounterYN   .connect(&keySym_ByteStringStore.watch);
     keySym_ExtAuthErrorCounterValue.connect(&keySym_ByteStringStore.watch);
     keySym_IntAuthUsageCounterValue.connect(&keySym_ByteStringStore.watch);
+    keySym_fid                     .connect(&keySym_ByteStringStore.watch);
 
 //// values to start with
     keySym_IntAuthUsageCounterValue.set(0xFFFE, true);
@@ -439,6 +440,20 @@ class Obs_keySym_ByteStringStore
         calculate();
     }
 
+    void watch(string msg, int[2] v)
+    {
+        switch(msg)
+        {
+            case "_keySym_fid":
+                _keySym_fid_MRL = v[1];
+                break;
+            default:
+                writeln(msg); stdout.flush();
+                assert(0, "Unknown observation");
+        }
+        calculate();
+    }
+
     void calculate()
     {
         immutable _keySym_keyLenBytes =  keyLenBytesfromAlgoKeySym(_keySym_algoStore);
@@ -461,6 +476,10 @@ class Obs_keySym_ByteStringStore
         else
             _value[_len.._len+_keySym_keyLenBytes] = _keySym_bytesStockDES[0.._keySym_keyLenBytes];
         _len += _keySym_keyLenBytes;
+        if (_len < _keySym_fid_MRL) {
+            _value[_len.._keySym_fid_MRL] = 0;
+            _len = _keySym_fid_MRL;
+        }
 ////writefln("  "~typeof(this).stringof~" object was set to value 0x %(%02X %)", _value[0.._len]);
 
         if (_h !is null)
@@ -481,9 +500,10 @@ class Obs_keySym_ByteStringStore
     int        _keySym_IntAuthUsageCounterYN;
     int        _keySym_ExtAuthErrorCounterValueMod;
     int        _keySym_IntAuthUsageCounterValue;
+    int        _keySym_fid_MRL;
 
     int        _len;
-    ubyte[38]  _value;
+    ubyte[38]  _value; // why 38 and not 37 ?
     int    _lin;
     int    _col;
     Handle _h;
@@ -990,8 +1010,9 @@ void set_more_for_global_local() nothrow
     tnTypePtr  keySym_file;
     int NOR = getNOR(keySym_file);
     assert(keySym_file);
-    keySym_fid.set(keySym_file is null? 0 : ub22integral(keySym_file.data[2..4]), true);
+    keySym_fid.set(keySym_file is null? [0,0] : [ub22integral(keySym_file.data[2..4]), 0], true);
     assert(skdf);
+////assumeWontThrow(writeln("keySym_fid MRL: ", keySym_fid.size));
     AA["matrixKeySym"].SetStringId2("", r_AC_Update_SKDF,              1, assumeWontThrow(format!"%02X"(       skdf.data[25])));
     AA["matrixKeySym"].SetStringId2("", r_AC_Update_Crypto_keySymFile, 1, assumeWontThrow(format!"%02X"(keySym_file.data[25])) ~" / "~ assumeWontThrow(format!"%02X"(keySym_file.data[26])));
 
@@ -2043,9 +2064,10 @@ assumeWontThrow(writeln(SKDF));
                 enc_dec: what_enc_dec=="enc",
                 perform_mse: true,
             };
+////assumeWontThrow(writeln("crypt_sym_data.cbc: ", crypt_sym_data.cbc));
 ////            crypt_sym_data.iv[0..blocksize] = what_iv[0..blocksize];
 //            f.close();
-/+
+/+ +/
             try
             {
 //                auto f = File(fromfile, "rb");
@@ -2112,7 +2134,7 @@ assumeWontThrow(writeln(SKDF));
                 }
             }
             catch (Exception e) { printf("### Exception in btn_enc_dec_cb() \n"); /* todo: handle exception */ }
-+/
+/+ +/
             break;
 
         default:  assert(0);

@@ -59,6 +59,9 @@ enum ubyte BLOCKCIPHER_PAD_TYPE_ANSIX9_23           =  4; // If N padding bytes 
 // BLOCKCIPHER_PAD_TYPE_W3C is not recommended
 //um ubyte BLOCKCIPHER_PAD_TYPE_W3C                 =  5; // If N padding bytes are required (1 < N ≤ B Blocksize) set the last byte as N and all the preceding N-1 padding bytes as arbitrary byte values.
 
+//enum uint SC_SEC_ENV_PARAM_DES_ECB                  = 3;
+//enum uint SC_SEC_ENV_PARAM_DES_CBC                  = 4;
+
 /*
  * Proprietary card_ctl calls
  */
@@ -131,10 +134,10 @@ struct CardCtl_generate_crypt_asym {
 
 struct CardCtl_crypt_sym {
     const(char)*  infile; //  path/to/file where the indata may be read from, interpreted as an [c_uchar]; if!= null has preference over indata
-    ubyte[64]     indata;
+    ubyte[528]    indata;
     size_t        indata_len;
     const(char)*  outfile; //  path/to/file where the outdata may be written to, interpreted as an [c_uchar]; if!= null has preference over outdata
-    ubyte[80]     outdata;
+    ubyte[544]    outdata;
     size_t        outdata_len;
     ubyte[16]     iv;
     size_t        iv_len; // 0==unused or equal to block_size, i.e. 16 for AES, else 8
