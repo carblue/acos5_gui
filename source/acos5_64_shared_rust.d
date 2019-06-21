@@ -150,6 +150,6 @@ struct CardCtl_crypt_sym {
 //  bool  use_sess_key; // if true, the session key will be used and key_ref ignored
     bool  local;   // whether local or global key to use; used to select MF or appDF where the key file resides
     bool  cbc;     // true: CBC Mode, false: ECB
-    bool  enc_dec; // true: encrypt,  false: decrypt
+    bool  encrypt; // true: encrypt,  false: decrypt
     bool  perform_mse;    // IN parameter, whether MSE Manage Security Env. shall be done prior to crypto operation
 }

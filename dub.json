@@ -1,11 +1,11 @@
 {
-	"name" : "acos5_64_gui",
-	"description" : "Administration tool for ACOS5-64, based on driver acos5_64",
+	"name": "acos5_64_gui",
+	"description": "Administration tool for ACOS5-64, based on driver acos5_64",
 	"license": "GNU General Public License v2.0",
 	"copyright": "Copyright © 2018-, Carsten Blüggel",
 	"authors": ["Carsten Blüggel"],
 	"homepage": "https://github.com/carblue/acos5_64_gui",
-	"dependencies" : {
+	"dependencies": {
 		"iup": "~>3.27.0-alpha.1",
 		"tasn1:wrapper": "~>0.0.5",
 		"opensc": "~>0.19.0-alpha.1",
@@ -16,25 +16,22 @@
 		"opensc": "deimos",
 		"pkcs11": "derelict"
 	},
-	"systemDependencies": "IUP-Portable User Interface shared libraries installed, opensc installation v.0.17.0, libacos5_64.so (binary from this package's opensc_0.17.0 / +libphobos2.so.0.79 from a DMD installation) located in a common .so look-up path, opensc.conf configured appropriately; (not yet required: for gettext the exports available from libintl.so or GLib)",
-	"sourceFiles-windows-x86-dmd": [
+	"systemDependencies": "IUP-Portable User Interface shared libraries installed, OpenSC installation, acos5_64 driver and pkcs15init libraries installed, opensc.conf configured appropriately; (not yet required: for gettext the exports available from libintl.so or GLib)",
+	"libs-posix": ["iupimglib"],
+	"sourceFiles-windows-x86_64": [
 		"C:/D/dmd2/windows/lib/ole32.lib",
 		"oleaut32.lib",
 		"uuid.lib"
 	],
 	"targetName": "acos5_64_gui",
-    "mainSourceFile" : "source/acos5_64_gui.d",
-	"fixme-buildRequirements" : ["disallowDeprecations"],
+	"mainSourceFile": "source/acos5_64_gui.d",
 
 	"dflags-posix-dmd": ["-defaultlib=libphobos2.so"],
 	"dflags-posix-ldc": ["-defaultlib=phobos2-ldc-shared,druntime-ldc-shared"],
-	"fixme-dflagsx-posix-gdc": ["-shared-libphobos", "-Wunknown-pragmas", "-vtls", "-vcg-ast", "-defaultlib=libphobos2.so"],
-	"lflags-posix" : ["--no-undefined", "--as-needed", "--version-script=acos5_64_gui.ver"],
-	"postBuildCommands-posix" : ["strip --strip-unneeded $$DUB_TARGET_NAME"],
-	"fixme-lflags-posix-x86_64-ldc": ["-rpath=$HOME/Downloads/dlang/ldc2-1.15.0-linux-x86_64/lib"],
-	"libs-posix": ["iupimglib"],
-	"fixme-lflags-windows-x86": ["/SUBSYSTEM:WINDOWS:6.00"   , ":opensc-pkcs11.so", "acos5_64"],
-	"fixme-postBuildCommands-windows" : ["strip -s acos5_64_gui.exe"],
+	"fixme-dflagsx-posix-gdc": ["failes", "on", "slides"],
+
+	"lflags": ["--no-undefined", "--as-needed", "--version-script=acos5_64_gui.ver"],
+	"postBuildCommands": ["strip --strip-unneeded $$DUB_TARGET_NAME"],
 	"versions": ["Have_acos5_64", "I18N"],
 	"configurations": [
 		{

@@ -1786,6 +1786,7 @@ int button_radioKeyAsym_cb(Ihandle* ih)
     }
 
     Handle hstat = AA["statusbar"];
+    hstat.SetString(IUP_TITLE, "");
     immutable activeToggle = AA["radioKeyAsym"].GetStringVALUE();
 
     switch (activeToggle)

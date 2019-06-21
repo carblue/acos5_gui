@@ -1879,6 +1879,7 @@ int button_radioKeySym_cb(Ihandle* ih)
 {
     import std.math : abs;
     Handle hstat = AA["statusbar"];
+    hstat.SetString(IUP_TITLE, "");
     immutable activeToggle = AA["radioKeySym"].GetStringVALUE();
     assert(skdf);
     tnTypePtr  skFile;
@@ -2017,7 +2018,7 @@ assumeWontThrow(writeln(SKDF));
 
         case "toggle_sym_enc_dec":
             import std.string : toStringz;
-            import std.file;
+//            import std.file;
             Handle mtx = AA["matrixKeySym"];
             immutable fromfile     = mtx.GetStringId2("", r_fromfile, 1);
             immutable tofile       = mtx.GetStringId2("", r_tofile, 1);
@@ -2036,6 +2037,7 @@ assumeWontThrow(writeln(SKDF));
                 return IUP_DEFAULT;
             }
 */
+/+
             ubyte algoMSE = algoECB_MSE;
             ubyte[] tlv_crt_sym_encdec = (cast(immutable(ubyte)[])hexString!"B8 FF  95 01 40  80 01 FF  83 01 FF").dup;
             if (cbc)
@@ -2047,12 +2049,9 @@ assumeWontThrow(writeln(SKDF));
             tlv_crt_sym_encdec[1]  = cast(ubyte) (tlv_crt_sym_encdec.length-2);
             tlv_crt_sym_encdec[7]  = algoMSE;
             tlv_crt_sym_encdec[10] = cast(ubyte) keySym_keyRef.get;
-
-//            auto f = File(fromfile, "rb");
++/
             CardCtl_crypt_sym  crypt_sym_data = {
                 infile: fromfile.toStringz,
-//                indata_len = getSize(fromfile),
-
                 outfile: tofile.toStringz,
                 iv_len: blocksize,
                 key_ref: cast(ubyte) keySym_keyRef.get,
@@ -2061,23 +2060,17 @@ assumeWontThrow(writeln(SKDF));
                 pad_type: BLOCKCIPHER_PAD_TYPE_ZEROES, // BLOCKCIPHER_PAD_TYPE_PKCS5,
                 local: true,
                 cbc:     what_mode=="cbc",
-                enc_dec: what_enc_dec=="enc",
+                encrypt: what_enc_dec=="enc",
                 perform_mse: true,
             };
-////assumeWontThrow(writeln("crypt_sym_data.cbc: ", crypt_sym_data.cbc));
+assumeWontThrow(writeln("crypt_sym_data.cbc: ", crypt_sym_data.cbc));
 ////            crypt_sym_data.iv[0..blocksize] = what_iv[0..blocksize];
-//            f.close();
-/+ +/
             try
             {
-//                auto f = File(fromfile, "rb");
-//                immutable sizeFromfile = getSize(fromfile);
-//                auto inData = f.rawRead(new ubyte[sizeFromfile]);
-//                f.close();
-
-                if (what_enc_dec=="enc")
+                if (1/*what_enc_dec=="enc"*/)
                 {
-
+                    if (!crypt_sym_data.encrypt && crypt_sym_data.cbc)
+                        return IUP_DEFAULT;
                     enum string commands = `
                     int rv;
                     mixin(button_radioKeySym_cb_common2);
@@ -2088,10 +2081,18 @@ assumeWontThrow(writeln(SKDF));
                         return IUP_DEFAULT;
 
                     rv= sc_card_ctl(card, SC_CARDCTL_ACOS5_ENCRYPT_SYM, &crypt_sym_data);
-                    if (rv != SC_SUCCESS)
-                        hstat.SetString(IUP_TITLE, "FAILURE: Encrypt data fromfile -> tofile");
-                    else
-                        hstat.SetString(IUP_TITLE, "SUCCESS: Encrypt data fromfile -> tofile");
+                    if (rv != SC_SUCCESS) {
+                        if (crypt_sym_data.encrypt)
+                            hstat.SetString(IUP_TITLE, "FAILURE: Encrypt data fromfile -> tofile");
+                        else
+                            hstat.SetString(IUP_TITLE, "FAILURE: Decrypt data fromfile -> tofile");
+                    }
+                    else {
+                        if (crypt_sym_data.encrypt)
+                            hstat.SetString(IUP_TITLE, "SUCCESS: Encrypt data fromfile -> tofile");
+                        else
+                            hstat.SetString(IUP_TITLE, "SUCCESS: Decrypt data fromfile -> tofile");
+                    }
 
 /*
                     if ((rv= cry_mse_7_4_2_1_22_set(card, tlv_crt_sym_encdec)) < 0) {
@@ -2104,19 +2105,18 @@ assumeWontThrow(writeln(SKDF));
                         writeln("  ### FAILED: Something went wrong with cry_pso_7_4_3_6_2A_sym_encrypt");
 ////                writefln("[ %(%02X %) ]", ciphertext);
                     toFile(ciphertext, tofile);
+                    hstat.SetString(IUP_TITLE, "SUCCESS: Encrypt data fromfile -> tofile");
 */
-//                    hstat.SetString(IUP_TITLE, "SUCCESS: Encrypt data fromfile -> tofile");
 `;
                     mixin (connect_card!commands);
-
                 }
+/+
                 else if (what_enc_dec=="dec")
                 {
-/*
                     enum string commands = `
                     int rv;
                     mixin(button_radioKeySym_cb_common2);
-
+/*
                     sc_path_set(&file.path, SC_PATH_TYPE.SC_PATH_TYPE_PATH, &skFile.data[8], skFile.data[1], 0, -1);
                     rv = sc_pkcs15init_authenticate(profile, p15card, file, SC_AC_OP.SC_AC_OP_CRYPTO);
                     if (rv < 0)
@@ -2128,13 +2128,13 @@ assumeWontThrow(writeln(SKDF));
 ////                writefln("[ %(%02X %) ]", ciphertext_decrypted);
                     toFile(ciphertext_decrypted, tofile);
                     hstat.SetString(IUP_TITLE, "SUCCESS: Decrypt data fromfile -> tofile");
-`;
-                    mixin (connect_card!commands);
 */
+`;
+////                    mixin (connect_card!commands);
                 }
++/
             }
             catch (Exception e) { printf("### Exception in btn_enc_dec_cb() \n"); /* todo: handle exception */ }
-/+ +/
             break;
 
         default:  assert(0);

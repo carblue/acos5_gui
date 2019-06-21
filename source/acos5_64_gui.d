@@ -796,14 +796,15 @@ The checks may be grouped into these categories:
                 SetStringId2("", 41,  1, cast(string) utcTime[]);
             } // what about other data like free space, ROM-SHA1 etc.
         }
-    } //  // scope for scope(exit)  PKCS11.unload();
+    } // scope for scope(exit)  PKCS11.unload(); closes connection to the smart card/reader
 
+//    GC.collect(); // optional Garbage collection run, AFAIK put's any other threads on hold, but there shouldn't be any other than this main-thread
+    /* Update IUP main dialog window and it's controls (IupUpdate()), set tab position to tab "filesystem" */
     AA["dlg0"].Update;
-    AA["tabCtrl"].SetInteger("VALUEPOS", 1); // filesystem
-    GC.collect();
+//    AA["tabCtrl"].SetInteger("VALUEPOS", 1); // filesystem
 
     /* start event loop. From this point, control flow depends on user action and callback functions connected in gui.d, e.g. SetCallback(IUP_SELECTION_CB, cast(Icallback) &selectbranchleaf_cb); */
-    /* Check why GIO (since opensc 0.18.0) crashes this program, Check multi-threading within event loop  */
+    /* Check why GIO (since OpenSC 0.18.0) occasionally crashes this program, Check multi-threading within event loop  */
     IupMainLoop();
     /* Close/Exit Button was clicked */
     config.SaveConfig();

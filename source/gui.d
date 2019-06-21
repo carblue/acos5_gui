@@ -541,7 +541,7 @@ private Vbox create_KeySym_tab()
     child_array_toggles ~= toggle2;
 
     auto toggle3 = new Toggle("toggle_sym_update",
-    __("Update existing (in SKDF) key file record (use one of the specialized following 2 choices forspecial keys for Secure Messaging #1 amd #2)"));
+    __("Update existing (in SKDF) key file record (use one of the specialized following 2 choices for Secure Messaging keys #1 amd #2)"));
     child_array_toggles ~= toggle3;
 //F1010213048516070849A1B0C1D0E0F14589B316FE9437C8  82
 //F1E0D0C1B0A1890807164504130201F189FEB3C837451694  81
@@ -559,7 +559,7 @@ private Vbox create_KeySym_tab()
     child_array_toggles ~= toggle6;
 
     auto toggle7 = new Toggle("toggle_sym_enc_dec",
-    __("### CURRENTLY DEACTIVATED ###  Encrypt or Decrypt fromfile -> tofile"));
+    __("### Decrypt in CBC mode will come with OpenSC v0.20.0 ###  Encrypt or Decrypt fromfile -> tofile"));
     child_array_toggles ~= toggle7;
 
     foreach (i,toggle; child_array_toggles)
