@@ -43,7 +43,7 @@ import libintl : _, __;
 version(I18N)
     import libintl : bindtextdomain, textdomain, bind_textdomain_codeset;
 
-import iup.iup_plusD : AA, Handle, Config, IupOpenD, IupControlsOpen, IupClose, IupMainLoop, IUP_APPEND;
+import iup.iup_plusD : AA, Handle, Config, IupOpenD, IupControlsOpen, IupClose, IupMainLoop, IUP_APPEND, IupSetGlobal, IUP_YES;
 
 //import deimos.p11; "dependencies" : "p11:deimos": "~>0.0.3", // it's an alternative for "dependencies" : "pkcs11": "~>2.40.0-alpha.3"
 //import deimos.sodium;

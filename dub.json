@@ -6,10 +6,10 @@
 	"authors": ["Carsten Blüggel"],
 	"homepage": "https://github.com/carblue/acos5_64_gui",
 	"dependencies": {
-		"iup": "~>3.27.0-alpha.1",
+		"iup": "~>3.27.0-alpha.2",
 		"tasn1:wrapper": "~>0.0.5",
 		"opensc": "~>0.19.0-alpha.1",
-		"pkcs11": "~>2.40.0-alpha.3",
+		"pkcs11": "~>2.40.0-alpha.4",
 		"openssl": "~>2.0.0+1.1.0h"
 	},
 	"subConfigurations": {

@@ -1103,7 +1103,10 @@ void readFile(tnTypePtr pn, ub2 fid, EFDB fdb, ubyte sacRead, ushort size, ubyte
 {
 //assumeWontThrow(writefln("readFile(ub2 %s, EFDB %s, expectedFileType %s)", fid, fdb, expectedFileType));
     import wrapper.libtasn1 : asn1_get_length_der, asn1_create_element, asn1_delete_structure, asn1_dup_node, ASN1_SUCCESS, asn1_strerror2,
-        asn1_der_decoding, asn1_visit_structure, ASN1_PRINT_NAME_TYPE_VALUE, asn1_read_value, ASN1_ELEMENT_NOT_FOUND;
+        asn1_der_decoding/*, asn1_visit_structure*/, ASN1_PRINT_NAME_TYPE_VALUE, asn1_read_value, ASN1_ELEMENT_NOT_FOUND;
+version(Posix)
+    import wrapper.libtasn1 : asn1_visit_structure;
+
     with (EFDB)
     if (!fdb.among(Transparent_EF, Linear_Fixed_EF, Linear_Variable_EF, Cyclic_EF /*omit reading CHV_EF, Sym_Key_EF*/, RSA_Key_EF, Purse_EF, SE_EF))
         return;

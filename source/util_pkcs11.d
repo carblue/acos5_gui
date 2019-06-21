@@ -91,7 +91,7 @@ void  pkcs11_login (CK_SESSION_HANDLE session, CK_BYTE[] pin) nothrow
     CK_RV rv;
     if (pin.length)
     {
-        rv = C_Login(session, CKU_USER, pin.ptr, pin.length);
+        rv = C_Login(session, CKU_USER, pin.ptr, cast(CK_ULONG)pin.length);
         pkcs11_check_return_value(rv, "log in");
     }
 }
