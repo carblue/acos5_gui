@@ -19,7 +19,7 @@
 	"systemDependencies": "IUP-Portable User Interface shared libraries installed, OpenSC installation, acos5_64 driver and pkcs15init libraries installed, opensc.conf configured appropriately; (not yet required: for gettext the exports available from libintl.so or GLib)",
 	"libs-posix": ["iupimglib"],
 	"sourceFiles-windows-x86_64": [
-		"C:/D/dmd2/windows/lib/ole32.lib",
+		"ole32.lib",
 		"oleaut32.lib",
 		"uuid.lib"
 	],
@@ -28,23 +28,25 @@
 
 	"dflags-posix-dmd": ["-defaultlib=libphobos2.so"],
 	"dflags-posix-ldc": ["-defaultlib=phobos2-ldc-shared,druntime-ldc-shared"],
-	"fixme-dflagsx-posix-gdc": ["failes", "on", "slides"],
+	"fixme-dflagsx-posix-gdc": ["failure", "with", "slides"],
 
 	"lflags": ["--no-undefined", "--as-needed", "--version-script=acos5_64_gui.ver"],
 	"postBuildCommands": ["strip --strip-unneeded $$DUB_TARGET_NAME"],
-	"versions": ["Have_acos5_64", "I18N"],
+	"versions-posix": ["Have_acos5_64", "I18N"],
+	"versions-windows": ["Have_acos5_64"],
 	"configurations": [
 		{
 			"name": "application",
-	        "targetType": "executable",
-            "excludedSourceFiles": [],
+			"targetType": "executable",
+			"excludedSourceFiles": [],
+			"versions": [],
 			"dflags": []
 		},
 		{
 			"name": "travis",
-	        "targetType": "executable",
-            "excludedSourceFiles": [],
-			"dflags": [],
+			"targetType": "executable",
+			"excludedSourceFiles": [],
+			"dflags": ["-dip1000", "-preview=dip1000", "-preview=markdown"],
 			"buildRequirements": ["disallowDeprecations"]
 		},
 		{

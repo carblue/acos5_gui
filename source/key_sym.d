@@ -24,6 +24,8 @@ module key_sym;
 
 import core.memory : GC;
 import core.stdc.stdlib : exit;
+import core.stdc.string : memcpy;
+//import std.string : toStringz;
 import std.stdio;
 import std.exception : assumeWontThrow, assumeUnique;
 import std.conv: to, hexString;
@@ -70,7 +72,7 @@ import acos5_64_shared_rust : CardCtl_crypt_sym, SC_CARDCTL_ACOS5_ENCRYPT_SYM, S
 //import wrapper.libtasn1 : asn1_node;
 //import pkcs11;
 
-import deimos.openssl.des : DES_cblock, DES_set_odd_parity, DES_is_weak_key;
+import deimos.openssl.des : DES_KEY_SZ, DES_cblock, DES_set_odd_parity, DES_is_weak_key;
 
 // tag types, Obs
 struct _keySym_algoStore{}
@@ -119,7 +121,7 @@ enum /* matrixKeySymRowName */
     r_row_empty,                        // readonly
     r_fromfile,
     r_tofile,
-////    r_iv,                               // IV will be supported in OpenSC beginning from v0.20.0
+    r_iv,                               // IV will be supported in OpenSC beginning from v0.20.0
     r_mode,
     r_enc_dec,
     r_change_calcSKDF,                  // readonly
@@ -238,9 +240,9 @@ void keySym_initialize_PubObs()
                     0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
                     0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F, 0x20];
     keySym_bytesStockAES.set(tmp, true);
-    foreach (i; 0..3/*keyLen/blocksize*/)
+    foreach (i; 0..3/*keyLen/blocksize*/) // TODO replace see
     {
-        auto p = cast(DES_cblock*)(tmp.ptr+i*8);
+        auto p = cast(DES_cblock*)(tmp.ptr+i*DES_KEY_SZ);
         DES_set_odd_parity (p);
         if (DES_is_weak_key(p) == 1)
         {    assert(0); }
@@ -1297,7 +1299,7 @@ int matrixKeySym_edition_cb(Ihandle* ih, int lin, int col, int mode, int /*updat
 
                               r_fromfile,
                               r_tofile,
-//                              r_iv,
+                              r_iv,
                               r_mode,
                               r_enc_dec
                 ))
@@ -1319,7 +1321,7 @@ int matrixKeySym_edition_cb(Ihandle* ih, int lin, int col, int mode, int /*updat
 
                               r_fromfile,
                               r_tofile,
-//                              r_iv,
+                              r_iv,
                               r_mode,
                               r_enc_dec
                 ))
@@ -1331,7 +1333,7 @@ int matrixKeySym_edition_cb(Ihandle* ih, int lin, int col, int mode, int /*updat
 
                               r_fromfile,
                               r_tofile,
-//                              r_iv,
+                              r_iv,
                               r_mode,
                               r_enc_dec
                 ))
@@ -1348,7 +1350,7 @@ int matrixKeySym_edition_cb(Ihandle* ih, int lin, int col, int mode, int /*updat
 
                               r_fromfile,
                               r_tofile,
-//                              r_iv,
+                              r_iv,
                               r_mode,
                               r_enc_dec
                 ))
@@ -1365,7 +1367,7 @@ int matrixKeySym_edition_cb(Ihandle* ih, int lin, int col, int mode, int /*updat
 
                               r_fromfile,
                               r_tofile,
-//                              r_iv,
+                              r_iv,
                               r_mode,
                               r_enc_dec
                 ))
@@ -1377,7 +1379,7 @@ int matrixKeySym_edition_cb(Ihandle* ih, int lin, int col, int mode, int /*updat
 
                               r_fromfile,
                               r_tofile,
-//                              r_iv,
+                              r_iv,
                               r_mode,
                               r_enc_dec
                 ))
@@ -1449,7 +1451,7 @@ int matrixKeySym_edition_cb(Ihandle* ih, int lin, int col, int mode, int /*updat
 
             foreach (i; 0..3/*keyLen/blocksize*/)
             {
-                auto p = cast(DES_cblock*)(tmp.ptr+i*8);
+                auto p = cast(DES_cblock*)(tmp.ptr+i*DES_KEY_SZ);
                 DES_set_odd_parity (p);
                 if (DES_is_weak_key(p) == 1)
                     return IUP_IGNORE;
@@ -1598,7 +1600,7 @@ bool doSelectNew = true;
                                r_keySym_IntAuthYN,  r_keySym_IntAuthUsageCounterYN,  r_keySym_IntAuthUsageCounterValue,
                                r_keySym_ExtAuthYN,  r_keySym_ExtAuthErrorCounterYN,  r_keySym_ExtAuthErrorCounterValue,
                                r_keySym_bytesStockAES, r_keySym_bytesStockDES,
-                               r_fromfile, r_tofile/*, r_iv*/, r_mode, r_enc_dec ]);
+                               r_fromfile, r_tofile, r_iv, r_mode, r_enc_dec ]);
             break;
 
         case "toggle_sym_delete":
@@ -1610,7 +1612,7 @@ bool doSelectNew = true;
                                r_keySym_IntAuthYN,  r_keySym_IntAuthUsageCounterYN,  r_keySym_IntAuthUsageCounterValue,
                                r_keySym_ExtAuthYN,  r_keySym_ExtAuthErrorCounterYN,  r_keySym_ExtAuthErrorCounterValue,
                                r_keySym_bytesStockAES, r_keySym_bytesStockDES,
-                               r_fromfile, r_tofile/*, r_iv*/, r_mode, r_enc_dec ]);
+                               r_fromfile, r_tofile, r_iv, r_mode, r_enc_dec ]);
             break;
         case "toggle_sym_update":
             hButton.SetString(IUP_TITLE, "Update/Write a key file record");
@@ -1621,7 +1623,7 @@ bool doSelectNew = true;
                                r_keySym_ExtAuthYN,  r_keySym_ExtAuthErrorCounterYN,  r_keySym_ExtAuthErrorCounterValue,
                                r_keySym_bytesStockAES, r_keySym_bytesStockDES ]);
             setColorForbidden([r_keySym_recordNo,   r_keySym_global_local,
-                               r_fromfile, r_tofile/*, r_iv*/, r_mode, r_enc_dec ]);
+                               r_fromfile, r_tofile, r_iv, r_mode, r_enc_dec ]);
             break;
 
         case "toggle_sym_updateSMkeyHost":
@@ -1634,7 +1636,7 @@ bool doSelectNew = true;
                                r_keySym_algoFamily, r_keySym_keyLenBits,
                                r_keySym_IntAuthYN,  r_keySym_IntAuthUsageCounterYN,  r_keySym_IntAuthUsageCounterValue,
                                r_keySym_ExtAuthYN,
-                               r_fromfile, r_tofile/*, r_iv*/, r_mode, r_enc_dec ]);
+                               r_fromfile, r_tofile, r_iv, r_mode, r_enc_dec ]);
 // if key SMkeyHost doesn't exist already, then this is not suitable: change to "toggle_sym_create_write" with some pre-settings
 // otherwise select the iD and set it
             auto res = rangeExtractedSym(SKDF).find!(a => a.sameGlobalLocalAndRecNo(1, 1));
@@ -1656,7 +1658,7 @@ bool doSelectNew = true;
                                r_keySym_algoFamily, r_keySym_keyLenBits,
                                r_keySym_IntAuthYN,
                                r_keySym_ExtAuthYN,  r_keySym_ExtAuthErrorCounterYN,  r_keySym_ExtAuthErrorCounterValue,
-                               r_fromfile, r_tofile/*, r_iv*/, r_mode, r_enc_dec ]);
+                               r_fromfile, r_tofile, r_iv, r_mode, r_enc_dec ]);
 // if key SMkeyCard doesn't exist already, then this is not suitable: change to "toggle_sym_create_write" with some pre-settings
 // otherwise select the iD and set it
             auto res = rangeExtractedSym(SKDF).find!(a => a.sameGlobalLocalAndRecNo(1, 2));
@@ -1676,7 +1678,7 @@ bool doSelectNew = true;
                                r_keySym_ExtAuthYN,  r_keySym_ExtAuthErrorCounterYN,  r_keySym_ExtAuthErrorCounterValue,
                                r_keySym_bytesStockAES, r_keySym_bytesStockDES ]);
             setColorForbidden([r_keySym_Id,
-                               r_fromfile, r_tofile/*, r_iv*/, r_mode, r_enc_dec ]);
+                               r_fromfile, r_tofile, r_iv, r_mode, r_enc_dec ]);
             // must select a record in file global/local, that isn't present in SKDF
             keySym_global_local.set(true, true);
             change_calcSKDF.setIsNewKeyId;
@@ -1686,7 +1688,7 @@ bool doSelectNew = true;
         case "toggle_sym_enc_dec":
             hButton.SetString(IUP_TITLE, "Encrypt or Decrypt fromfile -> tofile  (with key selected by id)");
             setColorAllowed  ([r_keySym_Id,
-                               r_fromfile, r_tofile/*, r_iv*/, r_mode, r_enc_dec ]);
+                               r_fromfile, r_tofile, r_iv, r_mode, r_enc_dec ]);
             setColorForbidden([r_keySym_recordNo,   r_keySym_global_local,
                                r_keySym_Label,      r_keySym_Modifiable,
                                r_keySym_algoFamily, r_keySym_keyLenBits,
@@ -1717,6 +1719,7 @@ ubyte algoECB_MSEfromAlgoKeySym(int algoKeySym)
 
 
 ubyte blocksizefromAlgoKeySym(int algoKeySym)
+out (result; result==8 || result==16, "return value must be either 8 or 16")
 {
     switch (algoKeySym)
     {
@@ -1768,8 +1771,11 @@ int btn_random_key_cb(Ihandle* ih)
 {
     import deimos.openssl.rand : RAND_bytes;
     int rv;
-    ubyte[32] tmp;
-    if ((rv= RAND_bytes(tmp.ptr, 32)) == 0)
+    ubyte[16] tmp_iv;
+    ubyte[32] tmp_key;
+    if ((rv= RAND_bytes(tmp_key.ptr, cast(int)tmp_key.length)) == 0)
+        return IUP_DEFAULT;
+    if ((rv= RAND_bytes(tmp_iv.ptr,  cast(int)tmp_iv.length)) == 0)
         return IUP_DEFAULT;
 
     version(Posix) {
@@ -1784,18 +1790,19 @@ int btn_random_key_cb(Ihandle* ih)
         catch (Exception e) { printf("### Exception in btn_random_key_cb() \n"); /* todo: handle exception */ }
     }
 
-    keySym_bytesStockAES.set(tmp, true);
+    keySym_bytesStockAES.set(tmp_key, true);
 
-//    import deimos.openssl.des : DES_cblock, DES_set_odd_parity, DES_is_weak_key;
-    foreach (i; 0..3)
+    DES_cblock[3] key3 = void;
+    memcpy(key3.ptr, tmp_key.ptr, 3*DES_KEY_SZ);
+    foreach (ref key; key3)
     {
-        auto p = cast(DES_cblock*)(tmp.ptr+i*8);
-        DES_set_odd_parity (p);
-        if (DES_is_weak_key(p) == 1)
-            return IUP_DEFAULT;
+//        auto p = cast(DES_cblock*)(tmp.ptr+i*DES_KEY_SZ);
+        DES_set_odd_parity(&key);
+        while (DES_is_weak_key(&key) == 1) // should be unlikely to match one of the rare weak keys, though possible
+            RAND_bytes(key.ptr, DES_KEY_SZ);
     }
-
-    keySym_bytesStockDES.set(tmp[0..24], true);
+    keySym_bytesStockDES.set((key3[0]~key3[1]~key3[2])[0..24], true);
+    assumeWontThrow(AA["matrixKeySym"].SetStringId2("", r_iv, 1, format!"%(%02X%)"(tmp_iv)));
 
     return IUP_DEFAULT;
 }
@@ -2024,7 +2031,7 @@ assumeWontThrow(writeln(SKDF));
             immutable tofile       = mtx.GetStringId2("", r_tofile, 1);
             immutable what_enc_dec = mtx.GetStringId2("", r_enc_dec, 1);
             immutable what_mode    = mtx.GetStringId2("", r_mode, 1);
-////            immutable what_iv      = string2ubaIntegral(mtx.GetStringId2("", r_iv, 1)).idup;
+            immutable what_iv      = string2ubaIntegral(mtx.GetStringId2("", r_iv, 1)).idup;
 //            assert(what_iv.length==16);
             immutable cbc = what_mode=="cbc";
             immutable ub2 fid      = integral2uba!2(keySym_fidAppDir.get); /* */
@@ -2050,10 +2057,12 @@ assumeWontThrow(writeln(SKDF));
             tlv_crt_sym_encdec[7]  = algoMSE;
             tlv_crt_sym_encdec[10] = cast(ubyte) keySym_keyRef.get;
 +/
+            string outStr = assumeWontThrow(tofile~format!"_keyRef%02X"(keySym_keyRef.get())~ what_mode!="cbc" ?
+                    "" : format!"_IV%(%02X%)"(AA["matrixKeySym"].GetStringId2("", r_iv, 1) ) );
             CardCtl_crypt_sym  crypt_sym_data = {
                 infile: fromfile.toStringz,
                 outfile: tofile.toStringz,
-                iv_len: blocksize,
+                iv_len: cbc? blocksize : 0,
                 key_ref: cast(ubyte) keySym_keyRef.get,
                 block_size: blocksize,
                 key_len: cast(ubyte) keySym_keyLenBits.get,
@@ -2063,12 +2072,15 @@ assumeWontThrow(writeln(SKDF));
                 encrypt: what_enc_dec=="enc",
                 perform_mse: true,
             };
-assumeWontThrow(writeln("crypt_sym_data.cbc: ", crypt_sym_data.cbc));
-////            crypt_sym_data.iv[0..blocksize] = what_iv[0..blocksize];
+////assumeWontThrow(writeln("crypt_sym_data.cbc: ", crypt_sym_data.cbc));
+            if (cbc)
+                crypt_sym_data.iv[0..blocksize] = what_iv[0..blocksize];
             try
             {
                 if (1/*what_enc_dec=="enc"*/)
                 {
+version(OPENSC_VERSION_UPCOMING) {}
+else
                     if (!crypt_sym_data.encrypt && crypt_sym_data.cbc)
                         return IUP_DEFAULT;
                     enum string commands = `

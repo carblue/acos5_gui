@@ -38,7 +38,7 @@ version(Have_acos5_64) {
 	mixin FreeEnumMembers!ISO7816_RFU_TAG_FCP_;
 }
 +/
-/+
+version(OPENSC_VERSION_UPCOMING)
 enum /*ISO7816_RFU_TAG_FCP_ */ : ubyte {
 	ISO7816_RFU_TAG_FCP_SFI  = 0x88,  /* L:1,    V: Short File Identifier (SFI). 5 LSbs of File ID if unspecified. Applies to: Any file */
 	ISO7816_RFU_TAG_FCP_SAC  = 0x8C,  /* L:0-8,  V: Security Attribute Compact (SAC). Applies to: Any file */
@@ -46,8 +46,7 @@ enum /*ISO7816_RFU_TAG_FCP_ */ : ubyte {
 	ISO7816_RFU_TAG_FCP_SAE  = 0xAB,  /* L:0-32, V: Security Attribute Extended (SAE). Applies to: DFs */
 }
 
-SC_SEC_OPERATION numbering will change (with OpenSC v0.20.0 released?) see constants_types.rs
-+/
+//SC_SEC_OPERATION numbering will change (with OpenSC v0.20.0 released?) see constants_types.rs
 
 enum ubyte BLOCKCIPHER_PAD_TYPE_ZEROES              =  0; // as for  CKM_AES_CBC: adds max block size minus one null bytes (0 ≤ N < B Blocksize)
 enum ubyte BLOCKCIPHER_PAD_TYPE_ONEANDZEROES        =  1; // Unconditionally add a byte of value 0x80 followed by as many zero bytes as is necessary to fill the input to the next exact multiple of B

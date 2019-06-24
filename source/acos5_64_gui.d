@@ -700,9 +700,9 @@ The checks may be grouped into these categories:
         with (info) with (h)
         {
             SetStringId2("",  1,  1, cryptokiVersion.major.to!string ~"."~ cryptokiVersion.minor.to!string);
-            SetStringId2("",  2,  1, manufacturerID.assumeUTF.stripRight);
+            SetStringId2("",  2,  1, manufacturerID.assumeUTF.stripRight.to!string);
          //SetIntegerId2("", ??,  1, cast(int) flags);
-            SetStringId2("",  3,  1, libraryDescription.assumeUTF.stripRight);
+            SetStringId2("",  3,  1, libraryDescription.assumeUTF.stripRight.to!string);
             SetStringId2("",  4,  1, libraryVersion.major.to!string~"."~libraryVersion.minor.to!string);
         }
 
@@ -745,8 +745,8 @@ The checks may be grouped into these categories:
             pkcs11_check_return_value(rv= C_GetSlotInfo(slotID, &slotInfo), "get slot info");
             with (slotInfo) with (h)
             {
-                SetStringId2("",  7,  1, stripRight(assumeUTF(slotDescription)));
-                SetStringId2("",  8,  1, stripRight(assumeUTF(manufacturerID)));
+                SetStringId2("",  7,  1, slotDescription.assumeUTF.stripRight.to!string);
+                SetStringId2("",  8,  1, manufacturerID.assumeUTF.stripRight.to!string);
              //SetIntegerId2("", ??,  1, cast(int) flags);
                 if (flags & CKF_TOKEN_PRESENT)     SetIntegerId2("",  9,  1,  1); /* a token is there */
                 if (flags & CKF_REMOVABLE_DEVICE)  SetIntegerId2("", 10,  1,  1); /* removable devices*/
@@ -759,9 +759,9 @@ The checks may be grouped into these categories:
             pkcs11_check_return_value(rv= C_GetTokenInfo(slotID, &tokenInfo), "get token info");
             with (tokenInfo) with (h)
             {
-                SetStringId2("", 13,  1, stripRight(assumeUTF(label)));
-                SetStringId2("", 14,  1, stripRight(assumeUTF(manufacturerID)));
-                SetStringId2("", 15,  1, stripRight(assumeUTF(model)));
+                SetStringId2("", 13,  1, label.assumeUTF.stripRight.to!string);
+                SetStringId2("", 14,  1, manufacturerID.assumeUTF.stripRight.to!string);
+                SetStringId2("", 15,  1, model.assumeUTF.stripRight.to!string);
                 SetStringId2("", 16,  1, stripRight(cast(string) serialNumber[]));
                 SetIntegerId2("",17,  1, cast(int) flags);
                 if (flags & CKF_RNG)                           SetIntegerId2("", 18,  1,  1);
@@ -798,7 +798,7 @@ The checks may be grouped into these categories:
         }
     } // scope for scope(exit)  PKCS11.unload(); closes connection to the smart card/reader
 
-//    GC.collect(); // optional Garbage collection run, AFAIK put's any other threads on hold, but there shouldn't be any other than this main-thread
+    GC.collect(); // optional Garbage collection run, AFAIK put's any other threads on hold, but there shouldn't be any other than this main-thread
     /* Update IUP main dialog window and it's controls (IupUpdate()), set tab position to tab "filesystem" */
     AA["dlg0"].Update;
 //    AA["tabCtrl"].SetInteger("VALUEPOS", 1); // filesystem

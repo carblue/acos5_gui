@@ -100,7 +100,7 @@ import key_sym :
     r_row_empty,                        // readonly
     r_fromfile,
     r_tofile,
-//    r_iv,
+    r_iv,
     r_mode,
     r_enc_dec,
     r_change_calcSKDF,                  // readonly
@@ -307,7 +307,7 @@ private Hbox create_filesystem_tab()
     child_array2 ~= text1;
 
     auto toggle3 = new Toggle("toggle_auto_decode_asn1",
-    __("Perform 'Read operation result ASN.1-decoding' automatically for transparent files (for RSA: openssh format)"));
+    __("Perform 'Read operation result ASN.1-decoding' automatically for transparent files"));
     toggle3.SetAttributeVALUE(IUP_ON);
     toggle3.SetCallback(IUP_ACTION, cast(Icallback) &toggle_auto_decode_asn1_cb);
     child_array2 ~= toggle3;
@@ -674,8 +674,8 @@ private Vbox create_KeySym_tab()
         SetAttributeId2("",  r_tofile,          0,   "tofile");
         SetStringId2   ("",  r_tofile,          1,   getcwd() ~ "/acos_tofile.hex");
 
-//        SetAttributeId2("",  r_iv,          0,   "iv (hex.; first blockSize bytes will be used)");
-//        SetAttributeId2("",  r_iv,          1,   "11223344556677881122334455667788");
+        SetAttributeId2("",  r_iv,          0,   "iv (hex.; first blockSize bytes will be used)");
+        SetAttributeId2("",  r_iv,          1,   "11223344556677881122334455667788");
         SetAttributeId2("",  r_mode,            0,   "cbc or ecb (cbc: the IV will be zero bytes until OpenSC release 0.20.0)");
         SetAttributeId2("",  r_mode,            1,   "cbc");
         SetAttributeId2("",  r_enc_dec,         0,   "enc or dec");
