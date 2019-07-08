@@ -191,8 +191,8 @@ private Hbox create_cryptoki_slot_tokeninfo_tab()
         SetAttributeId2("", 37,  0,   "Token PinLen min/max");
         SetAttributeId2("", 38,  0,   "Token PublicMemory free/total in kB");
         SetAttributeId2("", 39,  0,   "Token PrivateMemory free/total in kB");
-        SetAttributeId2("", 40,  0,   "Token hardware/firmware version");
-        SetAttributeId2("", 41,  0,   "Token utcTime");
+        SetAttributeId2("", 41,  0,   "Token hardware version major.minor (firmware version omitted: No info available)");
+        SetAttributeId2("", 40,  0,   "Token utcTime");
         SetAttributeId2("", 42,  0,   "Token operates in FIPS 140-2 Level 3 Mode");
         SetAttributeId2("", 42,  1,   "No");
         SetAttributeId2("", 43,  0,   "Token is verified to comply with FIPS 140-2 Level 3 file system requirements");
@@ -334,6 +334,61 @@ private Hbox create_filesystem_tab()
 private Vbox create_ssh_tab()
 {
 /*
+
+This page is dedicated to solve this:
+At home I have a computer with an OpenSSH server installed and configured, connected to the router (static IP address). The router forwards some fixed port number
+(unlikely to be scanned for ssh) to port 22 of my computer, let's call it server. It also forwards WOL UDP pakets.
+The server's firewall is set to deny all incoming connections, except when the installed fwknop will temporarily allow for a short time slot.
+The server knows the identity of one of my CryptoMate64 public keys as well as some credential for fwknop.
+The server has stored some files/information that I might need while travelling, but it's to much to take all that with me on an USB stick.
+The server is powered off while I'm away from home.
+
+While on travel I've with me my CryptoMate64 and some device capable to connect to my router (e.g. a laptop with all software required).
+When I need some info from my home server, I'll have to:
+Wake up my home server (WOL, Wake on LAN)
+Wait about half a minute until booting is done.
+Send a data packet to the fwknop server, which will temporarily reconfigure iptables to listen for my incoming ssh connection.
+Connect to my home server via ssh (ssh implemented as a library), using a private RSA key from CryptoMate64 as authentication key.
+Then do with the ssh connection whatever I like to, e.g. login to my home server and view some files etc.
+When I'm done, shut down my home server.
+
+All this can be done with WOL-capable hardware and current software, except, existing ssh libraries are not prepared to be integrated with PKCS#11 other than via ssh-agent.
+libssh provides
+The missing link is a function within one of those ssh libraries, to authenticate with data from a PKCS#11 session (logged in, and with a reference to an already selected RSA private key object),
+i.e. the sign operation will be invoked from within the ssh library.
+For some reason I don't remember, I selected libssh (https://www.libssh.org/) to be patched for that purpose.
+
+Almost any Linuy system has libssh installed already. In order to not get into conflicts with that, don't install the dev-package which provides libssh.so and libssh_threads.so.
+(with Ubuntu the dev-package is named libssh-dev).
+The libssh.so and libssh_threads.so that we'll create as patched ones, will be located at some non-standard .so-search path /usr/local/lib_non_standard and be linked with rpath
+
+	"dependencies": {
+		"libssh": "0.7.5-alpha.1",
+
+	"subConfigurations": {
+		"libssh": "deimos",
+
+https://dzone.com/articles/whats-going-on-with-libssh-and-what-should-we-expe
+
+mnt/sda9_kubuntu1604_home/bodo/.dub/packages/libssh-0.7.5-alpha.1/patch/auth_c.diff:180:+int ssh_userauth_RSA_pkcs11(ssh_session session,
+mnt/sda9_kubuntu1604_home/bodo/.dub/packages/libssh-0.7.5-alpha.1/patch/auth_c.diff:442:+int ssh_userauth_RSA_p11(ssh_session session,
+mnt/sda9_kubuntu1604_home/bodo/.dub/packages/libssh-0.7.5-alpha.1/patch/libssh_h.diff:16:+LIBSSH_API int ssh_userauth_RSA_pkcs11(ssh_session session,
+mnt/sda9_kubuntu1604_home/bodo/.dub/packages/libssh-0.7.5-alpha.1/patch/libssh_h.diff:22:+LIBSSH_API int ssh_userauth_RSA_p11(ssh_session session,
+mnt/sda9_kubuntu1604_home/bodo/.dub/packages/libssh-0.7.5-alpha.1/deimos/libssh/libssh.d:868:int ssh_userauth_RSA_pkcs11(ssh_session session,
+mnt/sda9_kubuntu1604_home/bodo/.dub/packages/libssh-0.7.5-alpha.1/deimos/libssh/libssh.d:874:int ssh_userauth_RSA_p11(ssh_session session,
+
+There once was a situation when I needed an ssh-connection to some target from an application, not by opening a shell and issuing usual ssh commands, but by using ssh as a library
+AND use authentication key(s) from a smart card.
+There are 2 candidates for 'ssh as a library', https://www.libssh2.org/  and  https://www.libssh.org/. Both don't support PKCS#11 access to keys directly, but only via ssh-agent.
+I don't remember why, but I choose libssh to implement a required function (ssh_userauth_RSA_pkcs11).
+Trying to contribute that to the libssh project was honoured by non-reaction for years now, though their project ideas listed that need as low-priority.
+
+Nevertheless I think it's useful. This page will be dedicated to that extension to libssh and using it as an example for connecting to
+
+ideas:
+1.) issue some generic ssh commands, predefined or free-form, clickable, to execute within a temporary shell
+2.) same as 1.) but implemented via library libssh (client component) https://www.libssh.org/. This requires a patch to allow access to RSA keys on card/token. The original libssh works with file-based RSA keys only. Introduces a new dependency/binding to libssh. With Linux, libssh usually is installed already. No shell required
+
 remember to inform:
 /etc/ssh/ssh_config or user's config file requires an entry like
 PKCS11Provider /usr/lib/opensc-pkcs11.so   or
@@ -346,7 +401,20 @@ ssh -T git@github.com
 If PKCS11Provider is not specified, the command will be
 ssh -I /path/to/opensc-pkcs11.so -T git@github.com
 */
-    auto vbox = new Vbox();
+    Control[] child_array;
+    auto text = new Text("ssh_text");
+    with (text)
+    {
+        SetAttribute(IUP_SIZE, "500");
+        SetAttribute(IUP_MULTILINE, IUP_NO);
+    }
+    child_array ~= text;
+
+    auto btn_ssh    = new Button(  __("ssh connect, output to stdout: ssh -T git@github.com"));
+//    btn_ssh.SetCallback(IUP_ACTION, &btn_ssh_cb);
+    child_array ~= btn_ssh;
+
+    auto vbox = new Vbox(child_array);
     vbox.SetAttribute(ICTL_TABTITLE, "ssh");
     return vbox;
 }
@@ -839,7 +907,7 @@ private Vbox create_importExport_tab()
 Dialog create_dialog_dlg0()
 {
     /* Example of i18n usage */
-    auto btn_exit    = new Button(  __("Exit")); // __("Beenden")
+    auto btn_exit    = new Button(  __("Exit")); // "Beenden"
     btn_exit.SetCallback(IUP_ACTION, &btn_exit_cb);
     btn_exit.SetAttribute(IUP_TIP, __("more to come"));
 
@@ -850,11 +918,21 @@ Dialog create_dialog_dlg0()
         create_filesystem_tab,
         create_KeyASym_tab,
         create_KeySym_tab,
-        create_importExport_tab,
-      create_sanityCheck_tab,
+/*      some initial impl. available, but not ready */
+//      create_importExport_tab,
+
+        create_sanityCheck_tab,
+
 //      create_ssh_tab,
-//      create_opensc_conf_tab,
+/*      nothing implemented for that so far
+        create_opensc_conf_tab,
+*/
     ];
+/*
+    version(Windows) {} // because currently the ssh-agent will be used within ssh_tab, which is not available for Windows
+    else
+        child_array ~= create_ssh_tab;
+*/
     auto tabs = new Tabs("tabCtrl", child_array);
 //  tabs.SetAttribute(ICTL_TABTYPE, ICTL_TOP); // Default is "TOP"
 
@@ -862,7 +940,7 @@ Dialog create_dialog_dlg0()
     lbl_statusbar.SetAttribute(IUP_EXPAND, IUP_HORIZONTAL);
     lbl_statusbar.SetAttribute(IUP_PADDING, "10x5");
 
-    auto vbox = new Vbox(/*new Fill, */ hbox /*, new Fill*/, tabs, lbl_statusbar);
+    auto vbox = new Vbox(/*new Fill, */ /*hbox,*/ /*, new Fill*/ tabs, lbl_statusbar);
     auto dialog = new Dialog("dlg0", true, vbox);
     dialog.SetAttribute(IUP_TITLE, __("tool for driver acos5_64"));
     dialog.SetAttribute(IUP_MARGIN, "2x2");

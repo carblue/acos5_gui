@@ -7,17 +7,17 @@
 	"homepage": "https://github.com/carblue/acos5_64_gui",
 	"dependencies": {
 		"iup": "~>3.27.0-alpha.2",
-		"tasn1:wrapper": "~>0.0.5",
-		"opensc": "~>0.19.0-alpha.1",
+		"tasn1:wrapper": "~>0.0.6",
 		"pkcs11": "~>2.40.0-alpha.4",
+		"opensc": "~>0.19.0-beta.1",
 		"openssl": "~>2.0.0+1.1.0h"
 	},
 	"subConfigurations": {
-		"opensc": "deimos",
-		"pkcs11": "derelict"
+		"pkcs11": "derelict",
+		"opensc": "deimos"
 	},
 	"systemDependencies": "IUP-Portable User Interface shared libraries installed, OpenSC installation, acos5_64 driver and pkcs15init libraries installed, opensc.conf configured appropriately; (not yet required: for gettext the exports available from libintl.so or GLib)",
-	"libs-posix": ["iupimglib"],
+	"unused-libs-posix": ["iupimglib"],
 	"sourceFiles-windows-x86_64": [
 		"ole32.lib",
 		"oleaut32.lib",
@@ -32,6 +32,7 @@
 
 	"lflags": ["--no-undefined", "--as-needed", "--version-script=acos5_64_gui.ver"],
 	"postBuildCommands": ["strip --strip-unneeded $$DUB_TARGET_NAME"],
+	"alternatives-versions": ["Have_acos5_64", "I18N to be used only with gettext/libintl.so available", "OPENSC_VERSION_UPCOMING to be used only with OpenSC v0.20.0"],
 	"versions-posix": ["Have_acos5_64", "I18N"],
 	"versions-windows": ["Have_acos5_64"],
 	"configurations": [

@@ -89,7 +89,6 @@ import libopensc.opensc;
 import libopensc.types;
 import libopensc.errors;
 import libopensc.log;
-import libopensc.cards;
 import libopensc.iso7816;
 
 import pkcs15init.profile : sc_profile;

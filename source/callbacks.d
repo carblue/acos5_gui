@@ -24,7 +24,7 @@ module callbacks;
 
 import core.stdc.stdio : printf;
 import std.stdio;
-import std.string : /*fromStringz,*/ toStringz;
+import std.string : fromStringz, toStringz, chomp;
 import std.exception : assumeWontThrow;//(expr, msg, file, line)
 import std.algorithm.comparison : max, /*min, clamp, equal, mismatch,*/ among;
 import std.algorithm.searching : maxElement, countUntil, canFind;
@@ -37,7 +37,6 @@ import libopensc.opensc;
 import libopensc.types;
 import libopensc.errors;
 import libopensc.log;
-import libopensc.cards;
 import libopensc.iso7816;
 
 import iup.iup_plusD;
@@ -49,7 +48,7 @@ import acos5_64_shared;
 
 import util_opensc : connect_card, readFile, decompose, PKCS15Path_FileType, PKCS15_FILE_TYPE,
     is_ACOSV3_opmodeV3_FIPS_140_2L3, is_ACOSV3_opmodeV3_FIPS_140_2L3_active, tnTypePtr, tlv_Range_mod, fsInfoSize;
-
+import acos5_64_shared_rust : SC_CARD_TYPE_ACOS5_64_V3;
 
 ub8 map2DropDown = [1, 2, 3, 4, 5, 6, 7, 8];
 
@@ -150,9 +149,21 @@ void populate_list_op_file_possible(tnTypePtr pn, ub2 fid, EFDB fdb, ub2 size_or
 extern(C) :
 
 
-int slot_token_dropcheck_cb(Ihandle* self, int /*lin*/, int /*col*/)
+int slot_token_dropcheck_cb(Ihandle* self, int lin, int col)
 {
-  return IUP_IGNORE; // draw nothing
+//  return IUP_IGNORE; // draw nothing
+    if (col!=1 || lin>34)
+        return IUP_IGNORE; // draw nothing
+    switch (lin)
+    {
+    /* toggle */
+        case  9: .. case 11:
+                return IUP_CONTINUE; // show and enable the toggle button ; this short version works with TOGGLECENTERED only !
+        case 18: .. case 34:
+                return IUP_CONTINUE; // show and enable the toggle button ; this short version works with TOGGLECENTERED only !
+        default:  break;
+    }
+    return  IUP_IGNORE; // draw nothing
 }
 
 
@@ -198,7 +209,10 @@ int selectbranchleaf_cb(Ihandle* /*ih*/, int id, int status)
             if ((rv= sc_select_file(card, &path, &file)) == SC_SUCCESS) {
                 rbuf[0] = ISO7816_TAG_FCI;
                 rbuf[1] = len  = cast(ubyte) file.prop_attr_len;
+//                assumeWontThrow(writefln("commands len: %s, %s", len, __LINE__)); // commands len: 48, 369
+                assert(len>0);
                 rbuf[2..2+len] = file.prop_attr[0..len];
+//                memcpy(rbuf.ptr+2, file.prop_attr, len);
                 sc_file_free(file);
                 ptrdiff_t pos = max(1, countUntil!"a>0"(rbuf[].retro))-1; // if possible, show 00 at the end for AB
                 AA["fs_text"].SetString(IUP_APPEND,  assumeWontThrow(format!"%(%02X %)"(rbuf[0..$-pos])));
@@ -416,3 +430,235 @@ int btn_sanity_cb(Ihandle* ih)
     }
     return IUP_DEFAULT;
 } // btn_sanity_cb
+
+/+
+	"dependencies": {
+		"libssh": "~>0.9.0-alpha.1",
+
+	"subConfigurations": {
+		"libssh": "unittest",
+
+import libssh.libssh;
+//import libssh.callbacks;
+import core.stdc.stdlib : free;
+import std.algorithm.searching : startsWith;
+
+
+int verify_knownhost(ssh_session session) {
+    import core.stdc.string;
+    import core.stdc.errno : errno;
+    size_t hlen;
+    ubyte* hash = null;
+    char* hexa;
+    char[10] buf;
+    ssh_key srv_pubkey;
+    int rc;
+
+    try {
+    rc = ssh_get_publickey(session, &srv_pubkey);
+    if (rc < 0)
+        return -1;
+
+    rc = ssh_get_publickey_hash(srv_pubkey,
+                                /*ssh_publickey_hash_type.*/SSH_PUBLICKEY_HASH_SHA1,
+                                &hash,
+                                &hlen);
+    ssh_key_free(srv_pubkey);
+    if (rc < 0)
+        return -1;
+
+    switch (ssh_is_server_known(session)) {
+    case /*ssh_server_known_e.*/SSH_SERVER_KNOWN_OK:
+        break; /* ok */
+    case /*ssh_server_known_e.*/SSH_SERVER_KNOWN_CHANGED:
+        writeln("Der PKI-Schlüssel des Servers wurde geändert: Er lautet nun:");
+        ssh_print_hexa("Fingerprint (vom public key des Servers): ".toStringz, hash, hlen);
+        writeln("Aus Sicherheitsgruenden wird die SSH-Verbindung abgebrochen");
+        free(hash);
+        return -1;
+    case /*ssh_server_known_e.*/SSH_SERVER_FOUND_OTHER:
+        writeln("The host key for this server was not found but an other type of key exists.");
+        writeln("An attacker might change the default server key to confuse your client into thinking the key does not exist");
+        free(hash);
+        return -1;
+    case /*ssh_server_known_e.*/SSH_SERVER_FILE_NOT_FOUND:
+        writeln("Konnte die Datei known_host nicht finden.");
+        writeln("Wenn Sie diesen Fingerprint (vom public key des Servers) akzeptieren, wird die Datei automatisch angelegt.");
+        // fallback to SSH_SERVER_NOT_KNOWN behavior
+        goto case;
+    case /*ssh_server_known_e.*/SSH_SERVER_NOT_KNOWN:
+        hexa = ssh_get_hexa(hash, hlen);
+//        fprintf(stdout,"The server is unknown. Do you trust the host key?\n");
+//        fprintf(stdout, "Public key hash: %s\n", hexa);
+        writefln("Fingerprint (Public Key des Servers): %s", hexa.fromStringz);
+        free(hexa);
+        writeln("Der Server-Rechner, zu dem eine Verbindung aufgebaut werden soll, ist unter dieser Adresse unbekannt. Wollen Sie dem angegebenen Fingerprint vertrauen (ja, nein)? ");
+/*
+    if (fgets(buf.ptr, buf.sizeof, stdin) is null) {
+      writeln("fgets(buf, sizeof(buf), stdin) == NULL");
+      free(hash);
+      return -1;
+    }
+*/
+//    char[] name;
+//write("What is your name? ");
+//readln(name);
+//name = chomp(name);
+/+
+        char[] antwort;
+//		readf(" %s", &antwort);
+		readln(antwort);
+		antwort = chomp(antwort);
+        if (!startsWith(antwort, "ja") /*strncasecmp(buf, "ja", 2) != 0*/) { // strncmp
+            writeln("Sie haben nicht mit ja geantwortet; das Programm wird jetzt beendet!");
+            free(hash);
+            return -1;
+        }
++/
+        Ihandle* question_dlg = IupMessageDlg();
+
+IupSetAttribute(question_dlg, "DIALOGTYPE", "QUESTION");
+IupSetAttribute(question_dlg, "TITLE", "ssh enquiry");
+IupSetAttribute(question_dlg, "BUTTONS", "YESNO");
+IupSetAttribute(question_dlg, "VALUE", "The server isn't yet known to ssh. In order to proceed with ssh, it must be added to known_hosts.\nDo You want to trust server's fingerprint ? If No, the ssh connection won't be established");
+//IupSetCallback(dlg, "HELP_CB", (Icallback)help_cb);
+
+IupPopup(question_dlg, IUP_CURRENT, IUP_CURRENT);
+
+//printf("BUTTONRESPONSE(%s)\n", IupGetAttribute(question_dlg, "BUTTONRESPONSE"));
+int answer = IupGetInt(question_dlg, "BUTTONRESPONSE");
+
+IupDestroy(question_dlg);
+if (answer != 1)
+    return -1;
+
+        if (ssh_write_knownhost(session) < 0) {
+            writefln("Error ", strerror(errno));
+            free(hash);
+            return -1;
+        }
+        break;
+    case /*ssh_server_known_e.*/SSH_SERVER_ERROR: // this is not accessible if not version (SSH_NO_CPP_EXCEPTIONS)
+        writefln("Error %s", ssh_get_error(session).fromStringz);
+        free(hash);
+        return -1;
+    default: assert(0);
+    }
+
+    }
+    catch (Exception e) { printf("### Exception in verify_knownhost()\n"); /* todo: handle exception */ }
+    free(hash); // TODO: IMHO free(hash) should be called on Windows too, but causes crash ( ??? access violation ???) ! Why?
+    return 0;
+}
+
+int interactive_shell_session(ssh_channel channel)
+{
+  int rc;
+  char[90] buffer;
+  int nbytes;
+    try {
+//  rc = ssh_channel_request_pty(channel);
+//  if (rc != SSH_OK) return rc;
+//  rc = ssh_channel_change_pty_size(channel, 80, 24);
+//  if (rc != SSH_OK) return rc;
+  rc = ssh_channel_request_shell(channel);
+  if (rc != SSH_OK) return rc;
+writeln("ssh_channel_is_open(channel): ", ssh_channel_is_open(channel));
+if (ssh_channel_is_open(channel))
+    writeln("ssh_channel_is_eof(channel):  ", ssh_channel_is_eof(channel));
+
+  while (ssh_channel_is_open(channel) &&
+         !ssh_channel_is_eof(channel))
+  {
+    nbytes = ssh_channel_read(channel, buffer.ptr, 10, 0);
+
+    if (nbytes < 0)
+      return SSH_ERROR;
+    if (nbytes > 0)
+        assumeWontThrow(writefln("Message from github, %s bytes: %s", nbytes, buffer));
+//      write(1, buffer, nbytes);
+  }
+
+/*
+  if (!ssh_channel_is_eof(channel))
+      nbytes = ssh_channel_read_nonblocking(channel, buffer.ptr, 88, 0);
+      if (nbytes)
+        writeln("Read from channel: ", buffer[0..nbytes]);
+*/
+    }
+	catch (Exception e) { printf("### Exception in interactive_shell_session\n"); /* todo: handle exception */ }
+  return rc;
+}
+
+int shell_session(ssh_session session)
+{
+    try {
+        ssh_channel channel;
+        int rc;
+        channel = ssh_channel_new(session);
+        if (channel == null)
+            return SSH_ERROR;
+        rc = ssh_channel_open_session(channel);
+        if (rc != SSH_OK)
+        {
+            ssh_channel_free(channel);
+            return rc;
+        }
+//  ...
+//        rc = interactive_shell_session(channel);
+        if (rc != SSH_OK)
+        {
+            ssh_channel_free(channel);
+            return rc;
+        }
+
+        ssh_channel_close(channel);
+        ssh_channel_send_eof(channel);
+        ssh_channel_free(channel);
+    }
+	catch (Exception e) { printf("### Exception in shell_session\n"); /* todo: handle exception */ }
+    return SSH_OK;
+}
+
+
+int btn_ssh_cb(Ihandle* /*ih*/)
+{
+	try {
+		ssh_session  my_ssh_session = ssh_new();
+		int verbosity = SSH_LOG_FUNCTIONS; //SSH_LOG_NOLOG; //SSH_LOG_PROTOCOL; SSH_LOG_WARNING; SSH_LOG_PACKET; SSH_LOG_FUNCTIONS
+		ssh_options_set(my_ssh_session, SSH_OPTIONS_HOSTKEYS, "ssh-rsa".toStringz);
+		ssh_options_set(my_ssh_session, SSH_OPTIONS_COMPRESSION_C_S, "no".toStringz);
+		ssh_options_set(my_ssh_session, SSH_OPTIONS_COMPRESSION_S_C, "no".toStringz);
+		ssh_options_set(my_ssh_session, SSH_OPTIONS_USER, "git".toStringz);
+		ssh_options_set(my_ssh_session, SSH_OPTIONS_HOST, "github.com".toStringz);
+		ssh_options_set(my_ssh_session, SSH_OPTIONS_LOG_VERBOSITY, &verbosity);
+//		ssh_threads_set_callbacks(ssh_threads_get_pthread());
+
+		ssh_init();
+		int rc = ssh_connect(my_ssh_session);
+		if (rc != SSH_OK) {
+			writefln("### Error connecting to server: unavailable. %s", ssh_get_error(my_ssh_session).fromStringz);
+			return IUP_DEFAULT;//EXIT_FAILURE;
+		}
+
+		if (verify_knownhost(my_ssh_session) != SSH_OK) {
+			writefln("### Error connecting to server: available, but unknown: %s", ssh_get_error(my_ssh_session).fromStringz );
+			return IUP_DEFAULT;//EXIT_FAILURE;
+		}
+		if (ssh_userauth_agent(my_ssh_session, null) != SSH_AUTH_SUCCESS)
+			writefln("### Failed to authenticate to server.");
+		else {
+			writefln("### Succeded to authenticate to server.");
+			rc = shell_session(my_ssh_session);
+			if (rc != SSH_OK) {
+				writefln("### Error Something is wrong with the channel. %s", ssh_get_error(my_ssh_session).fromStringz);
+				return IUP_DEFAULT;//EXIT_FAILURE;
+			}
+		}
+//		ssh_userauth_RSA_pkcs11
+	}
+	catch (Exception e) { printf("### Exception in btn_ssh_cb\n"); /* todo: handle exception */ }
+    return IUP_DEFAULT;
+}
++/
+

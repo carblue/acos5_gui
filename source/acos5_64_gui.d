@@ -68,6 +68,8 @@ import callbacks : btn_sanity_cb,
 import key_asym : keyAsym_initialize_PubObs, prkdf, pukdf;
 import key_sym  : keySym_initialize_PubObs,  skdf;
 
+import acos5_64_shared_rust : CardCtlArray8;
+
 /+
 Local imports:
 enum string commands1 : import util_general : ubaIntegral2string;
@@ -153,12 +155,14 @@ version(I18N)
 
     */
 
+    CardCtlArray8  cos_version;
     /* get card's serial no., catch up on everything that was lazily done by the driver */
     enum string commands1 = `
         import libopensc.opensc : sc_card_ctl;
         import libopensc.types : sc_serial_number;
         import libopensc.cardctl : SC_CARDCTL_GET_SERIALNR;
         import util_general : ubaIntegral2string;
+        import acos5_64_shared_rust : SC_CARDCTL_ACOS5_GET_COS_VERSION;
 
         sc_serial_number  serial_number;
         rc = sc_card_ctl(card, SC_CARDCTL_GET_SERIALNR, &serial_number);
@@ -168,6 +172,12 @@ version(I18N)
             exit(1);
         }
         groupCfg = ubaIntegral2string(serial_number.value[0..serial_number.len]);
+        rc = sc_card_ctl(card, SC_CARDCTL_ACOS5_GET_COS_VERSION, &cos_version);
+        if (rc != SC_SUCCESS)
+        {
+            writeln("FAILED: SC_CARDCTL_ACOS5_GET_COS_VERSION");
+            exit(1);
+        }
 `;
     mixin (connect_card!(commands1, "EXIT_FAILURE", "3"));
 
@@ -475,10 +485,13 @@ Also, You should know this about Pins:
 
     AA["cst_text"].SetString(IUP_APPEND, `
 Some remarks:
+The PKCS#11 standard specifies an application programming interface (API), called “Cryptoki,” for devices that hold cryptographic information and perform cryptographic functions.
+The standard gets maintained/advanced by OASIS, see also https://en.wikipedia.org/wiki/PKCS_11
+
 The tool works with 1 slot currently only, which is the first one found with a token present ! (There may be more slots with tokens present;
  the first one usually has Slot id : 0; later, there will be a selection for other present tokens)
 
-The version of PKCS#15 / ISO 7816-15 supported by opensc versions 17/18 is PKCS#15 v1.1 / ISO 7816-15:2004
+The version of PKCS#15 / ISO 7816-15 supported by opensc version 19 roughly but not exactly is PKCS#15 v1.1 / ISO 7816-15:2004
 
 Relating to tab 'filesystem':
 Toggle: Perform 'Read operation' automatically, if applicable and doesn't require authorization (except SM related):
@@ -490,7 +503,7 @@ This means: The read operation will be done automatically if not disallowed by f
 
 The tool aims at shielding the possibly complex access conditions of files (and commands) from the user and just ask for the required permission(s).
 But the sophisticated ACOS features of access conditions like "AND" and "OR" operator aren't implemented currently: Just use simple entries in the SE-file for verification/authentication, with 1 pin or 1 key reference only.
-(The nigthmare counterexample would be a file deletion requiring e.g. 4 or more pin verifications/key authentications; the rule above limits that to max. 2 pins/keys, which is also the max. of opensc).
+(The nigthmare counter-example would be a file deletion requiring e.g. 4 or more pin verifications/key authentications; the rule above limits that to max. 2 pins/keys, which is also the max. of opensc).
 Deletion checks access rigths concerning the file itself and of the DF, this file resides in.
 In order to be able to check that, 2 file headers (including the SCB bytes) get printed, the enclosing DF's header and the header of the selected file/DF.
 
@@ -575,7 +588,7 @@ If the key to be used for signing was generated using 'Private key usage ACOS'='
 
 ACOS allows specifying a 16 byte public exponent prime, but opensc is limited to max 4 bytes, the lower value of opensc is relevant.
 `);
-
+/+
     AA["importExport_text"].SetString(IUP_APPEND, `
 Work in progress, writes/exports readable files to /tmp . The archiving to a compressed file is missing and any import is missing.
 It's intended, that such an archive file may serve as a backup and be used for initializing the card, populating it with what is in the archive file.
@@ -632,7 +645,7 @@ At the moment, my intention is primaryly to get users started with some base ins
 , but shall list activate commands in the end as required. The batch of 'commands_create' thus gets split into 2 parts:
 First the mere create and select commands generating the skeletin, second the select and activate commands which will run in the end.
 `);
-
++/
 /* */
     AA["sanity_overview_text"].SetString(IUP_APPEND, `
 These sanity checks are intended to be run with ACOS5-64 cards/tokens operating the first time with the acos5_64 driver (and this tool) and are run automatically, if dub.json has dlang version identifier SANITYCHECK defined:
@@ -655,7 +668,12 @@ The checks may be grouped into these categories:
     Also, I once managed to have 2 files named "1234" within the same directory, impossible acc. to the ref. manual but doable and plain wrong; thus there must be some bug in acos while trying to prevent that.
 `);
 
-/* all the above and any use of mixin (connect_card!... will be logged for [acos5_gui], only the next block scope will be logged for [opensc-pkcs11] */
+/*
+    version (Windows) {}
+    else
+    AA["ssh_text"].SetString(IUP_APPEND, `Currently its required to first add token's keys to ssh-agent: ssh-add -s /usr/lib/x86_64-linux-gnu/opensc-pkcs11.so`);
+*/
+    /* all the above and any use of mixin (connect_card!... will be logged for [acos5_gui], only the next block scope will be logged for [opensc-pkcs11] */
 
     /*
        One way to access the card/token is via util_connect_card, which uses functions from libopensc.so, but nothing from opensc-pkcs11.so.
@@ -791,9 +809,13 @@ The checks may be grouped into these categories:
                 SetStringId2("", 37,  1, ulMinPinLen.to!string     ~" / "~ulMaxPinLen.to!string);
               //SetStringId2("", 38,  1, format("%5.0f", ulFreePublicMemory /1024.) ~" / "~ format("%5.0f", ulTotalPublicMemory /1024.));
               //SetStringId2("", 39,  1, format("%5.0f", ulFreePrivateMemory/1024.) ~" / "~ format("%5.0f", ulTotalPrivateMemory/1024.));
-                SetStringId2("", 40,  1, hardwareVersion.major.to!string~"."~hardwareVersion.minor.to!string~" / "~
-                                         firmwareVersion.major.to!string~"."~firmwareVersion.minor.to!string);
-                SetStringId2("", 41,  1, cast(string) utcTime[]);
+                if (hardwareVersion.major)
+                    SetStringId2("", 41,  1, hardwareVersion.major.to!string~"."~hardwareVersion.minor.to!string /* ~" / "~
+                                             firmwareVersion.major.to!string~"."~firmwareVersion.minor.to!string*/);
+                else {
+                    SetStringId2("", 41,  1, cos_version.value[5].to!string~"."~cos_version.value[6].to!string);
+                }
+                SetStringId2("", 40,  1, cast(string) utcTime[]);
             } // what about other data like free space, ROM-SHA1 etc.
         }
     } // scope for scope(exit)  PKCS11.unload(); closes connection to the smart card/reader

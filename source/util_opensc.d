@@ -84,7 +84,6 @@ import libopensc.opensc;// "dependencies" : "opensc": "==0.15.14",   : sc_card,S
 import libopensc.types;  // to much to make sense listing // sc_path, sc_atr, sc_file, sc_serial_number, SC_MAX_PATH_SIZE, SC_PATH_TYPE_PATH, sc_apdu, SC_AC_OP_GENERATE;
 import libopensc.errors; // to much to make sense listing ?
 import libopensc.log;
-import libopensc.cards;
 import libopensc.iso7816;
 import libopensc.pkcs15 : SC_PKCS15_DF, sc_pkcs15_prkey, sc_pkcs15_bignum, sc_pkcs15_card, sc_pkcs15_bind, sc_pkcs15_unbind, sc_pkcs15_auth_info;
 import pkcs15init.profile : sc_profile;
@@ -98,7 +97,8 @@ import wrapper.libtasn1 : asn1_node;
 import tree_k_ary;
 import acos5_64_shared;
 import util_general;
-import acos5_64_shared_rust : SC_CARDCTL_ACOS5_GET_COUNT_FILES_CURR_DF, SC_CARDCTL_ACOS5_GET_FILE_INFO, CardCtlArray8, CardCtlArray32, SC_CARDCTL_ACOS5_HASHMAP_GET_FILE_INFO;
+import acos5_64_shared_rust : SC_CARDCTL_ACOS5_GET_COUNT_FILES_CURR_DF, SC_CARDCTL_ACOS5_GET_FILE_INFO, CardCtlArray8,
+    CardCtlArray32, SC_CARDCTL_ACOS5_HASHMAP_GET_FILE_INFO;
 
 struct PKCS15_ObjectTyp
 {
@@ -643,7 +643,8 @@ template connect_card(string commands, string returning="IUP_CONTINUE", string l
         import libopensc.types;
         import libopensc.errors;
         import libopensc.log;
-        import libopensc.cards;
+        import ui.notify : sc_notify_init;
+        import acos5_64_shared_rust : SC_CARD_TYPE_ACOS5_64_V3;
 
         import acos5_64_shared;
         import std.exception : assumeWontThrow;
@@ -672,6 +673,7 @@ template connect_card(string commands, string returning="IUP_CONTINUE", string l
         if (sc_set_card_driver(ctx, "acos5_64"))
             return `~returning~`;
 
+        sc_notify_init();
         rc = util_connect_card(ctx, &card, null/*opt_reader*/, 0/*opt_wait*/, 1 /*do_lock*/, `~level~`/*SC_LOG_DEBUG_NORMAL*//*verbose*/); // does: sc_lock(card) including potentially card.sm_ctx.ops.open
 
         mixin (log!(__FUNCTION__, " util_connect_card returning with: %d (%s)", "rc", "sc_strerror(rc)"));

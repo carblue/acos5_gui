@@ -28,6 +28,16 @@
 module acos5_64_shared_rust;
 
 /+
+	/* ACOS5 driver */
+	SC_CARD_TYPE_ACOS5_BASE = 16000,
+	SC_CARD_TYPE_ACOS5_GENERIC,
+	SC_CARD_TYPE_ACOS5_32, /* implemented in card-acos5.c (adaption required to be NOT responsible for ATR:
+														 3B:BE:96:00:00:41:05:20:00:00:00:00:00:00:00:00:00:90:00 any more, but SC_CARD_TYPE_ACOS5_64_V2 is ! ) */
++/
+enum int SC_CARD_TYPE_ACOS5_64_V2 = 16003; /* driver acos5_64 implemented as external module: https://github.com/carblue/acos5_64  */
+enum int SC_CARD_TYPE_ACOS5_64_V3 = 16004; /* driver acos5_64 */
+
+/+
 version(Have_acos5_64) {
 	enum ISO7816_RFU_TAG_FCP_ : ubyte {
 		ISO7816_RFU_TAG_FCP_SFI  = 0x88,  /* L:1,    V: Short File Identifier (SFI). 5 LSbs of File ID if unspecified. Applies to: Any file */
@@ -97,7 +107,7 @@ enum uint SC_CARDCTL_ACOS5_DECRYPT_SYM               =  0x0000_0028; // data: *m
 
 // struct for SC_CARDCTL_GET_FILE_INFO and SC_CARDCTL_GET_COS_VERSION
 struct CardCtlArray8 {
-    ubyte      reference;  // IN  indexing begins with 0, used for SC_CARDCTL_GET_FILE_INFO
+    ubyte      reference;  // IN  indexing begins with 0, used for SC_CARDCTL_GET_FILE_INFO and more
     ubyte[8]   value;      // OUT
 }
 

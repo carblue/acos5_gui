@@ -25,7 +25,6 @@ module key_sym;
 import core.memory : GC;
 import core.stdc.stdlib : exit;
 import core.stdc.string : memcpy;
-//import std.string : toStringz;
 import std.stdio;
 import std.exception : assumeWontThrow, assumeUnique;
 import std.conv: to, hexString;
@@ -44,7 +43,6 @@ import libopensc.opensc;
 import libopensc.types;
 import libopensc.errors;
 import libopensc.log;
-import libopensc.cards;
 import libopensc.iso7816;
 
 import pkcs15init.profile : sc_profile;

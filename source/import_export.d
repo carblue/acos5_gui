@@ -33,7 +33,6 @@ import libopensc.opensc;
 import libopensc.types;
 import libopensc.errors;
 import libopensc.log;
-import libopensc.cards;
 import libopensc.iso7816;
 
 import acos5_64_shared_rust;
