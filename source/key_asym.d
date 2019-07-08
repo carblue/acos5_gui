@@ -2366,6 +2366,95 @@ int button_radioKeyAsym_cb(Ihandle* ih)
             return IUP_DEFAULT; // case "toggle_RSA_key_pair_create_and_generate"
 
         case "toggle_RSA_key_pair_try_sign":
+version(none) // this works, apart from TODO
+{
+/*
+	"dependencies": {
+		"p11:deimos": "~>0.0.3",
+*/
+// TODO hardcoded PIN to be replaced by input method; implement verify;
+            import deimos.p11;
+            import deimos.openssl.err;
+            import deimos.openssl.obj_mac;
+
+            PKCS11_CTX* ctx_p11 = PKCS11_CTX_new();
+            scope(exit)
+                PKCS11_CTX_free(ctx_p11);
+
+            /* load pkcs #11 module */
+            if ((ret= PKCS11_CTX_load(ctx_p11, "/usr/lib/x86_64-linux-gnu/p11-kit-proxy.so")) != 0) {
+                assumeWontThrow(stderr.writefln("loading pkcs11 engine failed: %s",
+                    fromStringz(ERR_reason_error_string(ERR_get_error()))));
+//                    ret = 1;
+                return IUP_DEFAULT; //goto nolib;
+            }
+            scope(exit)
+                PKCS11_CTX_unload(ctx_p11);
+
+            /* get information on all slots */
+            PKCS11_SLOT* slots;
+            uint nslots;
+            if ((ret= PKCS11_enumerate_slots(ctx_p11, &slots, &nslots)) < 0) {
+                assumeWontThrow(stderr.writeln("no slots available"));
+//                ret = 2;
+                return IUP_DEFAULT; //goto noslots;
+            }
+            scope(exit)
+                PKCS11_release_all_slots(ctx_p11, slots, nslots);
+
+            /* get first slot with a token */
+            PKCS11_SLOT* slot = PKCS11_find_token(ctx_p11, slots, nslots);
+            if (slot == null || slot.token == null) {
+                assumeWontThrow(stderr.writeln("no token available"));
+//                ret = 3;
+                return IUP_DEFAULT; //goto notoken;
+            }
+
+            /* perform pkcs #11 login */
+            if ((ret= PKCS11_login(slot, 0, "12345678")) != 0) {
+                assumeWontThrow(stderr.writeln("PKCS11_login failed"));
+//                ret = 10;
+                return IUP_DEFAULT; //goto failed;
+            }
+
+            int logged_in;
+            /* check if user is logged in */
+            if ((ret= PKCS11_is_logged_in(slot, 0, &logged_in)) != 0) {
+                assumeWontThrow(stderr.writeln("PKCS11_is_logged_in failed"));
+//                ret = 11;
+                return IUP_DEFAULT; //goto failed;
+            }
+            if (!logged_in) {
+                assumeWontThrow(stderr.writeln("PKCS11_is_logged_in says user is not logged in, expected to be logged in"));
+//                ret = 12;
+                return IUP_DEFAULT; //goto failed;
+            }
+
+            PKCS11_KEY* authkey;
+            PKCS11_KEY* keys;
+            uint nkeys;
+            if ((ret= PKCS11_enumerate_keys(slot.token, &keys, &nkeys)) != 0) {
+                assumeWontThrow(stderr.writeln("PKCS11_login failed"));
+//                ret = 13;
+                return IUP_DEFAULT; //goto failed;
+            }
+            foreach (i; 0..nkeys)
+                with (keys+i)
+                if (isPrivate && *id == keyAsym_Id.get && id_len==1) {
+                    authkey = keys+i;
+                    assumeWontThrow(writeln("authkey.label: ", fromStringz(authkey.label)));
+                    break;
+                }
+            if (authkey is null)
+                return IUP_DEFAULT; //goto failed;
+
+            ubyte[32] m = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,
+                           21,22,23,24,25,26,27,28,29,30,31,32];
+            ubyte[512] sigret;
+            uint  siglen;
+            ret = PKCS11_sign(NID_sha256, m.ptr, m.length, sigret.ptr, &siglen, authkey);
+            assert(ret == 1);
+}
 /+ +/
             /* convert the 'textual' hex to an ubyte[] hex (first 64 chars = 32 byte) ; sadly std.conv.hexString works for literals only */
             string tmp_str = AA["hash_to_be_signed"].GetStringVALUE();
