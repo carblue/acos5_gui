@@ -110,7 +110,7 @@ import util_opensc : connect_card, readFile/*, decompose*/, PKCS15Path_FileType,
     aid, is_ACOSV3_opmodeV3_FIPS_140_2L3, is_ACOSV3_opmodeV3_FIPS_140_2L3_active,
     my_pkcs15init_callbacks, tlv_Range_mod, file_type, getIdentifier;
 
-import acos5_64_shared_rust : CardCtl_generate_crypt_asym, SC_CARDCTL_ACOS5_GENERATE_KEY_FILES_EXIST, SC_CARDCTL_ACOS5_ENCRYPT_ASYM;
+import acos5_64_shared_rust : CardCtl_generate_crypt_asym, SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_EXIST, SC_CARDCTL_ACOS5_ENCRYPT_ASYM;
 //SC_CARDCTL_ACOS5_GET_COUNT_FILES_CURR_DF, SC_CARDCTL_ACOS5_GET_FILE_INFO, CardCtlArray8, CardCtlArray32;
 
 //import asn1_pkcs15 : CIO_RSA_private, CIO_RSA_public, CIO_Auth_Pin, encodeEntry_PKCS15_PRKDF, encodeEntry_PKCS15_PUKDF;
@@ -127,6 +127,7 @@ struct _keyAsym_usagePuKDF{}
 struct _sizeNewRSAprivateFile{}
 struct _sizeNewRSApublicFile{}
 
+//ubyte[9] pinbuf;
 
 tnTypePtr   prkdf;
 tnTypePtr   pukdf;
@@ -287,8 +288,8 @@ class PubA16(T, V=ubyte)
     @property V[16] set(V[16] v, bool programmatically=false)  nothrow
     {
 //    void set(V v, int pos /*position in V[8], 0-basiert*/, bool programmatically=false)  nothrow {
-//int    BN_is_prime_ex(const(BIGNUM)* p,int nchecks, BN_CTX* ctx, BN_GENCB* cb);
-        import deimos.openssl.bn : BIGNUM, BN_prime_checks, BN_CTX, BN_CTX_new, BN_is_prime_ex, BN_bin2bn, BN_free, BN_CTX_free;
+        import deimos.openssl.ossl_typ : BIGNUM, BN_CTX;
+        import deimos.openssl.bn : BN_prime_checks, BN_CTX_new, BN_is_prime_ex, BN_bin2bn, BN_free, BN_CTX_free;
         try
         if (v != _value)
         {
@@ -1760,7 +1761,7 @@ const char[] button_radioKeyAsym_cb_common1 =`
 `;
 //mixin(button_radioKeyAsym_cb_common1);
 
-
+/* TODO IMPORTANT make sure when generating new RSA key pair content, that one of the highest 7 bits of Modulus is set (requirement Modulus > EM), i.e. */
 int button_radioKeyAsym_cb(Ihandle* ih)
 {
     import std.math : abs;
@@ -1925,7 +1926,7 @@ int button_radioKeyAsym_cb(Ihandle* ih)
             if (rv < 0)
                 return IUP_DEFAULT;
 
-            rv= sc_card_ctl(card, SC_CARDCTL_ACOS5_GENERATE_KEY_FILES_EXIST, &cga);
+            rv= sc_card_ctl(card, SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_EXIST, &cga);
             if (rv != SC_SUCCESS)
             {
                 mixin (log!(__FUNCTION__,  "regenerate_keypair_RSA failed"));
@@ -2039,7 +2040,7 @@ int button_radioKeyAsym_cb(Ihandle* ih)
             foreach (nodeFS; fs.rangeSiblings(appdf))
             {
                 assert(nodeFS);
-                if (nodeFS.data[0] != EFDB.RSA_Key_EF)
+                if (nodeFS.data[0] != EFDB.RSA_Key_EF && nodeFS.data[0] != EFDB.ECC_KEY_EF)
                     continue;
                 immutable len = nodeFS.data[1];
                 if (countUntil!((a,b) => equal(a[], b))(searched, nodeFS.data[8+len-2..8+len]) >= 0)
@@ -2366,22 +2367,31 @@ int button_radioKeyAsym_cb(Ihandle* ih)
             return IUP_DEFAULT; // case "toggle_RSA_key_pair_create_and_generate"
 
         case "toggle_RSA_key_pair_try_sign":
-version(none) // this works, apart from TODO
-{
+            version(none) { // THE scope for all referring to the connection via libp11 and openssl engine "pkcs11"; will show up in debug log as opensc-pkcs11
 /*
 	"dependencies": {
+		"p11:deimos": "~>0.0.3"
 		"p11:deimos": "~>0.0.3",
+	}
 */
-// TODO hardcoded PIN to be replaced by input method; implement verify;
+    /* prepare for routing an OpenSSL password request to IupGetParam and result back to OpenSSL */
+    /* https://curl.haxx.se/mail/lib-2013-08/0196.html */
             import deimos.p11;
-            import deimos.openssl.err;
-            import deimos.openssl.obj_mac;
-
+            import deimos.openssl.err : ERR_reason_error_string, ERR_get_error;
+            import deimos.openssl.obj_mac : NID_sha256;
+            import deimos.openssl.ui;
+            import deimos.openssl.engine;
+            import deimos.openssl.rsa;
+//            assumeWontThrow(writeln("EVP_PKEY_CTRL_RSA_KEYGEN_PRIMES: ", EVP_PKEY_CTRL_RSA_KEYGEN_PRIMES));
+//            rsa_oaep_params_st xy;
+//            xy.maskHash = null;
             PKCS11_CTX* ctx_p11 = PKCS11_CTX_new();
             scope(exit)
                 PKCS11_CTX_free(ctx_p11);
 
+            int ret;
             /* load pkcs #11 module */
+            /* actually the p11-kit configuration will point to opensc-pkcs11.so as PKCS#11 library: It's definded with highest priority */
             if ((ret= PKCS11_CTX_load(ctx_p11, "/usr/lib/x86_64-linux-gnu/p11-kit-proxy.so")) != 0) {
                 assumeWontThrow(stderr.writefln("loading pkcs11 engine failed: %s",
                     fromStringz(ERR_reason_error_string(ERR_get_error()))));
@@ -2410,8 +2420,28 @@ version(none) // this works, apart from TODO
                 return IUP_DEFAULT; //goto notoken;
             }
 
+            /* we are going to sign with a private key from hardware token. The usage of private key for cryptograhic ops is supposed to be protected by a pin.
+               one method of supplying a pin to the pkcs11 engine is by using the control command (what we'll do now
+               another methof would be to use UI_create_method
+            */
+
+            // extern(C) int get_pin_callback(sc_profile* profile, int /*id*/, const(sc_pkcs15_auth_info)* info, const(char)* label, ubyte* pinbuf, size_t* pinsize) nothrow
+            int  pinLocal = 1;//(info.attrs.pin.reference&0x80)==0x80;
+            int  pinReference = 1;//info.attrs.pin.reference&0x7F; // strip the local flag
+            char[33]  pinbuf;
+            // pinbuf[0..9] = '\0';
+
+            ret = IupGetParam(toStringz("Login Pin requested"),
+                null/* &param_action*/, null/* void* user_data*/, /*format*/
+                "&Pin local (User)? If local==No, then it's the Security Officer Pin:%b[No,Yes]\n" ~
+                "&Pin reference (1-31; selects the record# in pin file):%i\n" ~
+                "Pin (minLen: 4, maxLen: 8):%s\n", &pinLocal, &pinReference, pinbuf.ptr, null);
+            if (ret != 1)
+                return IUP_DEFAULT; //return SC_ERROR_INVALID_PIN_LENGTH;
+            assumeWontThrow(stderr.writefln("Pin: %s", pinbuf));
+
             /* perform pkcs #11 login */
-            if ((ret= PKCS11_login(slot, 0, "12345678")) != 0) {
+            if ((ret= PKCS11_login(slot, 0, pinbuf.ptr)) != 0) {
                 assumeWontThrow(stderr.writeln("PKCS11_login failed"));
 //                ret = 10;
                 return IUP_DEFAULT; //goto failed;
@@ -2430,7 +2460,7 @@ version(none) // this works, apart from TODO
                 return IUP_DEFAULT; //goto failed;
             }
 
-            PKCS11_KEY* authkey;
+            PKCS11_KEY* prkey;
             PKCS11_KEY* keys;
             uint nkeys;
             if ((ret= PKCS11_enumerate_keys(slot.token, &keys, &nkeys)) != 0) {
@@ -2441,21 +2471,25 @@ version(none) // this works, apart from TODO
             foreach (i; 0..nkeys)
                 with (keys+i)
                 if (isPrivate && *id == keyAsym_Id.get && id_len==1) {
-                    authkey = keys+i;
-                    assumeWontThrow(writeln("authkey.label: ", fromStringz(authkey.label)));
+                    prkey = keys+i;
+                    assumeWontThrow(writeln("prkey.label: ", fromStringz(prkey.label)));
                     break;
                 }
-            if (authkey is null)
+            if (prkey is null) {
+                assumeWontThrow(writeln("prkey is null"));
                 return IUP_DEFAULT; //goto failed;
+            }
 
-            ubyte[32] m = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,
-                           21,22,23,24,25,26,27,28,29,30,31,32];
+            ubyte[32] hash = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,
+                              21,22,23,24,25,26,27,28,29,30,31,32];
             ubyte[512] sigret;
             uint  siglen;
-            ret = PKCS11_sign(NID_sha256, m.ptr, m.length, sigret.ptr, &siglen, authkey);
+            ret = PKCS11_sign(NID_sha256, hash.ptr, hash.length, sigret.ptr, &siglen, prkey);
             assert(ret == 1);
-}
-/+ +/
+            }
+//          hstat.SetString(IUP_TITLE, "SUCCESS: Signature generation and encryption of signature, printed to stdout. The key is capable to decrypt");
+            hstat.SetString(IUP_TITLE, "SUCCESS: Signature generation");
+/+ + /
             /* convert the 'textual' hex to an ubyte[] hex (first 64 chars = 32 byte) ; sadly std.conv.hexString works for literals only */
             string tmp_str = AA["hash_to_be_signed"].GetStringVALUE();
             tmp_str.length = 64;
@@ -2639,6 +2673,7 @@ version(none) // this works, apart from TODO
             hstat.SetString(IUP_TITLE, "SUCCESS: Signature generation and encryption of signature, printed to stdout. The key is capable to decrypt");
 `;
             mixin (connect_card!commands);
+/ + +/
             GC.collect(); // just a check
 
             return IUP_DEFAULT; // case "toggle_RSA_key_pair_try_sign"

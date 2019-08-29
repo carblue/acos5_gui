@@ -89,7 +89,7 @@ void populate_list_op_file_possible(tnTypePtr pn, ub2 fid, EFDB fdb, ub2 size_or
                  Purse_EF,// TODO for this and Cyclic_EF ???
                  Cyclic_EF:           return 2;
             case Linear_Variable_EF:  return 3;
-            case RSA_Key_EF,
+            case RSA_Key_EF, ECC_KEY_EF,
                  Sym_Key_EF:          return 4;
             case SE_EF:               return 5;
         }
@@ -206,13 +206,12 @@ int selectbranchleaf_cb(Ihandle* /*ih*/, int id, int status)
         if (len2>1) { // for file's directory
             rbuf = typeof(rbuf).init;
             sc_format_path(ubaIntegral2string(pn.data[8..6+2*len2]).toStringz , &path);
-            if ((rv= sc_select_file(card, &path, &file)) == SC_SUCCESS) {
+            if ((rv= sc_select_file(card, &path, &file)) == SC_SUCCESS && file.prop_attr_len>0 && file.prop_attr !is null) {
+                assert(file.prop_attr_len<=MAX_FCI_GET_RESPONSE_LEN);
                 rbuf[0] = ISO7816_TAG_FCI;
                 rbuf[1] = len  = cast(ubyte) file.prop_attr_len;
 //                assumeWontThrow(writefln("commands len: %s, %s", len, __LINE__)); // commands len: 48, 369
-                assert(len>0);
                 rbuf[2..2+len] = file.prop_attr[0..len];
-//                memcpy(rbuf.ptr+2, file.prop_attr, len);
                 sc_file_free(file);
                 ptrdiff_t pos = max(1, countUntil!"a>0"(rbuf[].retro))-1; // if possible, show 00 at the end for AB
                 AA["fs_text"].SetString(IUP_APPEND,  assumeWontThrow(format!"%(%02X %)"(rbuf[0..$-pos])));
@@ -222,7 +221,8 @@ int selectbranchleaf_cb(Ihandle* /*ih*/, int id, int status)
             rbuf = typeof(rbuf).init;
             sc_format_path(ubaIntegral2string(pn.data[6+2*len2..8+2*len2]).toStringz , &path);
             path.type = SC_PATH_TYPE_FILE_ID;
-            if ((rv= sc_select_file(card, &path, &file)) == SC_SUCCESS) {
+            if ((rv= sc_select_file(card, &path, &file)) == SC_SUCCESS && file.prop_attr_len>0 && file.prop_attr !is null) {
+                assert(file.prop_attr_len<=MAX_FCI_GET_RESPONSE_LEN);
                 rbuf[0] = ISO7816_TAG_FCI;
                 rbuf[1] = len  = cast(ubyte) file.prop_attr_len;
                 rbuf[2..2+len] = file.prop_attr[0..len];
@@ -348,6 +348,7 @@ int btn_sanity_cb(Ihandle* ih)
 {
 //    printf("btn_sanity_cb: IupGetName(ih): %s", IupGetName(ih)); // btn_sanity_cb: IupGetName(ih): btn_sanity
     enum string commands = `
+    import std.algorithm.searching : startsWith;
     Handle h = AA["matrixsanity"];
     h.SetIntegerId2("", 1, 1, card.type);
     h.Update;
@@ -408,6 +409,8 @@ int btn_sanity_cb(Ihandle* ih)
             {
                 isappDFdefined = 1;
                 appDF = ubaIntegral2string(V[0..L]);
+                if (!startsWith("appDF", "3F00"))
+                    appDF = "3F00"~appDF;
                 AA["sanity_text"].SetString(IUP_APPEND, "isappDFdefined = "~isappDFdefined.to!string);
                 AA["sanity_text"].SetString(IUP_APPEND, "appDF = "~appDF);
             }

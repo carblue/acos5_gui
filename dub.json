@@ -7,10 +7,10 @@
 	"homepage": "https://github.com/carblue/acos5_64_gui",
 	"dependencies": {
 		"iup": "~>3.27.0-alpha.2",
-		"tasn1:wrapper": "~>0.0.6",
+		"tasn1:wrapper": "~>0.0.7",
 		"pkcs11": "~>2.40.0-alpha.4",
 		"opensc": "~>0.19.0-beta.1",
-		"openssl": "~>2.0.0+1.1.0h"
+		"openssl": "~>2.0.1+1.1.0h"
 	},
 	"subConfigurations": {
 		"pkcs11": "derelict",
@@ -31,8 +31,9 @@
 	"fixme-dflagsx-posix-gdc": ["failure", "with", "slides"],
 
 	"lflags": ["--no-undefined", "--as-needed", "--version-script=acos5_64_gui.ver"],
+	"suspended-lflags-posix-ldc": ["-rpath=$HOME/Downloads/dlang/ldc2-1.17.0-beta1-linux-x86_64/lib"],
 	"postBuildCommands": ["strip --strip-unneeded $$DUB_TARGET_NAME"],
-	"alternatives-versions": ["Have_acos5_64", "I18N to be used only with gettext/libintl.so available", "OPENSC_VERSION_UPCOMING to be used only with OpenSC v0.20.0"],
+	"alternatives-versions": ["Have_acos5_64", "I18N to be used only with gettext/libintl.so available", "OPENSC_VERSION_UPCOMING to be used only with OpenSC v0.20.0", "USE_LIBRESSL"],
 	"versions-posix": ["Have_acos5_64", "I18N"],
 	"versions-windows": ["Have_acos5_64"],
 	"configurations": [
@@ -48,7 +49,7 @@
 			"targetType": "executable",
 			"excludedSourceFiles": [],
 			"dflags": ["-dip1000", "-preview=dip1000", "-preview=markdown"],
-			"buildRequirements": ["disallowDeprecations"]
+			"suspended-buildRequirements": ["disallowDeprecations"]
 		},
 		{
 			"name": "unittest",

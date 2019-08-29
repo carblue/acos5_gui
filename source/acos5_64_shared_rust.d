@@ -34,8 +34,9 @@ module acos5_64_shared_rust;
 	SC_CARD_TYPE_ACOS5_32, /* implemented in card-acos5.c (adaption required to be NOT responsible for ATR:
 														 3B:BE:96:00:00:41:05:20:00:00:00:00:00:00:00:00:00:90:00 any more, but SC_CARD_TYPE_ACOS5_64_V2 is ! ) */
 +/
-enum int SC_CARD_TYPE_ACOS5_64_V2 = 16003; /* driver acos5_64 implemented as external module: https://github.com/carblue/acos5_64  */
-enum int SC_CARD_TYPE_ACOS5_64_V3 = 16004; /* driver acos5_64 */
+enum int SC_CARD_TYPE_ACOS5_64_V2  = 16_003; /* driver acos5_64 implemented as external module: https://github.com/carblue/acos5_64  */
+enum int SC_CARD_TYPE_ACOS5_64_V3  = 16_004; /* driver acos5_64 */
+enum int SC_CARD_TYPE_ACOS5_64_EVO = 16_005;
 
 /+
 version(Have_acos5_64) {
@@ -49,7 +50,8 @@ version(Have_acos5_64) {
 }
 +/
 version(OPENSC_VERSION_UPCOMING)
-enum /*ISO7816_RFU_TAG_FCP_ */ : ubyte {
+enum /*ISO7816_RFU_TAG_FCP_ */ : ubyte
+{
 	ISO7816_RFU_TAG_FCP_SFI  = 0x88,  /* L:1,    V: Short File Identifier (SFI). 5 LSbs of File ID if unspecified. Applies to: Any file */
 	ISO7816_RFU_TAG_FCP_SAC  = 0x8C,  /* L:0-8,  V: Security Attribute Compact (SAC). Applies to: Any file */
 	ISO7816_RFU_TAG_FCP_SEID = 0x8D,  /* L:2,    V: Security Environment File identifier (SE File associated with this DF). Applies to: DFs */
@@ -89,46 +91,55 @@ enum uint SC_CARDCTL_ACOS5_GET_FIPS_COMPLIANCE       =  0x0000_001A; // data: ui
 enum uint SC_CARDCTL_ACOS5_GET_PIN_AUTH_STATE        =  0x0000_001B; // data: CardCtlAuthState*
 enum uint SC_CARDCTL_ACOS5_GET_KEY_AUTH_STATE        =  0x0000_001C; // data: CardCtlAuthState*
 
-enum uint SC_CARDCTL_ACOS5_HASHMAP_SET_FILE_INFO     =  0x0000_0020; // data: null
-enum uint SC_CARDCTL_ACOS5_HASHMAP_GET_FILE_INFO     =  0x0000_0021; // data: *mut CardCtlArray32
+enum uint SC_CARDCTL_ACOS5_HASHMAP_SET_FILE_INFO     =  0x0000_001E; // data: null
+enum uint SC_CARDCTL_ACOS5_HASHMAP_GET_FILE_INFO     =  0x0000_001F; // data: *mut CardCtlArray32
 
-enum uint SC_CARDCTL_ACOS5_GENERATE_KEY_FILES_EXIST  =  0x0000_0022; // data: *mut CardCtl_generate_asym;  RSA files exist, sec_env setting excluded
-enum uint SC_CARDCTL_ACOS5_GENERATE_KEY_FILES_CREATE =  0x0000_0023; // data: *mut CardCtl_generate_asym;  RSA files must be created, sec_env setting excluded
-enum uint SC_CARDCTL_ACOS5_GENERATE_KEY_FILES_EXIST_MSE  =  0x0000_0024; // data: *mut CardCtl_generate_asym;  RSA files exist, sec_env setting included
-enum uint SC_CARDCTL_ACOS5_GENERATE_KEY_FILES_CREATE_MSE =  0x0000_0025; // data: *mut CardCtl_generate_asym;  RSA files must be created, sec_env setting included
+enum uint SC_CARDCTL_ACOS5_SDO_CREATE                =  0x0000_0020; // data: *mut sc_file
+enum uint SC_CARDCTL_ACOS5_SDO_DELETE                =  0x0000_0021; // data:
+enum uint SC_CARDCTL_ACOS5_SDO_STORE                 =  0x0000_0022; // data:
 
-enum uint SC_CARDCTL_ACOS5_ENCRYPT_SYM               =  0x0000_0026; // data: *mut CardCtl_crypt_sym
-enum uint SC_CARDCTL_ACOS5_ENCRYPT_ASYM              =  0x0000_0027; // data: *mut CardCtl_crypt_asym; Signature verification with public key
+enum uint SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_EXIST  =  0x0000_0023; // data: *mut CardCtl_generate_asym;  RSA files exist, sec_env setting excluded
+enum uint SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_CREATE =  0x0000_0024; // data: *mut CardCtl_generate_asym;  RSA files must be created, sec_env setting excluded
+enum uint SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_EXIST_MSE  =  0x0000_0025; // data: *mut CardCtl_generate_asym;  RSA files exist, sec_env setting included
+enum uint SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_CREATE_MSE =  0x0000_0026; // data: *mut CardCtl_generate_asym;  RSA files must be created, sec_env setting included
 
-enum uint SC_CARDCTL_ACOS5_DECRYPT_SYM               =  0x0000_0028; // data: *mut CardCtl_crypt_sym
-////enum uint SC_CARDCTL_ACOS5_DECRYPT_ASYM          =  0x0000_0029; // data: *mut CardCtl_crypt_asym; is available via decipher
+enum uint SC_CARDCTL_ACOS5_ENCRYPT_SYM               =  0x0000_0027; // data: *mut CardCtl_crypt_sym
+enum uint SC_CARDCTL_ACOS5_ENCRYPT_ASYM              =  0x0000_0028; // data: *mut CardCtl_crypt_asym; Signature verification with public key
+
+enum uint SC_CARDCTL_ACOS5_DECRYPT_SYM               =  0x0000_0029; // data: *mut CardCtl_crypt_sym
+////enum uint SC_CARDCTL_ACOS5_DECRYPT_ASYM          =  0x0000_002A; // data: *mut CardCtl_crypt_asym; is available via decipher
 
 /* common types and general function(s) */
 
 // struct for SC_CARDCTL_GET_FILE_INFO and SC_CARDCTL_GET_COS_VERSION
-struct CardCtlArray8 {
+struct CardCtlArray8
+{
     ubyte      reference;  // IN  indexing begins with 0, used for SC_CARDCTL_GET_FILE_INFO and more
     ubyte[8]   value;      // OUT
 }
 
 // struct for SC_CARDCTL_GET_ROM_SHA1
-struct CardCtlArray20 {
+struct CardCtlArray20
+{
     ubyte[20]  value;      // OUT
 }
 
 // struct for SC_CARDCTL_GET_PIN_AUTH_STATE and SC_CARDCTL_GET_KEY_AUTH_STATE
-struct CardCtlAuthState {
+struct CardCtlAuthState
+{
     ubyte      reference;  // IN  pin/key reference, | 0x80 for local
     bool       value;      // OUT  bool	8 bit byte with the values 0 for false and 1 for true
 }
 
 // struct for SC_CARDCTL_GET_FILES_HASHMAP_INFO
-struct CardCtlArray32 {
+struct CardCtlArray32
+{
     ushort     key;        // IN   file_id
     ubyte[32]  value;      // OUT  in the order as acos5_64_gui defines // alias  TreeTypeFS = Tree_k_ary!ub32;
 }
 
-struct CardCtl_generate_crypt_asym {
+struct CardCtl_generate_crypt_asym
+{
     ubyte[512] data;
     size_t     data_len;
     ushort     file_id_priv;   // IN  if any of file_id_priv/file_id_pub is 0, then file_id selection will depend on profile,
@@ -141,7 +152,8 @@ struct CardCtl_generate_crypt_asym {
 //    bool       op_success;     // OUT parameter, whether generation succeeded
 }
 
-struct CardCtl_crypt_sym {
+struct CardCtl_crypt_sym
+{
     const(char)*  infile; //  path/to/file where the indata may be read from, interpreted as an [c_uchar]; if!= null has preference over indata
     ubyte[528]    indata;
     size_t        indata_len;

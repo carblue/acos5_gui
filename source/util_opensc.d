@@ -159,13 +159,16 @@ enum PKCS15_FILE_TYPE : ubyte
     PKCS15_SecretKey      = 17,
     PKCS15_Pin            = 18,
     PKCS15_Data           = 19,
+    PKCS15_ECCPRIVATEKEY  = 20,
+    PKCS15_ECCPUBLICKEY   = 21,
+
     PKCS15_NONE           = 0xFF, // should not happen to extract a path for this
 }
 mixin FreeEnumMembers!PKCS15_FILE_TYPE;
 
 string[5][] pkcs15_names = [
-    [ "EF(PrKDF)",        "PKCS15.PrivateKeyType",     "privateKeys.path.path",         "PKCS15.PrivateKeyType", "privateRSAKey"],    // 0
-    [ "EF(PuKDF)",        "PKCS15.PublicKeyType",      "publicKeys.path.path",          "PKCS15.PublicKeyType",  "publicRSAKey"],
+    [ "EF(PrKDF)",        "PKCS15.PrivateKeyType",     "privateKeys.path.path",         "PKCS15.PrivateKeyType", "privateRSAKey\nprivateECKey"],    // 0
+    [ "EF(PuKDF)",        "PKCS15.PublicKeyType",      "publicKeys.path.path",          "PKCS15.PublicKeyType",  "publicRSAKey\npublicECKey"],
     [ "EF(PuKD_TRUSTED)", "PKCS15.PublicKeyType",      "trustedPublicKeys.path.path",   "PKCS15.PublicKeyType", ""],
     [ "EF(SKDF)",         "PKCS15.SecretKeyType",      "secretKeys.path.path",          "PKCS15.SecretKeyTypeChoice", "secretKey"],
     [ "EF(CDF)",          "PKCS15.CertificateType",    "certificates.path.path",        "PKCS15.CertificateType", "x509Certificate"],
@@ -186,6 +189,8 @@ string[5][] pkcs15_names = [
     [ "EF(SecretKey)",    "",                          "",                              "", ""],  // 17
     [ "EF(Pin)",          "",                          "",                              "", ""],        // 18
     [ "EF(Data)",         "",                    "opaqueDO.opaque.value.indirect.path.path",  "", ""],       // 19
+    [ "EF(ECC_PRIV)",     "",                    "privateECKey.privateECKeyAttributes.value.indirect.path.path",     "", ""],  // 20
+    [ "EF(ECC_PUB)",      "PKCS15.ECPoint",      "publicECKey.publicECKeyAttributes.value.indirect.path.path",       "PKCS15.ECPublicKeyChoice", "raw"],    // 21
 ];
 
 struct PKCS15Path_FileType
@@ -319,7 +324,7 @@ int getIdentifier(const ref PKCS15_ObjectTyp ot, string nodeName, bool new_=fals
     if ((asn1_result= asn1_read_value(new_? ot.structure_new : ot.structure, nodeName, str, outLen)) != ASN1_SUCCESS)
     {
         if (dolog)
-            assumeWontThrow(writefln("### asn1_read_value %s: %s", nodeName, asn1_strerror2(asn1_result)));
+            assumeWontThrow(writefln("X### asn1_read_value %s: %s", nodeName, asn1_strerror2(asn1_result)));
         return -1;
     }
     assert(outLen==1);
@@ -335,7 +340,7 @@ ubyte[] getPath(const ref PKCS15_ObjectTyp ot, string nodeName, bool new_=false,
     if ((asn1_result= asn1_read_value(new_? ot.structure_new : ot.structure, nodeName, str, outLen)) != ASN1_SUCCESS)
     {
         if (dolog)
-            assumeWontThrow(writefln("### asn1_read_value %s: %s", nodeName, asn1_strerror2(asn1_result)));
+            assumeWontThrow(writefln("Y### asn1_read_value %s: %s", nodeName, asn1_strerror2(asn1_result)));
         return null;
     }
     return str[0..outLen].dup;
@@ -414,7 +419,7 @@ Tuple!(ushort, ubyte, ubyte) decompose(EFDB fdb, /*ub2*/uba size_or_MRL_NOR) not
     {
         case Purse_EF:            return Tuple!(ushort, ubyte, ubyte)(0,0,0) ;// TODO
         case MF, DF:              return Tuple!(ushort, ubyte, ubyte)(0,0,0);
-        case RSA_Key_EF,
+        case RSA_Key_EF, ECC_KEY_EF,
              Transparent_EF:      return Tuple!(ushort, ubyte, ubyte)(ub22integral(size_or_MRL_NOR),0,0);
         case Linear_Fixed_EF,
              Linear_Variable_EF,
@@ -431,7 +436,7 @@ Tuple!(string, string, string) decompose_str(EFDB fdb, ub2 size_or_MRL_NOR) noth
     final switch (fdb)
     {
         case MF, DF:              return Tuple!(string, string, string)("0","0","0");
-        case RSA_Key_EF,
+        case RSA_Key_EF, ECC_KEY_EF,
              Transparent_EF:      return Tuple!(string, string, string)(ub22integral(size_or_MRL_NOR).to!string,"0","0");
         case Linear_Fixed_EF,
              Linear_Variable_EF,
@@ -460,7 +465,7 @@ string file_type(int depth, EFDB fdb, ushort /*fid*/, ub2 size_or_MRL_NOR) nothr
         case Linear_Variable_EF:  return "wEF linear-var, size max. "~t[0]~" ("~t[2]~"x"~t[1]~" max.) B";
         case Cyclic_EF:           return "wEF cyclic, size "~t[0]~" ("~t[2]~"x"~t[1]~") B";
 
-        case RSA_Key_EF:          return "iEF transparent, size "~t[0]~" B";
+        case RSA_Key_EF, ECC_KEY_EF:  return "iEF transparent, size "~t[0]~" B";
         case CHV_EF:              return "iEF linear-fix, size "~t[0]~" ("~t[2]~"x"~t[1]~") B    Pin ("~ (depth==1? "global" : "local") ~ ")";
         case Sym_Key_EF:          return "iEF linear-var, size max. "~t[0]~" ("~t[2]~"x"~t[1]~" max.) B    SymKeys ("~ (depth==1? "global" : "local") ~ ")";
         case Purse_EF:            return "iEF cyclic ??, size "~t[0]~" ("~t[2]~"x"~t[1]~") B    Purse";
@@ -792,6 +797,7 @@ int enum_dir(int depth, tnTypePtr pos, ref PKCS15Path_FileType[] collector) noth
         {
             ub32  info = void;
             {
+                // discard everything from file_info except  fid = file_info.value[2..4]
                 CardCtlArray8  file_info = { reference: fno };
                 rv = sc_card_ctl(card, SC_CARDCTL_ACOS5_GET_FILE_INFO, &file_info); // acos will deliver 8 bytes: [FDB, DCB(always 0), FILE ID, FILE ID, SIZE or MRL, SIZE or NOR, SFI, LCSI]
                 if (rv != SC_SUCCESS)
@@ -804,8 +810,8 @@ int enum_dir(int depth, tnTypePtr pos, ref PKCS15Path_FileType[] collector) noth
                 rv = sc_card_ctl(card, SC_CARDCTL_ACOS5_HASHMAP_GET_FILE_INFO, &hashmap_file_info);
                 assert(rv == SC_SUCCESS);
 ////assumeWontThrow(writefln("branch: ?, %(%02X %)", collector[0].path));
-
                 info  = hashmap_file_info.value;
+//if (hashmap_file_info.key.among(0x4139, 0x41F9))
 ////assumeWontThrow(writefln("info: %(%02X %)", info));
 //                assert(file_info.value[2..4] == hashmap_file_info.value[2..4]);
             }
@@ -824,6 +830,16 @@ int enum_dir(int depth, tnTypePtr pos, ref PKCS15Path_FileType[] collector) noth
                     collector = collector.remove(0);
                     ubyte detectedFileType = PKCS15_NONE;
                     readFile_wrapped(info, pos/*, expectedFileType*/, detectedFileType, true, collector);
+                    // correct missing from ACS-init absolute path prefix 0x3F00
+                    if (!collector.empty && collector[0].path[0]!=0x3F) {
+                        ubyte[] path_new = new ubyte[collector[0].path.length+2];
+                        path_new[0] = 0x3F;
+                        path_new[1] = 0;
+                        foreach (i; 0..collector[0].path.length) {
+                            path_new[i+2] = collector[0].path[i];
+                        }
+                        collector[0].path = path_new;
+                    }
 //assumeWontThrow(writefln("expectedFileType: %s, detectedFileType: %s, collector: ", expectedFileType, cast(PKCS15_FILE_TYPE)detectedFileType, collector));
                     assert(expectedFileType==detectedFileType);
                     // TODO mark previously appended childs, if required
@@ -959,7 +975,7 @@ writefln("### expectedFileType(%s), detectedFileType(%s)", expectedFileType, det
             readFile_wrapped(nodeFS.data, nodeFS/*, expectedFileType*/, detectedFileType, false /*don't extract*/, collector);
             assert(detectedFileType.among(EnumMembers!PKCS15_FILE_TYPE));
             // PKCS15_RSAPrivateKey should be undetectable by reading
-            if (nodeFS.data[0]==EFDB.RSA_Key_EF) { //  && expectedFileType==PKCS15_RSAPrivateKey
+            if (nodeFS.data[0]==EFDB.RSA_Key_EF || nodeFS.data[0]==EFDB.ECC_KEY_EF) { //  && expectedFileType==PKCS15_RSAPrivateKey
                 detectedFileType = expectedFileType;
             }
 //            assert(expectedFileType==detectedFileType); // TODO think about changing to e.g. throw an exception and inform user what exactly is wrong
@@ -975,7 +991,7 @@ if (expectedFileType!=detectedFileType)
                 {
                     int nodeID = GetId(nodeFS);
                     SetAttributeId(IUP_IMAGE, nodeID, expectedFileType<=PKCS15_AODF || expectedFileType.among(PKCS15_ODF, PKCS15_TOKENINFO, PKCS15_UNUSED) ? IUP_IMGPAPER : IUP_IMGBLANK);
-                    if (expectedFileType==detectedFileType || nodeFS.data[0]==EFDB.RSA_Key_EF)
+                    if (expectedFileType==detectedFileType || nodeFS.data[0].among(EFDB.RSA_Key_EF, EFDB.ECC_KEY_EF))
                     {
                         string title = GetStringId (IUP_TITLE, nodeID);
                         SetStringId (IUP_TITLE, nodeID, title~"    "~pkcs15_names[expectedFileType][0]);
@@ -990,13 +1006,21 @@ if (expectedFileType!=detectedFileType)
     foreach (nodeFS; fs.rangePreOrder())
     {
         try
-            with (tr)
-            if (nodeFS.data[0]==EFDB.RSA_Key_EF)
-            {
-                immutable nodeID = GetId(nodeFS);
-                string title = GetStringId (IUP_TITLE, nodeID);
-                if (title.endsWith!(a => a=='B'))
-                    SetStringId (IUP_TITLE, nodeID, title~"    EF(RSA)");
+            with (tr) {
+                if (nodeFS.data[0]==EFDB.RSA_Key_EF)
+                {
+                    immutable nodeID = GetId(nodeFS);
+                    string title = GetStringId (IUP_TITLE, nodeID);
+                    if (title.endsWith!(a => a=='B'))
+                        SetStringId (IUP_TITLE, nodeID, title~"    EF(RSA)");
+                }
+                if (nodeFS.data[0]==EFDB.ECC_KEY_EF)
+                {
+                    immutable nodeID = GetId(nodeFS);
+                    string title = GetStringId (IUP_TITLE, nodeID);
+                    if (title.endsWith!(a => a=='B'))
+                        SetStringId (IUP_TITLE, nodeID, title~"    EF(ECC)");
+                }
             }
         catch(Exception e) { printf("### Exception in post_process()\n"); /* todo: handle exception */ }
     }
@@ -1110,7 +1134,7 @@ version(Posix)
     import wrapper.libtasn1 : asn1_visit_structure;
 
     with (EFDB)
-    if (!fdb.among(Transparent_EF, Linear_Fixed_EF, Linear_Variable_EF, Cyclic_EF /*omit reading CHV_EF, Sym_Key_EF*/, RSA_Key_EF, Purse_EF, SE_EF))
+    if (!fdb.among(Transparent_EF, Linear_Fixed_EF, Linear_Variable_EF, Cyclic_EF /*omit reading CHV_EF, Sym_Key_EF*/, RSA_Key_EF, ECC_KEY_EF, Purse_EF, SE_EF))
         return;
 
     Handle h = AA["fs_text"];
@@ -1187,7 +1211,7 @@ if (rv != buf.length)
             }
             // these types don't get ASN.1 decoded
             return;
-        case RSA_Key_EF:
+        case RSA_Key_EF, ECC_KEY_EF:
 //assumeWontThrow(writefln("sc_get_data params: offset: 0, buf.ptr: %s, buf.length: %s", buf.ptr, buf.length));
             rv= sc_get_data(card, 0, buf.ptr, buf.length);
             if (rv != buf.length || rv==0) {
@@ -1205,6 +1229,11 @@ if (rv != buf.length)
 //assumeWontThrow(writefln("0x[%(%02X %)]", buf));
 //            foreach (chunk; chunks(buf, 64))
 //                assumeWontThrow(writefln([%(%02X %)]", chunk));
+if (false /*0x4139 == ub22integral(fid)*/) {
+            if (offsetTable.length<2)
+                offsetTable ~= cast(uint)buf.length;
+}
+else {
             if (buf[0] != 0  || !canFind(iota(4, 34, 2), buf[1]))
                 return;
 //assumeWontThrow(writeln(rsaPublicOpensshFormatted(fid, buf)));
@@ -1220,7 +1249,7 @@ if (rv != buf.length)
                 AA["fs_text_asn1"].SetString("APPEND", PEM);
 //assumeWontThrow(writefln("0x[%(%02X %)]", response[0..responselen]));
             }
-
+}
             break;
         default:
             rv = -1;
@@ -1234,10 +1263,12 @@ if (rv != buf.length)
 
     if (expectedFileType.among(PKCS15_DIR, PKCS15_ODF, PKCS15_TOKENINFO,
             PKCS15_PRKDF, PKCS15_PUKDF, PKCS15_PUKDF_TRUSTED,  PKCS15_SKDF, PKCS15_CDF, PKCS15_CDF_TRUSTED, PKCS15_CDF_USEFUL, PKCS15_DODF, PKCS15_AODF,
-            PKCS15_Cert, PKCS15_RSAPublicKey))
+            PKCS15_Cert, PKCS15_RSAPublicKey/*, PKCS15_ECCPUBLICKEY*/))
     foreach (sw; offsetTable.slide(2))  // sw: SlideWindow
     {
         asn1_node  structure;
+//if (0x4139 == ub22integral(fid))
+//    expectedFileType = PKCS15_ECCPUBLICKEY;
         asn1_result = asn1_create_element(PKCS15, pkcs15_names[expectedFileType][doExtract? 1 : 3], &structure);
 //    [ "EF(AODF)",         "PKCS15.AuthenticationType", "authObjects.path.path",         "PKCS15.AuthenticationTypeChoice", "authObj"],
 
@@ -1248,11 +1279,11 @@ if (rv != buf.length)
             assumeWontThrow(writeln("### Structure creation: ", asn1_strerror2(asn1_result)));
             continue;
         }
-        asn1_result = asn1_der_decoding(&structure, fdb==EFDB.RSA_Key_EF? response[0..responselen] : buf[sw[0]..sw[1]], errorDescription);
+        asn1_result = asn1_der_decoding(&structure, fdb.among(EFDB.RSA_Key_EF,EFDB.ECC_KEY_EF)? response[0..responselen] : buf[sw[0]..sw[1]], errorDescription);
         if (asn1_result != ASN1_SUCCESS)
         {
             assumeWontThrow(writeln("### asn1Decoding: ", errorDescription));
-            assumeWontThrow(writefln("### asn1Decoding: expectedFileType(%s), sw0(%s), sw1(%s), pn.data(%(%02X %), bytes(%(%02X %))", expectedFileType, sw[0], sw[1], pn.data, fdb==EFDB.RSA_Key_EF? response[0..responselen] : buf[sw[0]..sw[1]]));
+            assumeWontThrow(writefln("### asn1Decoding: expectedFileType(%s), sw0(%s), sw1(%s), pn.data(%(%02X %), bytes(%(%02X %))", expectedFileType, sw[0], sw[1], pn.data, fdb.among(EFDB.RSA_Key_EF,EFDB.ECC_KEY_EF)? response[0..responselen] : buf[sw[0]..sw[1]]));
             continue;
         }
         PKCS15fileType = expectedFileType;
@@ -1299,12 +1330,18 @@ if (rv != buf.length)
                 if (doExtract)
                 {
                     PRKDF ~= PKCS15_ObjectTyp(sw[0], sw[1], buf[sw[0]..sw[1]], null, asn1_dup_node(structure, ""), null);
-                    if ((asn1_result= asn1_read_value(structure, pkcs15_names[PKCS15_RSAPrivateKey][2], str, outLen)) != ASN1_SUCCESS)
-                    {
-                        assumeWontThrow(writefln("### asn1_read_value: %(%02X %)", pn.data));
-                        goto looptail;
+                    if ((asn1_result= asn1_read_value(structure, pkcs15_names[PKCS15_RSAPrivateKey][2], str, outLen)) == ASN1_SUCCESS)
+                        pkcs15Extracted ~= PKCS15Path_FileType(str[0..outLen].dup, PKCS15_RSAPrivateKey);
+                    else {
+                        // with ACOS5-EVO it also can be an ECC type:
+                        if ((asn1_result= asn1_read_value(structure, pkcs15_names[PKCS15_ECCPRIVATEKEY][2], str, outLen)) == ASN1_SUCCESS)
+                            pkcs15Extracted ~= PKCS15Path_FileType(str[0..outLen].dup, PKCS15_ECCPRIVATEKEY);
+                        else {
+                            assumeWontThrow(writefln("### asn1_read_value: %(%02X %)", pn.data));
+                            goto looptail;
+                        }
                     }
-                    pkcs15Extracted ~= PKCS15Path_FileType(str[0..outLen].dup, PKCS15_RSAPrivateKey);
+//                    pkcs15Extracted ~= PKCS15Path_FileType(str[0..outLen].dup, PKCS15_RSAPrivateKey);
                 }
                 break;
 
@@ -1321,21 +1358,24 @@ if (rv != buf.length)
                             break;
                         default: assert(0);
                     }
-                    if ((asn1_result= asn1_read_value(structure, pkcs15_names[PKCS15_RSAPublicKey][2], str, outLen)) != ASN1_SUCCESS)
-                    {
-                        if (asn1_result==ASN1_ELEMENT_NOT_FOUND)
-                        {
-                            assumeWontThrow(writefln("### asn1_read_value: No path found for an entry of  %(%02X %)", pn.data[8..8+pn.data[1]]));
-                            assumeWontThrow(writeln("### asn1_read_value: This is a known bug of opensc: It doesn't encode publicRSAKey.publicRSAKeyAttributes.value.indirect.path.path, but publicRSAKey.publicRSAKeyAttributes.value.direct.raw"));
-                            assumeWontThrow(writeln("### asn1_read_value: acos5_64_gui will crash when selecting the offended keyPairId; PuKDF must be corrected manually"));
+                    if ((asn1_result= asn1_read_value(structure, pkcs15_names[PKCS15_RSAPublicKey][2], str, outLen)) == ASN1_SUCCESS)
+                        pkcs15Extracted ~= PKCS15Path_FileType(str[0..outLen].dup, PKCS15_RSAPublicKey);
+                    else {
+                        // with ACOS5-EVO it also can be an ECC type:
+                        if ((asn1_result= asn1_read_value(structure, pkcs15_names[PKCS15_ECCPUBLICKEY][2], str, outLen)) == ASN1_SUCCESS)
+                            pkcs15Extracted ~= PKCS15Path_FileType(str[0..outLen].dup, PKCS15_ECCPUBLICKEY);
+//                        if (asn1_result==ASN1_ELEMENT_NOT_FOUND)
+                        else {
+                            assumeWontThrow(writefln("4### asn1_read_value: No path found for an entry of  %(%02X %)", pn.data[8..8+pn.data[1]]));
+                            assumeWontThrow(writeln("5### asn1_read_value: This is a known bug of opensc: It doesn't encode publicRSAKey.publicRSAKeyAttributes.value.indirect.path.path, but publicRSAKey.publicRSAKeyAttributes.value.direct.raw"));
+                            assumeWontThrow(writeln("6### asn1_read_value: acos5_64_gui will crash when selecting the offended keyPairId; PuKDF must be corrected manually"));
 //                            outLen = pn.data[1];
 //                            str[0..outLen] = pn.data[8..8+outLen];
 //                            str[outLen-1] = 0x36;
+                            goto looptail;
                         }
-//                        else
-                        goto looptail;
+//                    pkcs15Extracted ~= PKCS15Path_FileType(str[0..outLen].dup, PKCS15_RSAPublicKey);
                     }
-                    pkcs15Extracted ~= PKCS15Path_FileType(str[0..outLen].dup, PKCS15_RSAPublicKey);
                 }
                 break;
 
@@ -1388,15 +1428,17 @@ if (rv != buf.length)
                     AODF  ~= PKCS15_ObjectTyp(sw[0], sw[1], buf[sw[0]..sw[1]], null, asn1_dup_node(structure, ""), null);
                 break;
 
-            case PKCS15_Cert, PKCS15_RSAPublicKey, PKCS15_TOKENINFO:
+            case PKCS15_Cert, PKCS15_RSAPublicKey, PKCS15_ECCPUBLICKEY, PKCS15_TOKENINFO:
                 break;
 
             default:  assert(0);
         } // switch (expectedFileType)
 
         version(Posix)
-        if (!doExtract)
+        if (!doExtract) {
+////        assumeWontThrow(writeln("whatFromStructure: ", pkcs15_names[expectedFileType][4]));
             asn1_visit_structure (outStructure, structure, pkcs15_names[expectedFileType][4], ASN1_PRINT_NAME_TYPE_VALUE, &someScanner);
+        }
 
         AA["fs_text_asn1"].SetString("APPEND", " ");
         foreach (line; outStructure)

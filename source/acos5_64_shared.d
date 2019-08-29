@@ -144,6 +144,7 @@ enum EFDB : ubyte  // enum File Descriptor Byte, as acos knows them
     CHV_EF             = 0x0A,  // == 0b1_010; ==  8+Linear_Fixed_EF,     record based ( Update Record ) DF or MF shall contain only one CHV file. Each record in the CHV file will have a fixed length of 21 bytes each
     Sym_Key_EF         = 0x0C,  // == 0b1_100; ==  8+Linear_Variable_EF,  record based ( Update Record ) DF or MF shall contain only one sym file. Each record in the symmetric key file shall have a maximum of 37 bytes
     Purse_EF           = 0x0E,  // == 0b1_110; ==  8+Cyclic_EF,
+    ECC_KEY_EF         = 0x19, // == 0b11_001; Elliptic Curve Cryptography Key EF, for private and public key file; distinguish by PKCS15_FILE_TYPE_ECCPRIVATEKEY or PKCS15_FILE_TYPE_ECCPUBLICKEY
     // Proprietary EF:
     SE_EF              = 0x1C,  // ==18h+Linear_Variable_EF,  record based ( Update Record ) DF or MF shall use only one SE File. An SE file can have up to 0x0F identifiable records. (0Fh==15)
 }

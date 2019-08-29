@@ -5,6 +5,13 @@ DEFINITIONS IMPLICIT TAGS ::=
 
 BEGIN
 
+-- The author of this file: Customization to ACOS5, OpenSC v0.19.0 and libtasn1 was applied!
+-- My understanding of ASN.1 is still incomplete, thus there may be error(s),
+-- especially ref. EXPLICIT missing or applied inappropriately!
+--
+
+ECPoint ::= OCTET STRING -- see RFC 5480 for syntax and restrictions
+
 -- from Module InformationFramework (X.501:10/2012)
 
 -- naming data types --
@@ -143,12 +150,19 @@ ObjectValue ::= CHOICE { -- ObjectValue { Type } ::= CHOICE {
 --    direct-protected	[2] EnvelopedData {Type}
 } -- (CONSTRAINED BY { if indirection is being used, then it is
     -- expected that the reference points either to a (possibly
-    -- enveloped) object of type Type or (key case) to a card-
+    -- enveloped) object of type  Type  or (key case) to a card-
     -- specific key file })
 
-ObjectValueRSAPublicKeyChoice ::= CHOICE { -- ObjectValue { Type } ::= CHOICE {
+ObjectValueRSAPublicKeyChoice ::= CHOICE { -- ObjectValue { RSAPublicKeyChoice } ::= CHOICE {
     indirect            ReferencedValue, -- {Type},
     direct              [0] EXPLICIT RSAPublicKeyChoice -- Type,
+--    indirect-protected	[1] ReferencedValue {EnvelopedData {Type}},
+--    direct-protected	[2] EnvelopedData {Type}
+} -- (CONSTRAINED BY { if indirection is being used, then it is
+
+ObjectValueECPublicKeyChoice ::= CHOICE { -- ObjectValue { ECPublicKeyChoice } ::= CHOICE {
+    indirect            ReferencedValue, -- {Type},
+    direct              [0] EXPLICIT ECPublicKeyChoice -- Type,
 --    indirect-protected	[1] ReferencedValue {EnvelopedData {Type}},
 --    direct-protected	[2] EnvelopedData {Type}
 } -- (CONSTRAINED BY { if indirection is being used, then it is
@@ -371,6 +385,26 @@ RSAPublicKey ::= SEQUENCE {
     publicExponent    INTEGER   -- e
 }
 
+PrivateECKeyAttributes ::= SEQUENCE {
+    value  	ObjectValue -- {ECPrivateKey},
+--    keyInfo 	KeyInfo {Parameters, PublicKeyOperations} OPTIONAL,
+--    ...  For future extensions
+}
+
+ECPrivateKey ::= INTEGER
+
+PublicECKeyAttributes ::= SEQUENCE {
+    value  	ObjectValueECPublicKeyChoice -- {ECPublicKeyChoice},
+--    keyInfo 	KeyInfo {Parameters, PublicKeyOperations} OPTIONAL,
+--    ...  For future extensions
+}
+
+ECPublicKeyChoice ::= CHOICE {
+    raw	 ECPoint,
+    spki SubjectPublicKeyInfo -- See X.509. Must contain a public EC key
+--    ...
+}
+
 GenericSecretKeyAttributes ::= SEQUENCE {
     value	ObjectValue -- { OCTET STRING },
 --    ...  For future extensions
@@ -493,6 +527,20 @@ PublicKeyObjectRSA ::= SEQUENCE { -- new name 'PublicKeyObjectRSA' created for P
     publicRSAKeyAttributes		[1] EXPLICIT PublicRSAKeyAttributes
 }
 
+PrivateKeyObjectEC ::= SEQUENCE { -- new name 'PrivateKeyObjectEC' created for PKCS15Object {CommonKeyAttributes, CommonPrivateKeyAttributes, PrivateECKeyAttributes}
+    commonObjectAttributes	CommonObjectAttributes,
+    commonKeyAttributes		CommonKeyAttributes,
+    commonPrivateKeyAttributes 	[0] EXPLICIT CommonPrivateKeyAttributes OPTIONAL,
+    privateECKeyAttributes		[1] EXPLICIT PrivateECKeyAttributes
+}
+
+PublicKeyObjectEC ::= SEQUENCE { -- new name 'PublicKeyObjectEC' created for PKCS15Object {CommonKeyAttributes, CommonPublicKeyAttributes, PublicECKeyAttributes}
+    commonObjectAttributes	CommonObjectAttributes,
+    commonKeyAttributes		CommonKeyAttributes,
+    commonPublicKeyAttributes 	[0] EXPLICIT CommonPublicKeyAttributes OPTIONAL,
+    publicECKeyAttributes		[1] EXPLICIT PublicECKeyAttributes
+}
+
 SecretKeyObject ::= SEQUENCE { -- PKCS15Object {CommonKeyAttributes, CommonSecretKeyAttributes, GenericSecretKeyAttributes}
     commonObjectAttributes	CommonObjectAttributes,
     commonKeyAttributes		CommonKeyAttributes,
@@ -539,8 +587,8 @@ AuthenticationObjectExternal  ::= SEQUENCE {  -- new name 'AuthenticationObjectE
 }
 
 PrivateKeyType ::= CHOICE {
-    privateRSAKey	PrivateKeyObjectRSA -- {PrivateRSAKeyAttributes}
---    privateECKey 	[0] PrivateKeyObject {PrivateECKeyAttributes},
+    privateRSAKey	    PrivateKeyObjectRSA, -- {PrivateRSAKeyAttributes}
+    privateECKey 	[0] PrivateKeyObjectEC   -- {PrivateECKeyAttributes}
 --    privateDHKey 	[1] PrivateKeyObject {PrivateDHKeyAttributes},
 --    privateDSAKey	[2] PrivateKeyObject {PrivateDSAKeyAttributes},
 --    privateKEAKey	[3] PrivateKeyObject {PrivateKEAKeyAttributes},
@@ -548,8 +596,8 @@ PrivateKeyType ::= CHOICE {
 }
 
 PublicKeyType ::= CHOICE {
-    publicRSAKey 	PublicKeyObjectRSA -- {PublicRSAKeyAttributes}
---    publicECKey 	[0] PublicKeyObject {PublicECKeyAttributes},
+    publicRSAKey 	    PublicKeyObjectRSA, -- {PublicRSAKeyAttributes}
+    publicECKey 	[0] PublicKeyObjectEC   -- {PublicECKeyAttributes},
 --    publicDHKey 	[1] PublicKeyObject {PublicDHKeyAttributes},
 --    publicDSAKey 	[2] PublicKeyObject {PublicDSAKeyAttributes},
 --    publicKEAKey 	[3] PublicKeyObject {PublicKEAKeyAttributes},

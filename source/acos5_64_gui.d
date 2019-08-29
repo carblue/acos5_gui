@@ -31,7 +31,7 @@ module acos5_64_gui;
 
 import core.memory : GC;
 import core.stdc.config : c_long, c_ulong;
-import core.stdc.stdlib : EXIT_SUCCESS, EXIT_FAILURE, exit, getenv; //, div_t, div, malloc, free;
+import core.stdc.stdlib : EXIT_SUCCESS, EXIT_FAILURE, exit, getenv;
 import core.stdc.locale : setlocale, LC_ALL;
 import std.stdio : write, writeln, writefln, stdout;
 import std.conv : to;
@@ -48,7 +48,7 @@ import iup.iup_plusD : AA, Handle, Config, IupOpenD, IupControlsOpen, IupClose, 
 //import deimos.p11; "dependencies" : "p11:deimos": "~>0.0.3", // it's an alternative for "dependencies" : "pkcs11": "~>2.40.0-alpha.3"
 //import deimos.sodium;
 
-import wrapper.libtasn1 : asn1_array2tree, asn1_parser2tree, asn1_delete_structure, ASN1_SUCCESS; // asn1_parser2array
+import wrapper.libtasn1 : asn1_array2tree, asn1_parser2tree, asn1_delete_structure, ASN1_SUCCESS;
 import tasn1_pkcs15 : tasn1_pkcs15_tab;
 
 import gui : create_dialog_dlg0;
@@ -83,7 +83,6 @@ main:                   import pkcs11;
 
 int main(string[])
 {
-
     /* ASN.1 Initialize PKCS#15 declarations, originating from PKCS15.asn,  via libtasn1 (results in: asn1_node  PKCS15; available in module util_opensc) */
     int parse_result;
     if (true)
@@ -97,6 +96,7 @@ int main(string[])
         exit(EXIT_FAILURE);
     }
 /+  once create the array/vector  /* C VECTOR CREATION, to be translated to D */
+    import wrapper.libtasn1 : asn1_parser2array, ASN1_MAX_ERROR_DESCRIPTION_SIZE;
     char[ASN1_MAX_ERROR_DESCRIPTION_SIZE] error_desc;
     parse_result = asn1_parser2array ("PKCS15.asn".ptr,
                                       "tasn1_pkcs15.c".ptr,
@@ -786,22 +786,18 @@ The checks may be grouped into these categories:
                 if (flags & CKF_WRITE_PROTECTED)               SetIntegerId2("", 19,  1,  1);
                 if (flags & CKF_LOGIN_REQUIRED)                SetIntegerId2("", 20,  1,  1);
                 if (flags & CKF_USER_PIN_INITIALIZED)          SetIntegerId2("", 21,  1,  1);
-
                 if (flags & CKF_PROTECTED_AUTHENTICATION_PATH) SetIntegerId2("", 22,  1,  1);
                 if (flags & CKF_DUAL_CRYPTO_OPERATIONS)        SetIntegerId2("", 23,  1,  1);
                 if (flags & CKF_TOKEN_INITIALIZED)             SetIntegerId2("", 24,  1,  1);
                 if (flags & CKF_SECONDARY_AUTHENTICATION)      SetIntegerId2("", 25,  1,  1);
-
                 if (flags & CKF_USER_PIN_COUNT_LOW)            SetIntegerId2("", 26,  1,  1);
                 if (flags & CKF_USER_PIN_FINAL_TRY)            SetIntegerId2("", 27,  1,  1);
                 if (flags & CKF_USER_PIN_LOCKED)               SetIntegerId2("", 28,  1,  1);
                 if (flags & CKF_USER_PIN_TO_BE_CHANGED)        SetIntegerId2("", 29,  1,  1);
-
                 if (flags & CKF_SO_PIN_COUNT_LOW)              SetIntegerId2("", 30,  1,  1);
                 if (flags & CKF_SO_PIN_FINAL_TRY)              SetIntegerId2("", 31,  1,  1);
                 if (flags & CKF_SO_PIN_LOCKED)                 SetIntegerId2("", 32,  1,  1);
                 if (flags & CKF_SO_PIN_TO_BE_CHANGED)          SetIntegerId2("", 33,  1,  1);
-
                 if (flags & CKF_ERROR_STATE)                   SetIntegerId2("", 34,  1,  1); // since version 2.30 ?
 
                 SetStringId2("", 35,  1, ulSessionCount.to!string  ~" / "~ulMaxSessionCount.to!string);
@@ -812,7 +808,8 @@ The checks may be grouped into these categories:
                 if (hardwareVersion.major)
                     SetStringId2("", 41,  1, hardwareVersion.major.to!string~"."~hardwareVersion.minor.to!string /* ~" / "~
                                              firmwareVersion.major.to!string~"."~firmwareVersion.minor.to!string*/);
-                else {
+                else
+                {
                     SetStringId2("", 41,  1, cos_version.value[5].to!string~"."~cos_version.value[6].to!string);
                 }
                 SetStringId2("", 40,  1, cast(string) utcTime[]);
@@ -823,7 +820,7 @@ The checks may be grouped into these categories:
     GC.collect(); // optional Garbage collection run, AFAIK put's any other threads on hold, but there shouldn't be any other than this main-thread
     /* Update IUP main dialog window and it's controls (IupUpdate()), set tab position to tab "filesystem" */
     AA["dlg0"].Update;
-//    AA["tabCtrl"].SetInteger("VALUEPOS", 1); // filesystem
+    AA["tabCtrl"].SetInteger("VALUEPOS", 1); // filesystem
 
     /* start event loop. From this point, control flow depends on user action and callback functions connected in gui.d, e.g. SetCallback(IUP_SELECTION_CB, cast(Icallback) &selectbranchleaf_cb); */
     /* Check why GIO (since OpenSC 0.18.0) occasionally crashes this program, Check multi-threading within event loop  */
