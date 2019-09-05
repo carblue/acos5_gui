@@ -537,7 +537,7 @@ const(asn1_static_node)[] tasn1_pkcs15_tab = [
   { "holderId", 1610637314, "Label".ptr },
   { null, 4104, "4".ptr },
   { "lastUpdate", 1610637314, "LastUpdate".ptr },
-  { null, 4104, "5".ptr },
+  { null, 2056, "5".ptr },
   { "preferredLanguage", 1073758239, null },
   { "profileIndication", 536895499, null },
   { null, 1073745928, "6".ptr },

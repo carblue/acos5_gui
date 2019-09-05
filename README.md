@@ -10,6 +10,8 @@ Next to libraries required according to dub.json, both of the following librarie
 [acos5_64_pkcs15init](https://github.com/carblue/acos5_64_pkcs15init "https://github.com/carblue/acos5_64_pkcs15init").<br>
 **The repo will always be closely related to the driver acos5_64 and acos5_64_pkcs15init development. Make sure to have the latest releases installed.**
 
+Prerequisites required to be installed:<br>
+Ubuntu: $ sudo apt-get update && sudo apt-get install opensc libtasn1-6
 Other dependencies:<br>
 Look at [IUP binding](https://github.com/carblue/iup "https://github.com/carblue/iup") for more details about IUP and installation. The required binaries are currently:<br>
 Linux: libfreetype.so<br>

@@ -99,15 +99,17 @@ enum uint SC_CARDCTL_ACOS5_SDO_DELETE                =  0x0000_0021; // data:
 enum uint SC_CARDCTL_ACOS5_SDO_STORE                 =  0x0000_0022; // data:
 
 enum uint SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_EXIST  =  0x0000_0023; // data: *mut CardCtl_generate_asym;  RSA files exist, sec_env setting excluded
-enum uint SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_CREATE =  0x0000_0024; // data: *mut CardCtl_generate_asym;  RSA files must be created, sec_env setting excluded
-enum uint SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_EXIST_MSE  =  0x0000_0025; // data: *mut CardCtl_generate_asym;  RSA files exist, sec_env setting included
-enum uint SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_CREATE_MSE =  0x0000_0026; // data: *mut CardCtl_generate_asym;  RSA files must be created, sec_env setting included
+//enum uint SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_CREATE =  0x0000_0024; // data: *mut CardCtl_generate_asym;  RSA files must be created, sec_env setting excluded
+//enum uint SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_EXIST_MSE  =  0x0000_0025; // data: *mut CardCtl_generate_asym;  RSA files exist, sec_env setting included
+//enum uint SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_CREATE_MSE =  0x0000_0026; // data: *mut CardCtl_generate_asym;  RSA files must be created, sec_env setting included
 
 enum uint SC_CARDCTL_ACOS5_ENCRYPT_SYM               =  0x0000_0027; // data: *mut CardCtl_crypt_sym
 enum uint SC_CARDCTL_ACOS5_ENCRYPT_ASYM              =  0x0000_0028; // data: *mut CardCtl_crypt_asym; Signature verification with public key
 
 enum uint SC_CARDCTL_ACOS5_DECRYPT_SYM               =  0x0000_0029; // data: *mut CardCtl_crypt_sym
 ////enum uint SC_CARDCTL_ACOS5_DECRYPT_ASYM          =  0x0000_002A; // data: *mut CardCtl_crypt_asym; is available via decipher
+
+enum uint SC_CARDCTL_ACOS5_CREATE_MF_FILESYSTEM      =  0x0000_002B; // data: *mut CardCtlArray20,  create_mf_file_system
 
 /* common types and general function(s) */
 

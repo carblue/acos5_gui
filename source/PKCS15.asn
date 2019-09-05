@@ -691,7 +691,7 @@ TokenInfo ::= SEQUENCE {
 --    ...,
     issuerId		[3] Label OPTIONAL,
     holderId		[4] Label OPTIONAL,
-    lastUpdate		[5] LastUpdate OPTIONAL,
+    lastUpdate		[5] EXPLICIT LastUpdate OPTIONAL,
     preferredLanguage	PrintableString OPTIONAL, -- In accordance with IETF RFC 1766
     profileIndication   [6] SEQUENCE OF ProfileIndication OPTIONAL
 } -- (CONSTRAINED BY {  Each AlgorithmInfo.reference value must be unique })

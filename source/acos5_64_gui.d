@@ -57,18 +57,20 @@ import util_opensc : connect_card, populate_tree_fs, PKCS15_FILE_TYPE, PKCS15,
     is_ACOSV3_opmodeV3_FIPS_140_2L3_active, tnTypePtr;
 //    , PRKDF, PUKDF, PUKDF_TRUSTED, SKDF, CDF, CDF_TRUSTED, CDF_USEFUL, DODF, AODF;
 import callbacks : btn_sanity_cb,
-    config,
+////    config,
     groupCfg,
     isMFcreated,
     isEF_DIRcreated,
+//    isEF_DIRpopulated,
     isappDFdefined,
     isappDFexists,
-    appDF;
+    appDF,
+    cos_version;
+
 
 import key_asym : keyAsym_initialize_PubObs, prkdf, pukdf;
 import key_sym  : keySym_initialize_PubObs,  skdf;
 
-import acos5_64_shared_rust : CardCtlArray8;
 
 /+
 Local imports:
@@ -83,6 +85,7 @@ main:                   import pkcs11;
 
 int main(string[])
 {
+    writeln;
     /* ASN.1 Initialize PKCS#15 declarations, originating from PKCS15.asn,  via libtasn1 (results in: asn1_node  PKCS15; available in module util_opensc) */
     int parse_result;
     if (true)
@@ -120,8 +123,9 @@ version(I18N)
     /* Shows dialog */
     create_dialog_dlg0.Show; // this does the mapping; it's early here because some things can be done only after mapping
 
-    /* IUP Config */
     int ret;
+    /* IUP Config */
+/*
     config = new Config;
     config.SetAttribute("APP_NAME", "acos5_64_gui");
     if ((ret= config.LoadConfig) != 0)
@@ -129,7 +133,7 @@ version(I18N)
         writeln("IupConfigLoad return value: ", ret);
 //        exit(EXIT_FAILURE);
     }
-
+*/
     /*
     Workflow:
 
@@ -155,7 +159,6 @@ version(I18N)
 
     */
 
-    CardCtlArray8  cos_version;
     /* get card's serial no., catch up on everything that was lazily done by the driver */
     enum string commands1 = `
         import libopensc.opensc : sc_card_ctl;
@@ -180,12 +183,13 @@ version(I18N)
         }
 `;
     mixin (connect_card!(commands1, "EXIT_FAILURE", "3"));
-
+    AA["slot_token"].SetStringId2("", 41,  1, cos_version.value[5].to!string~"."~cos_version.value[6].to!string);
+/*
     if (config.GetVariableIntDef(groupCfg.toStringz, "seen", 99) == 99) // then not yet seen this card before, do some sanity-check
     {
-        config.SetVariableInt(groupCfg.toStringz, "seen", 1);
+        config.SetVariableInt(groupCfg.toStringz, "seen", 1);*/
         AA["sanity_text"].SetString(IUP_APPEND, "Invoked by main, because this card was seen for the first time !");
-        btn_sanity_cb(AA["btn_sanity"].GetHandle());
+        btn_sanity_cb(AA["btn_sanity"].GetHandle());/*
         config.SaveConfig();
     }
     else with (config)
@@ -194,11 +198,12 @@ version(I18N)
         isEF_DIRcreated  = GetVariableIntDef(groupCfg.toStringz, "isEF_DIRcreated", 0);
         isappDFdefined   = GetVariableIntDef(groupCfg.toStringz, "isappDFdefined", 0);
         isappDFexists    = GetVariableIntDef(groupCfg.toStringz, "isappDFexists", 0);
-        appDF            = GetVariableStrDef(groupCfg.toStringz, "appDF", "").fromStringz.idup;
+        if (isappDFexists)
+            appDF        = GetVariableStrDef(groupCfg.toStringz, "appDF", "").fromStringz.idup;
     }
-
+*/
     /* TODO Make accessible from GUI only, what makes sense acccording to card contents. E.g. if no MF, then no file system tree-view etc.*/
-    if (isMFcreated && isEF_DIRcreated && isappDFdefined && isappDFexists)
+    if (isMFcreated /*&& isEF_DIRcreated && isappDFdefined && isappDFexists*/)
     {
         enum string commands2 = `
         import libopensc.opensc : sc_card_ctl;
@@ -731,8 +736,11 @@ The checks may be grouped into these categories:
         if (rv != CKR_OK || slotCount == 0  ||  slotCount > slotIds.length)
         {
             h.SetIntegerId2 ("",  5,  1, cast(int) slotCount);
-            writeln("Error: Could not find any slots or more than 10 slots with a token present found "~
-                "(dev: adjust array size?)");
+            if (slotCount==0 && rv == CKR_OK)
+                writeln("### There is no PKCS#15 strucure, thus no slot can be assigned! ###");
+            else
+                writeln("Error: Could not find any slots or more than 10 slots with a token present found "~
+                    "(dev: adjust array size?)");
 //            exit(EXIT_FAILURE);
         }
         else
@@ -826,7 +834,7 @@ The checks may be grouped into these categories:
     /* Check why GIO (since OpenSC 0.18.0) occasionally crashes this program, Check multi-threading within event loop  */
     IupMainLoop();
     /* Close/Exit Button was clicked */
-    config.SaveConfig();
+////    config.SaveConfig();
     IupClose();
 
     /* Destroy the "PKCS15" structure */

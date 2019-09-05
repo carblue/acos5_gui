@@ -902,6 +902,90 @@ private Vbox create_importExport_tab()
     return vbox;
 }
 
+private Vbox create_virgin_init()
+{
+    Control[] child_array;
+    auto text = new Text("init_text");
+    with (text)
+    {
+        SetAttribute(IUP_SIZE, "650");
+        SetAttribute(IUP_MULTILINE, IUP_YES);
+        SetAttribute(IUP_VISIBLELINES, "5");
+        SetAttribute(IUP_WORDWRAP, IUP_YES);
+        SetAttribute(IUP_READONLY, IUP_YES);
+    }
+    child_array ~= text;
+
+    auto matrix = new Matrix("matrixinit");
+    with (matrix)
+    {
+        SetInteger(IUP_NUMLIN,         3);
+        SetInteger(IUP_NUMLIN_VISIBLE, 3);
+        SetInteger(IUP_NUMCOL,         2);
+        SetInteger(IUP_NUMCOL_VISIBLE, 2);
+        SetAttribute(IUP_RESIZEMATRIX, IUP_YES);
+//      SetAttribute("LIMITEXPAND",  IUP_YES);
+        SetAttribute(IUP_READONLY,     IUP_NO);
+//      SetAttribute("FLATSCROLLBAR",     IUP_YES);
+//      SetAttribute("EDITNEXT",     "COL");
+        SetIntegerId(IUP_WIDTH,   0,    250);
+        SetIntegerId(IUP_WIDTH,   1,    130);
+        SetIntegerId(IUP_WIDTH,   2,    400);
+        SetInteger(IUP_HEIGHTDEF, 6);
+
+        SetAttributeId2("",  0,   0,   __("Item"));
+        SetAttributeId2("",  0,   1,   __("Value"));
+        SetAttributeId2("",  0,   2,   __("Example entry"));
+//        SetAttributeId2("",  0,   2,   __("Meaning"));
+        SetAttributeId2("",  1,   0,   __("SOPIN for new file system (8 bytes ascii)"));
+        SetAttributeId2("",  1,   2,      "87654321");
+        SetAttributeId2("",  2,   0,   __("SOPUK for new file system"));
+        SetAttributeId2("",  2,   2,      "apollo18");
+//        SetAttributeId2("",  1,   2,
+//        __("16003: ACOS5-64 V2.00 (Card/CryptoMate64);  16004: ACOS5-64 V3.00 (Card/CryptoMate Nano)"));
+
+//        SetAttribute(IUP_TOGGLECENTERED, IUP_YES);
+
+//        SetCallback(IUP_DROPCHECK_CB,  cast(Icallback)&matrixSanity_dropcheck_cb);
+//        SetCallback(IUP_DROP_CB,       cast(Icallback)&matrixSanity_drop_cb);
+//        SetCallback(IUP_DROPSELECT_CB, cast(Icallback)&matrixSanity_dropselect_cb);
+//        SetCallback(IUP_EDITION_CB,    cast(Icallback)&matrixSanity_edition_cb);
+//        SetCallback(IUP_TOGGLEVALUE_CB,cast(Icallback)&matrixSanity_togglevalue_cb);
+//        SetCallback(IUP_CLICK_CB,      cast(Icallback)&matrixSanity_click_cb);
+    }
+    child_array ~= matrix;
+
+    auto btn_virgin_init    = new Button(  __("virgin_init"));
+    btn_virgin_init.SetCallback(IUP_ACTION, &btn_virgin_init_cb);
+    child_array ~= btn_virgin_init;
+/*
+This is to be used only, if the card is virgin, i.e. has no MF and is in Manufacturer Stage.
+The card will be switch to 'Operation Mode 64K', which is not the default of ACOS5-64 V3.00.
+(Initialization for a card in FIPS mode that has to be FIPS-compliant would be different and require undisclosed information from ACS;
+the infos from the reference manual are not sufficient to succeed initializing for FIPS-compliance)
+
+The MF directory and some files within will be created:
+File 0001 for the SOPIN (and PUK SOPIN)
+File 0003, the Security environment file of MF, with 1 record for id #1
+File 2F00, the PKCS#15 DIR file, sufficiently sized for 2 applications
+
+The files and MF will be activated, such that access rights will be in effect and the the stage is User Stage.
+
+With this basic file system in place, an application directory will be created by doing the same what using OpenSC tool pkcs15-init --
+
+PIN admin/Security Officer (SOPIN) There is max 1 SOPIN possible per card, stored in a file within MF directory
+PIN user (USERPIN) There is max 1 USERPIN possible per application directory, stored in a file within that application directory
+
+For each of before-mentioned PINs it's possible to associate an unblocking PIN (PUK)
+PUK SOPIN
+PUK USERPIN
+
+
+*/
+    auto vbox = new Vbox(child_array);
+    vbox.SetAttribute(ICTL_TABTITLE, "Card init");
+    return vbox;
+}
 
 /** create the main window */
 Dialog create_dialog_dlg0()
@@ -927,6 +1011,7 @@ Dialog create_dialog_dlg0()
 /*      nothing implemented for that so far
         create_opensc_conf_tab,
 */
+        create_virgin_init,
     ];
 /*
     version(Windows) {} // because currently the ssh-agent will be used within ssh_tab, which is not available for Windows

@@ -31,6 +31,7 @@ import std.algorithm.searching : maxElement, countUntil, canFind;
 import std.traits : EnumMembers;
 import std.conv : to, hexString;
 import std.range : iota, slide, chunks;
+import core.stdc.stdlib : EXIT_FAILURE;
 
 
 import libopensc.opensc;
@@ -48,18 +49,21 @@ import acos5_64_shared;
 
 import util_opensc : connect_card, readFile, decompose, PKCS15Path_FileType, PKCS15_FILE_TYPE,
     is_ACOSV3_opmodeV3_FIPS_140_2L3, is_ACOSV3_opmodeV3_FIPS_140_2L3_active, tnTypePtr, tlv_Range_mod, fsInfoSize;
-import acos5_64_shared_rust : SC_CARD_TYPE_ACOS5_64_V3;
+import acos5_64_shared_rust : SC_CARD_TYPE_ACOS5_64_V3, CardCtlArray8, CardCtlArray20;
 
 ub8 map2DropDown = [1, 2, 3, 4, 5, 6, 7, 8];
 
-Config config;
+////Config config;
 string groupCfg;
 /* Config keys */
 int isMFcreated;
 int isEF_DIRcreated;
+//int isEF_DIRpopulated;
 int isappDFdefined;
 int isappDFexists;
 string appDF;
+
+CardCtlArray8  cos_version;
 
 nothrow :
 
@@ -197,6 +201,7 @@ int selectbranchleaf_cb(Ihandle* /*ih*/, int id, int status)
         assert(pn.data[1]);
         ubyte[MAX_FCI_GET_RESPONSE_LEN] rbuf;
         ubyte len2 = pn.data[1]/2;
+//assumeWontThrow(writeln("len2: ", len2));
 ////        int i = 1;
         AA["fs_text"].SetString(IUP_APPEND, "Header/meta infos (FCI):");
 
@@ -206,7 +211,10 @@ int selectbranchleaf_cb(Ihandle* /*ih*/, int id, int status)
         if (len2>1) { // for file's directory
             rbuf = typeof(rbuf).init;
             sc_format_path(ubaIntegral2string(pn.data[8..6+2*len2]).toStringz , &path);
-            if ((rv= sc_select_file(card, &path, &file)) == SC_SUCCESS && file.prop_attr_len>0 && file.prop_attr !is null) {
+            rv = sc_select_file(card, &path, &file);
+//assumeWontThrow(writeln("file.prop_attr_len: ", file.prop_attr_len));
+//assumeWontThrow(writeln("file.prop_attr:     ", file.prop_attr));
+            if (rv == SC_SUCCESS && file.prop_attr_len>0 && file.prop_attr !is null) {
                 assert(file.prop_attr_len<=MAX_FCI_GET_RESPONSE_LEN);
                 rbuf[0] = ISO7816_TAG_FCI;
                 rbuf[1] = len  = cast(ubyte) file.prop_attr_len;
@@ -221,7 +229,8 @@ int selectbranchleaf_cb(Ihandle* /*ih*/, int id, int status)
             rbuf = typeof(rbuf).init;
             sc_format_path(ubaIntegral2string(pn.data[6+2*len2..8+2*len2]).toStringz , &path);
             path.type = SC_PATH_TYPE_FILE_ID;
-            if ((rv= sc_select_file(card, &path, &file)) == SC_SUCCESS && file.prop_attr_len>0 && file.prop_attr !is null) {
+            rv= sc_select_file(card, &path, &file);
+            if (rv == SC_SUCCESS && file.prop_attr_len>0 && file.prop_attr !is null) {
                 assert(file.prop_attr_len<=MAX_FCI_GET_RESPONSE_LEN);
                 rbuf[0] = ISO7816_TAG_FCI;
                 rbuf[1] = len  = cast(ubyte) file.prop_attr_len;
@@ -352,8 +361,10 @@ int btn_sanity_cb(Ihandle* ih)
     Handle h = AA["matrixsanity"];
     h.SetIntegerId2("", 1, 1, card.type);
     h.Update;
-    with (card.version_)
-    h.SetStringId2 ("", 2, 1, hw_major.to!string~"."~hw_minor.to!string);
+    if (card.version_.hw_major)
+        h.SetStringId2 ("", 2, 1, card.version_.hw_major.to!string~"."~card.version_.hw_minor.to!string);
+    else
+        h.SetStringId2 ("", 2, 1, cos_version.value[5].to!string~"."~cos_version.value[6].to!string);
     int rv;
     if (card.type==SC_CARD_TYPE_ACOS5_64_V3)
     {
@@ -376,7 +387,7 @@ int btn_sanity_cb(Ihandle* ih)
     sc_format_path("3F00", &path);
     rc = sc_select_file(card, &path, null);
     isMFcreated =  rc==SC_SUCCESS? 1 : 0;
-    config.SetVariableInt(groupCfg.toStringz, "isMFcreated", isMFcreated);
+////    config.SetVariableInt(groupCfg.toStringz, "isMFcreated", isMFcreated);
     AA["sanity_text"].SetString(IUP_APPEND, "isMFcreated = "~isMFcreated.to!string);
     if (!isMFcreated)
         return IUP_DEFAULT;//assert(0);
@@ -389,11 +400,14 @@ int btn_sanity_cb(Ihandle* ih)
     sc_format_path("3F002F00", &path);
     rc = sc_select_file(card, &path, &file);
     isEF_DIRcreated =  rc==SC_SUCCESS? 1 : 0;
-    if (isEF_DIRcreated)
+    bool isEF_DIRpopulated;
+    if (isEF_DIRcreated && file.prop_attr_len>0 && file.prop_attr !is null) {
         fci_2f00[0..file.prop_attr_len] = file.prop_attr[0..file.prop_attr_len];
+        isEF_DIRpopulated = fci_2f00[0] != 0;
+    }
     sc_file_free(file);
     AA["sanity_text"].SetString(IUP_APPEND, "isEF_DIRcreated = "~isEF_DIRcreated.to!string);
-    if (isEF_DIRcreated)
+    if (isEF_DIRcreated && isEF_DIRpopulated)
     {
         ushort size_2f00;
         foreach (d,T,L,V; tlv_Range_mod(fci_2f00/*[2..$]*/))
@@ -409,8 +423,9 @@ int btn_sanity_cb(Ihandle* ih)
             {
                 isappDFdefined = 1;
                 appDF = ubaIntegral2string(V[0..L]);
-                if (!startsWith("appDF", "3F00"))
-                    appDF = "3F00"~appDF;
+assumeWontThrow(writeln("appDF: ", appDF));
+//                if (!startsWith("appDF", "3F00"))
+//                    appDF = "3F00"~appDF;
                 AA["sanity_text"].SetString(IUP_APPEND, "isappDFdefined = "~isappDFdefined.to!string);
                 AA["sanity_text"].SetString(IUP_APPEND, "appDF = "~appDF);
             }
@@ -422,17 +437,35 @@ int btn_sanity_cb(Ihandle* ih)
     }
 `;
     mixin (connect_card!commands);
-
+/*
     with (config)
     {
 //        SetVariableInt(groupCfg.toStringz, "isMFcreated",     isMFcreated);
         SetVariableInt(groupCfg.toStringz, "isEF_DIRcreated", isEF_DIRcreated);
         SetVariableInt(groupCfg.toStringz, "isappDFdefined",  isappDFdefined);
-        SetVariableStr(groupCfg.toStringz, "appDF",           appDF.toStringz);
         SetVariableInt(groupCfg.toStringz, "isappDFexists",   isappDFexists);
+        if (isappDFexists)
+            SetVariableStr(groupCfg.toStringz, "appDF",           appDF.toStringz);
     }
+*/
     return IUP_DEFAULT;
 } // btn_sanity_cb
+
+int btn_virgin_init_cb(Ihandle* ih)
+{
+//    TODO The link between matrixinit-entry-values and pins.value array is missing, thus don#t actually do something currently
+    enum string commands = `
+        import libopensc.opensc : sc_card_ctl;
+        import acos5_64_shared_rust : SC_CARDCTL_ACOS5_CREATE_MF_FILESYSTEM;
+
+        CardCtlArray20  pins;
+        pins.value = [8, 0x38, 0x37, 0x36, 0x35, 0x34, 0x33, 0x32, 0x31, 0,   // +91
+                      8, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0 ];
+        sc_card_ctl(card, SC_CARDCTL_ACOS5_CREATE_MF_FILESYSTEM, &pins);
+`;
+////    mixin (connect_card!(commands, "EXIT_FAILURE", "3"));
+    return IUP_DEFAULT;
+} // btn_virgin_init_cb
 
 /+
 	"dependencies": {

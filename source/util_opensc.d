@@ -99,6 +99,7 @@ import acos5_64_shared;
 import util_general;
 import acos5_64_shared_rust : SC_CARDCTL_ACOS5_GET_COUNT_FILES_CURR_DF, SC_CARDCTL_ACOS5_GET_FILE_INFO, CardCtlArray8,
     CardCtlArray32, SC_CARDCTL_ACOS5_HASHMAP_GET_FILE_INFO;
+import callbacks : isappDFexists;
 
 struct PKCS15_ObjectTyp
 {
@@ -811,7 +812,6 @@ int enum_dir(int depth, tnTypePtr pos, ref PKCS15Path_FileType[] collector) noth
                 assert(rv == SC_SUCCESS);
 ////assumeWontThrow(writefln("branch: ?, %(%02X %)", collector[0].path));
                 info  = hashmap_file_info.value;
-//if (hashmap_file_info.key.among(0x4139, 0x41F9))
 ////assumeWontThrow(writefln("info: %(%02X %)", info));
 //                assert(file_info.value[2..4] == hashmap_file_info.value[2..4]);
             }
@@ -1074,7 +1074,7 @@ int populate_tree_fs() nothrow
 
     uba path2F00 = [0x3F, 0x0, 0x2F, 0x0];
     PKCS15Path_FileType[] collector = new PKCS15Path_FileType[0]; // = [ PKCS15Path_FileType( path2F00, PKCS15_DIR ) ];
-    if (doCheckPKCS15)
+    if (doCheckPKCS15 && isappDFexists)
         collector ~= PKCS15Path_FileType( path2F00, PKCS15_DIR );
 
     rv = enum_dir(0,  fs.root(), collector);
@@ -1083,7 +1083,8 @@ int populate_tree_fs() nothrow
     appdf = fs.rangePreOrder().locate!"a.data[6]==b"(PKCS15_APPDF);
 //    if (!appdf)
 //        return SC_SUCCESS;
-    assert(appdf);
+    if (isappDFexists)
+        assert(appdf);
 //    iter_begin = new itTypeFS(appdf);
 
     if (!collector.empty)
@@ -1229,11 +1230,6 @@ if (rv != buf.length)
 //assumeWontThrow(writefln("0x[%(%02X %)]", buf));
 //            foreach (chunk; chunks(buf, 64))
 //                assumeWontThrow(writefln([%(%02X %)]", chunk));
-if (false /*0x4139 == ub22integral(fid)*/) {
-            if (offsetTable.length<2)
-                offsetTable ~= cast(uint)buf.length;
-}
-else {
             if (buf[0] != 0  || !canFind(iota(4, 34, 2), buf[1]))
                 return;
 //assumeWontThrow(writeln(rsaPublicOpensshFormatted(fid, buf)));
@@ -1249,7 +1245,6 @@ else {
                 AA["fs_text_asn1"].SetString("APPEND", PEM);
 //assumeWontThrow(writefln("0x[%(%02X %)]", response[0..responselen]));
             }
-}
             break;
         default:
             rv = -1;
@@ -1267,8 +1262,6 @@ else {
     foreach (sw; offsetTable.slide(2))  // sw: SlideWindow
     {
         asn1_node  structure;
-//if (0x4139 == ub22integral(fid))
-//    expectedFileType = PKCS15_ECCPUBLICKEY;
         asn1_result = asn1_create_element(PKCS15, pkcs15_names[expectedFileType][doExtract? 1 : 3], &structure);
 //    [ "EF(AODF)",         "PKCS15.AuthenticationType", "authObjects.path.path",         "PKCS15.AuthenticationTypeChoice", "authObj"],
 
