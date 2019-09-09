@@ -98,10 +98,9 @@ enum uint SC_CARDCTL_ACOS5_SDO_CREATE                =  0x0000_0020; // data: *m
 enum uint SC_CARDCTL_ACOS5_SDO_DELETE                =  0x0000_0021; // data:
 enum uint SC_CARDCTL_ACOS5_SDO_STORE                 =  0x0000_0022; // data:
 
-enum uint SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_EXIST  =  0x0000_0023; // data: *mut CardCtl_generate_asym;  RSA files exist, sec_env setting excluded
-//enum uint SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_CREATE =  0x0000_0024; // data: *mut CardCtl_generate_asym;  RSA files must be created, sec_env setting excluded
-//enum uint SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_EXIST_MSE  =  0x0000_0025; // data: *mut CardCtl_generate_asym;  RSA files exist, sec_env setting included
-//enum uint SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_CREATE_MSE =  0x0000_0026; // data: *mut CardCtl_generate_asym;  RSA files must be created, sec_env setting included
+enum uint SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES  =  0x0000_0023; // data: *mut CardCtl_generate_asym;  RSA files exist, sec_env setting excluded
+enum uint SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT_SET =  0x0000_0024; // data: *mut CardCtl_generate_asym_inject,do_generate_inject
+enum uint SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT_GET =  0x0000_0025; // data: *mut CardCtl_generate_asym_inject,do_generate_inject
 
 enum uint SC_CARDCTL_ACOS5_ENCRYPT_SYM               =  0x0000_0027; // data: *mut CardCtl_crypt_sym
 enum uint SC_CARDCTL_ACOS5_ENCRYPT_ASYM              =  0x0000_0028; // data: *mut CardCtl_crypt_asym; Signature verification with public key
@@ -142,16 +141,31 @@ struct CardCtlArray32
 
 struct CardCtl_generate_crypt_asym
 {
+    ubyte[16]  rsa_pub_exponent;       // public exponent
     ubyte[512] data;
     size_t     data_len;
     ushort     file_id_priv;   // IN  if any of file_id_priv/file_id_pub is 0, then file_id selection will depend on profile,
     ushort     file_id_pub;    // IN  if both are !=0, then the given values are preferred
-    ubyte[16]  exponent;       // public exponent
-    bool       exponent_std;   // whether the default exponent 0x10001 shall be used and the exponent field disregarded; otherwise all 16 bytes from exponent will be used
     ubyte      key_len_code;   //
     ubyte      key_priv_type_code; // as required by cos5 Generate RSA Key Pair
-    bool       perform_mse;    // IN parameter, whether MSE Manage Security Env. shall be done prior to crypto operation
+
+    bool       do_generate_rsa_crt;
+    bool       do_generate_rsa_add_decrypt_for_sign;
+    bool       do_generate_with_standard_rsa_pub_exponent;   // whether the default exponent 0x10001 shall be used and the exponent field disregarded; otherwise all 16 bytes from exponent will be used
+
+    bool       do_create_files = true;
+    bool       perform_mse = true;    // IN parameter, whether MSE Manage Security Env. shall be done prior to crypto operation
 //    bool       op_success;     // OUT parameter, whether generation succeeded
+}
+
+struct CardCtl_generate_asym_inject {
+    ubyte[16]  rsa_pub_exponent; // IN public exponent
+    ushort     file_id_priv;       // OUT  if any of file_id_priv/file_id_pub is 0, then file_id selection will depend on acos5_64.profile,
+    ushort     file_id_pub;       // OUT  if both are !=0, then the given values are preferred
+    bool       do_generate_rsa_crt;         // IN whether RSA private key file shall be generated in ChineseRemainderTheorem-style
+    bool       do_generate_rsa_add_decrypt_for_sign; // IN whether RSA private key file shall be generated adding decrypt capability iff sign is requested
+    bool       do_generate_with_standard_rsa_pub_exponent; // IN whether RSA key pair will contain the "standard" public exponent e=0x010001==65537; otherwise the user supplied 16 byte exponent will be used
+    bool       do_create_files = true; // IN if this is set to true, then the files MUST exist and set in file_id_priv and file_id_pub
 }
 
 struct CardCtl_crypt_sym

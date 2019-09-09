@@ -449,7 +449,7 @@ The IGNORERADIO can be used in any of these children types to disable this funct
         __("Regenerate RSA key pair content in existing files (select by key pair id)"));
     child_array_toggles ~= toggle3;
     auto toggle4 = new Toggle("toggle_RSA_key_pair_create_and_generate",
-        __("### CURRENTLY DEACTIVATED ###  Create new RSA key pair files and generate RSA key pair content"));
+        __("Create new RSA key pair files and generate RSA key pair content"));
     child_array_toggles ~= toggle4;
     auto toggle5 = new Toggle("toggle_RSA_key_pair_try_sign",
         __("Sign SHA1/SHA256 hash (select key pair id) and Verify.  Use to test the signing capability for selected id, input (first 20/32 bytes) from text box below, output to stdout"));
@@ -518,10 +518,10 @@ So the existence of this callback defines the matrix operation mode.
 
         SetAttributeId2("",  r_keyAsym_RSAmodulusLenBits,          0,   __("Modulus bitLength"));
         SetAttributeId2("",  r_keyAsym_RSAmodulusLenBits,          2,   __("keypair files, PrKDF, PuKDF"));
-        SetAttributeId2("",  r_keyAsym_crtModeGenerate, 0, __("    Private key stored acc. ChineseRemainderTheorem ?"));
+        SetAttributeId2("",  r_keyAsym_crtModeGenerate, 0, __("    New private key to be stored acc. ChineseRemainderTheorem ?"));
         SetAttributeId2("",  r_keyAsym_crtModeGenerate, 2,   __("CRT contents do or don't exist in private key file"));
         SetAttributeId2("",  r_keyAsym_usageGenerate,   0,
-        __("    Private key core capability (4)sign, (2)decrypt, (6)sign+decrypt (enter as int, shown as text)"));
+        __("    New private key core capability (4)sign, (2)decrypt, (6)sign+decrypt (enter as int, shown as text)"));
         SetAttributeId2("",  r_keyAsym_usageGenerate,   2,   __("private key file"));
         SetAttributeId2("",  r_keyAsym_Label,            0,   __("Key pair label"));
         SetAttributeId2("",  r_keyAsym_Label,            2,   __("PrKDF, PuKDF"));
@@ -550,7 +550,7 @@ So the existence of this callback defines the matrix operation mode.
         __("Public exponent e (a prime, default 0x10001; max 16 bytes hex., leading zero bytes trimmed)  0x"));
         SetAttributeId2("",  r_valuePublicExponent,     2,   __("public key file"));
         SetAttributeId2("",  r_statusInput,             0,
-        __("Status of input (whether all required info/limits are okay for the operation"));
+        __("Status of input (whether all required info/limits/conditions are okay for the operation. A problem often refers to key usage/capability"));
         SetAttributeId2("",  r_statusInput,             1,  "No");
         SetRGBId2(IUP_BGCOLOR, r_statusInput, 1,  255, 0, 0);
         SetAttributeId2("",  r_keyAsym_usagePrKDF, 0,   __("Private key usage PrKDF (enter as int, 2.. max 558, shown as text)"));

@@ -31,7 +31,7 @@
 	"fixme-dflagsx-posix-gdc": ["failure", "with", "slides"],
 
 	"lflags": ["--no-undefined", "--as-needed", "--version-script=acos5_64_gui.ver"],
-	"suspended-lflags-posix-ldc": ["-rpath=$HOME/Downloads/dlang/ldc2-1.17.0-beta1-linux-x86_64/lib"],
+	"suspended-lflags-posix-ldc": ["-rpath=$HOME/Downloads/dlang/ldc2-1.17.0-linux-x86_64/lib"],
 	"postBuildCommands": ["strip --strip-unneeded $$DUB_TARGET_NAME"],
 	"alternatives-versions": ["Have_acos5_64", "I18N to be used only with gettext/libintl.so available", "OPENSC_VERSION_UPCOMING to be used only with OpenSC v0.20.0", "USE_LIBRESSL"],
 	"versions-posix": ["Have_acos5_64", "I18N"],

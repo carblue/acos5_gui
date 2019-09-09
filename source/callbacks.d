@@ -423,7 +423,7 @@ int btn_sanity_cb(Ihandle* ih)
             {
                 isappDFdefined = 1;
                 appDF = ubaIntegral2string(V[0..L]);
-assumeWontThrow(writeln("appDF: ", appDF));
+//assumeWontThrow(writeln("appDF: ", appDF));
 //                if (!startsWith("appDF", "3F00"))
 //                    appDF = "3F00"~appDF;
                 AA["sanity_text"].SetString(IUP_APPEND, "isappDFdefined = "~isappDFdefined.to!string);

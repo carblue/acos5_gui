@@ -71,7 +71,7 @@ import callbacks : btn_sanity_cb,
 import key_asym : keyAsym_initialize_PubObs, prkdf, pukdf;
 import key_sym  : keySym_initialize_PubObs,  skdf;
 
-
+//import acos5_64_shared_rust : CardCtl_generate_crypt_asym, CardCtl_generate_asym_inject;
 /+
 Local imports:
 enum string commands1 : import util_general : ubaIntegral2string;
@@ -86,6 +86,11 @@ main:                   import pkcs11;
 int main(string[])
 {
     writeln;
+//    writeln("CardCtl_generate_crypt_asym.sizeof:  ", CardCtl_generate_crypt_asym.sizeof); // CardCtl_generate_crypt_asym.sizeof:  552
+//    writeln("CardCtl_generate_asym_inject.sizeof: ", CardCtl_generate_asym_inject.sizeof);// CardCtl_generate_asym_inject.sizeof: 24
+//driver: CardCtl_generate_crypt_asym.sizeof:  552
+//driver: CardCtl_generate_asym_inject.sizeof: 24
+
     /* ASN.1 Initialize PKCS#15 declarations, originating from PKCS15.asn,  via libtasn1 (results in: asn1_node  PKCS15; available in module util_opensc) */
     int parse_result;
     if (true)

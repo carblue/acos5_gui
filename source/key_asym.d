@@ -83,6 +83,7 @@ import std.algorithm.mutation : remove;
 //import std.algorithm.sorting : sort;
 //import std.typecons : Tuple, tuple;
 import std.string : /*chomp, */  toStringz, fromStringz, representation;
+import std.conv : to;
 import std.signals;
 
 import libopensc.opensc;
@@ -92,9 +93,19 @@ import libopensc.log;
 import libopensc.iso7816;
 
 import pkcs15init.profile : sc_profile;
-import libopensc.pkcs15 : sc_pkcs15_card, sc_pkcs15_bind, sc_pkcs15_unbind, sc_pkcs15_auth_info;
+import libopensc.pkcs15 : sc_pkcs15_card, sc_pkcs15_bind, sc_pkcs15_unbind, sc_pkcs15_auth_info, sc_pkcs15_format_id,
+    SC_PKCS15_PRKEY_ACCESS_SENSITIVE, SC_PKCS15_PRKEY_ACCESS_ALWAYSSENSITIVE, SC_PKCS15_PRKEY_ACCESS_NEVEREXTRACTABLE,
+    SC_PKCS15_PRKEY_ACCESS_LOCAL;
+
 import pkcs15init.pkcs15init : sc_pkcs15init_bind, sc_pkcs15init_unbind, sc_pkcs15init_set_callbacks, sc_pkcs15init_delete_by_path,
-    sc_pkcs15init_callbacks, sc_pkcs15init_set_callbacks, sc_pkcs15init_authenticate;
+    sc_pkcs15init_callbacks, sc_pkcs15init_set_callbacks, sc_pkcs15init_authenticate,
+    sc_pkcs15init_keygen_args,
+    sc_pkcs15init_prkeyargs,
+    sc_pkcs15init_generate_key,
+    SC_PKCS15INIT_X509_DIGITAL_SIGNATURE, SC_PKCS15INIT_X509_KEY_CERT_SIGN, SC_PKCS15INIT_X509_CRL_SIGN,
+    SC_PKCS15INIT_X509_KEY_ENCIPHERMENT, SC_PKCS15INIT_X509_DATA_ENCIPHERMENT;
+
+    ;
 
 import iup.iup_plusD;
 
@@ -110,7 +121,9 @@ import util_opensc : connect_card, readFile/*, decompose*/, PKCS15Path_FileType,
     aid, is_ACOSV3_opmodeV3_FIPS_140_2L3, is_ACOSV3_opmodeV3_FIPS_140_2L3_active,
     my_pkcs15init_callbacks, tlv_Range_mod, file_type, getIdentifier;
 
-import acos5_64_shared_rust : CardCtl_generate_crypt_asym, SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_EXIST, SC_CARDCTL_ACOS5_ENCRYPT_ASYM;
+import acos5_64_shared_rust : CardCtl_generate_crypt_asym, SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES,
+    SC_CARDCTL_ACOS5_ENCRYPT_ASYM, SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT_GET,
+    SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT_SET, CardCtl_generate_asym_inject;
 //SC_CARDCTL_ACOS5_GET_COUNT_FILES_CURR_DF, SC_CARDCTL_ACOS5_GET_FILE_INFO, CardCtlArray8, CardCtlArray32;
 
 //import asn1_pkcs15 : CIO_RSA_private, CIO_RSA_public, CIO_Auth_Pin, encodeEntry_PKCS15_PRKDF, encodeEntry_PKCS15_PUKDF;
@@ -133,7 +146,6 @@ tnTypePtr   prkdf;
 tnTypePtr   pukdf;
 
 int  nextUniqueId; //= nextUniqueKeyId();
-int  nextUniquePairNo;
 
 
 enum /* matrixKeyAsymRowName */
@@ -507,20 +519,18 @@ class Obs_change_calcPrKDF
                     if (isNewKeyPairId)
                     {
                         _PrKDFentry = PKCS15_ObjectTyp.init;
-                        nextUniquePairNo = nextUniqueRSAKeyPairNo();
-                        assert(nextUniquePairNo>0);
                         /*
                         authId must be adapted
                         */
 
 //30 2C 30 0A 0C 01 3F 03 02 06   C0 04 01 00 30 0C 04 01 FF 03   03 06 20 00 03 02 03 B8   A1 10 30 0E 30 08 04 06 3F 00 41 00 41 F7 02 02 10 00
-                        _PrKDFentry.der = (cast(immutable(ubyte)[])hexString!"30 2C 30 0A 0C 01 3F 03 02 06   C0 04 01 00 30 0C 04 01 FF 03   03 06 20 00 03 02 03 B8   A1 10 30 0E 30 08 04 06 3F 00 41 00 41 F7 02 02 10 00").dup;
+                        _PrKDFentry.der = (cast(immutable(ubyte)[])hexString!"30 2C 30 0A 0C 01 3F 03 02 06   C0 04 01 00 30 0C 04 01 FF 03   03 06 20 00 03 02 03 B8
+                                           A1 10 30 0E 30 08 04 06 3F 00 41 00 00 00 02 02 10 00").dup;
                         // all settings are preselected (except for keyAsym_authId) and must be set afterwards
                         _PrKDFentry.der[13] = cast(ubyte)keyAsym_authId.get; // FIXME
                         _PrKDFentry.der[18] = cast(ubyte)nextUniqueId;
 //                        _PrKDFentry.der[30] = cast(ubyte)v;
                          /* CONVENTION, profile */
-                        _PrKDFentry.der[41] = 0xF0 | cast(ubyte)nextUniquePairNo;
                         asn1_result = asn1_create_element(PKCS15, pkcs15_names[PKCS15_FILE_TYPE.PKCS15_PRKDF][1], &_PrKDFentry.structure); // "PKCS15.PrivateKeyType"
                         if (asn1_result != ASN1_SUCCESS)
                         {
@@ -694,10 +704,10 @@ class Obs_change_calcPuKDF
                     {
                         _PuKDFentry = PKCS15_ObjectTyp.init;
 //30 29 30 07 0C 01 3F 03 02 06 40   30 0C 04 01 FF 03   03 06 02 00 03 02 03 48   A1 10 30 0E 30 08 04 06 3F 00 41 00 41 FF 02 02 10 00
-                        _PuKDFentry.der = (cast(immutable(ubyte)[])hexString!"30 29 30 07 0C 01 3F 03 02 06 40   30 0C 04 01 FF 03   03 06 02 00 03 02 03 48   A1 10 30 0E 30 08 04 06 3F 00 41 00 41 FF 02 02 10 00").dup;
+                        _PuKDFentry.der = (cast(immutable(ubyte)[])hexString!"30 29 30 07 0C 01 3F 03 02 06 40   30 0C 04 01 FF 03   03 06 02 00 03 02 03 48
+                                           A1 10 30 0E 30 08 04 06 3F 00 41 00 00 00 02 02 10 00").dup;
                         _PuKDFentry.der[15] = cast(ubyte)nextUniqueId;
 //                        _PuKDFentry.der[27] = cast(ubyte)v;
-                        _PuKDFentry.der[38] = 0x30 | cast(ubyte)nextUniquePairNo;
                         asn1_result = asn1_create_element(PKCS15, pkcs15_names[PKCS15_FILE_TYPE.PKCS15_PUKDF][1], &_PuKDFentry.structure); // "PKCS15.PublicKeyType"
                         if (asn1_result != ASN1_SUCCESS)
                         {
@@ -970,30 +980,6 @@ Operating with a 1 byte is NOT CONFORMANT to the standard, that's just how it is
 The topic RSA Keypair file id must be reviewed as well: There are some hardcoded restrictions/conventions/rules, in the driver as well
 
 */
-int nextUniqueRSAKeyPairNo() nothrow
-{
-    int[] keyAsym_IdAllowedRange = iota(1,16).array;
-    int PairNo; // privateRSAKey.privateRSAKeyAttributes.value.indirect.path.path
-    ubyte[16]  str;
-    int outLen;
-    int asn1_result;
-    foreach (ref elem; PRKDF)
-    {
-        if ((asn1_result= asn1_read_value(elem.structure, "privateRSAKey.privateRSAKeyAttributes.value.indirect.path.path", str, outLen)) != ASN1_SUCCESS)
-        {
-            assumeWontThrow(writefln("### asn1_read_value %s: %s", "privateRSAKey.privateRSAKeyAttributes.value.indirect.path.path", asn1_strerror2(asn1_result)));
-            assert(0);
-        }
-        assert(outLen>=2);
-        PairNo = str[outLen-1]&0x0F;
-        keyAsym_IdAllowedRange = find!((a,b) => a == b)(keyAsym_IdAllowedRange, PairNo); // remove any id smaller than id found
-        if (keyAsym_IdAllowedRange.length)
-            keyAsym_IdAllowedRange = keyAsym_IdAllowedRange[1..$]; // remove id found
-    }
-//    int result = keyAsym_IdAllowedRange.empty? -1 : keyAsym_IdAllowedRange.front;
-//assumeWontThrow(writeln("nextUniqueRSAKeyPairNo: ", result));
-    return  keyAsym_IdAllowedRange.empty? -1 : keyAsym_IdAllowedRange.front;//result;
-}
 
 void populate_info_from_getResponse(ref ub32 info, /*const*/ ubyte[MAX_FCI_GET_RESPONSE_LEN] rbuf)  nothrow
 {
@@ -1194,15 +1180,6 @@ int set_more_for_keyAsym_Id(int keyAsym_Id) nothrow
     assert(outLen>=2);
     fidRSApublic.set( [ub22integral(str[outLen-2..outLen]), 0], true );
 
-    tnTypePtr rsaPriv, rsaPub;
-    rsaPriv = fs.rangePreOrder().locate!"equal(a.data[2..4], b[])"(fidRSAprivate.getub2);
-    rsaPub  = fs.rangePreOrder().locate!"equal(a.data[2..4], b[])"(fidRSApublic.getub2);
-    assert(rsaPriv);
-    assert(rsaPub);
-    AA["matrixKeyAsym"].SetStringId2("", r_AC_Update_Delete_RSAprivateFile,        1, assumeWontThrow(format!"%02X"(rsaPriv.data[25])) ~" / "~ assumeWontThrow(format!"%02X"(rsaPriv.data[30])));
-    AA["matrixKeyAsym"].SetStringId2("", r_AC_Update_Delete_RSApublicFile,         1, assumeWontThrow(format!"%02X"(rsaPub.data[25]))  ~" / "~ assumeWontThrow(format!"%02X"(rsaPub.data[30])));
-    AA["matrixKeyAsym"].SetStringId2("", r_AC_Crypto_RSAprivateFile_RSApublicFile, 1, assumeWontThrow(format!"%02X"(rsaPriv.data[26])) ~" / "~ assumeWontThrow(format!"%02X"(rsaPub.data[26])));
-
 ////
     if (isNewKeyPairId)
     {
@@ -1212,6 +1189,15 @@ int set_more_for_keyAsym_Id(int keyAsym_Id) nothrow
     }
     else
     {
+        tnTypePtr rsaPriv, rsaPub;
+        rsaPriv = fs.rangePreOrder().locate!"equal(a.data[2..4], b[])"(fidRSAprivate.getub2);
+        rsaPub  = fs.rangePreOrder().locate!"equal(a.data[2..4], b[])"(fidRSApublic.getub2);
+        assert(rsaPriv);
+        assert(rsaPub);
+        AA["matrixKeyAsym"].SetStringId2("", r_AC_Update_Delete_RSAprivateFile,        1, assumeWontThrow(format!"%02X"(rsaPriv.data[25])) ~" / "~ assumeWontThrow(format!"%02X"(rsaPriv.data[30])));
+        AA["matrixKeyAsym"].SetStringId2("", r_AC_Update_Delete_RSApublicFile,         1, assumeWontThrow(format!"%02X"(rsaPub.data[25]))  ~" / "~ assumeWontThrow(format!"%02X"(rsaPub.data[30])));
+        AA["matrixKeyAsym"].SetStringId2("", r_AC_Crypto_RSAprivateFile_RSApublicFile, 1, assumeWontThrow(format!"%02X"(rsaPriv.data[26])) ~" / "~ assumeWontThrow(format!"%02X"(rsaPub.data[26])));
+
         enum string commands = `
         int rv;
         sc_path path;
@@ -1645,6 +1631,7 @@ int toggle_radioKeyAsym_cb(Ihandle* ih, int state)
 
             isNewKeyPairId = true;
             nextUniqueId = nextUniqueKeyId();
+////assumeWontThrow(writeln("nextUniqueId, nextUniqueId: ", nextUniqueId));
             assert(nextUniqueId>0);
             keyAsym_Id.set(nextUniqueId, true);
             break;
@@ -1875,16 +1862,19 @@ int button_radioKeyAsym_cb(Ihandle* ih)
             assert(prFile);
             assert(puFile);
 
-            CardCtl_generate_crypt_asym  cga = {
+            CardCtl_generate_crypt_asym  agc = {
                 file_id_priv: fidRSAprivate.getushort(), file_id_pub: fidRSApublic.getushort(),
-                exponent_std: true, key_len_code: cast(ubyte)(keyAsym_RSAmodulusLenBits.get/128),
-                key_priv_type_code: code(keyAsym_crtModeGenerate.get, keyAsym_usageGenerate.get), perform_mse: true
+                do_generate_with_standard_rsa_pub_exponent: true, key_len_code: cast(ubyte)(keyAsym_RSAmodulusLenBits.get/128),
+                key_priv_type_code: code(keyAsym_crtModeGenerate.get, keyAsym_usageGenerate.get),
+
+                do_generate_rsa_crt: keyAsym_crtModeGenerate.get!=0,
+                do_generate_rsa_add_decrypt_for_sign: keyAsym_usageGenerate.get.among(3,6)!=0, do_create_files: false
             };
             if (any(valuePublicExponent.get[0..8]) || ub82integral(valuePublicExponent.get[8..16]) != 0x10001) {
-                cga.exponent_std = false;
-                cga.exponent = valuePublicExponent.get;
+                agc.do_generate_with_standard_rsa_pub_exponent = false;
+                agc.rsa_pub_exponent = valuePublicExponent.get;
             }
-//assumeWontThrow(writeln("cga", cga));
+//assumeWontThrow(writeln("agc", agc));
 
             enum string commands = `
             int rv;
@@ -1926,9 +1916,8 @@ int button_radioKeyAsym_cb(Ihandle* ih)
             if (rv < 0)
                 return IUP_DEFAULT;
 
-            rv= sc_card_ctl(card, SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_EXIST, &cga);
-            if (rv != SC_SUCCESS)
-            {
+            rv= sc_card_ctl(card, SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES, &agc);
+            if (rv != SC_SUCCESS) {
                 mixin (log!(__FUNCTION__,  "regenerate_keypair_RSA failed"));
                 hstat.SetString(IUP_TITLE, "FAILURE: Generate new RSA key pair content");
                 return IUP_DEFAULT;
@@ -2083,8 +2072,92 @@ int button_radioKeyAsym_cb(Ihandle* ih)
             return IUP_DEFAULT; // case "toggle_RSA_key_pair_delete"
 
         case "toggle_RSA_key_pair_create_and_generate":
-/+
             ubyte keyAsym_IdCurrent = cast(ubyte)keyAsym_Id.get;
+version(all) {
+            enum string commands = `
+/*
+keyAsym_Modifiable,
+keyAsym_usageGenerate,
+*/
+            int rv;
+            // from tools/pkcs15-init.c  main
+            sc_pkcs15_card*  p15card;
+            sc_profile*      profile;
+            const(char)*     opt_profile      = "acos5_64"; //"pkcs15";
+            const(char)*     opt_card_profile = "acos5_64";
+            uint keybits = keyAsym_RSAmodulusLenBits.get;
+
+            sc_pkcs15init_set_callbacks(&my_pkcs15init_callbacks);
+
+            /* Bind the card-specific operations and load the profile */
+            rv= sc_pkcs15init_bind(card, opt_profile, opt_card_profile, null, &profile);
+            if (rv < 0)
+            {
+                printf("Couldn't bind to the card: %s\n", sc_strerror(rv));
+                return IUP_DEFAULT; //return 1;
+            }
+            rv = sc_pkcs15_bind(card, &aid, &p15card);
+
+            sc_pkcs15init_keygen_args  keygen_args;
+            sc_pkcs15init_prkeyargs* args = &keygen_args.prkey_args;
+            args.label =    cast(char*)keyAsym_Label.get.toStringz; //opt_label;
+            keygen_args.pubkey_label = keyAsym_Label.get.toStringz; //opt_pubkey_label;
+
+            sc_pkcs15_format_id(to!string(keyAsym_IdCurrent, 16).toStringz /*opt_objectid*/, &args.id);
+            sc_pkcs15_format_id(to!string(keyAsym_authId.get, 16).toStringz /*opt_authid*/, &args.auth_id);
+
+//    if (opt_md_container_guid)   {
+//        args->guid = (unsigned char *)opt_md_container_guid;
+//        args->guid_len = strlen(opt_md_container_guid);
+//    }
+            args.user_consent = 0; // opt_user_consent;
+            args.x509_usage = 0; // opt_x509_usage;
+            if (keyAsym_usagePrKDF.get&4)
+                args.x509_usage |= SC_PKCS15INIT_X509_DIGITAL_SIGNATURE | SC_PKCS15INIT_X509_KEY_CERT_SIGN | SC_PKCS15INIT_X509_CRL_SIGN;
+            if (keyAsym_usagePrKDF.get&2)
+                args.x509_usage |= SC_PKCS15INIT_X509_KEY_ENCIPHERMENT | SC_PKCS15INIT_X509_DATA_ENCIPHERMENT;
+
+            keygen_args.prkey_args.key.algorithm = SC_ALGORITHM_RSA;
+            keygen_args.prkey_args.access_flags |=
+                  SC_PKCS15_PRKEY_ACCESS_SENSITIVE
+                | SC_PKCS15_PRKEY_ACCESS_ALWAYSSENSITIVE
+                | SC_PKCS15_PRKEY_ACCESS_NEVEREXTRACTABLE
+                | SC_PKCS15_PRKEY_ACCESS_LOCAL;
+
+            CardCtl_generate_asym_inject agi = { do_generate_rsa_crt: keyAsym_crtModeGenerate.get()!=0,
+                do_generate_rsa_add_decrypt_for_sign: keyAsym_usageGenerate.get.among(3,6)!=0,
+                do_generate_with_standard_rsa_pub_exponent: true
+            };
+            if (!agi.do_generate_with_standard_rsa_pub_exponent) {
+            }
+            if (any(valuePublicExponent.get[0..8]) || ub82integral(valuePublicExponent.get[8..16]) != 0x10001) {
+                agi.do_generate_with_standard_rsa_pub_exponent = false;
+                agi.rsa_pub_exponent = valuePublicExponent.get;
+            }
+            rv = sc_lock(p15card.card);
+            if (rv == SC_SUCCESS) {
+                sc_card_ctl(card, SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT_SET, &agi);
+                rv = sc_pkcs15init_generate_key(p15card, profile, &keygen_args, keybits, null);
+                if (rv != SC_SUCCESS)
+                {
+                    sc_unlock(p15card.card);
+                    hstat.SetString(IUP_TITLE, "SUCCESS: RSA_key_pair_create_and_generate");
+                    return IUP_DEFAULT;
+                }
+                else {
+                    sc_card_ctl(card, SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT_GET, &agi);
+                    assumeWontThrow(writefln("File priv created: %X", agi.file_id_priv));
+                    assumeWontThrow(writefln("File pub created:  %X", agi.file_id_pub));
+                    //TODO update file system
+                }
+            }
+            sc_unlock(p15card.card);
+`;
+            mixin (connect_card!commands);
+            hstat.SetString(IUP_TITLE, "SUCCESS: RSA_key_pair_create_and_generate");
+
+}
+/+
             { // scope for the Cryptoki session; upon leaving, everything related get's closed/released
                 import core.sys.posix.dlfcn : dlsym, dlerror;
                 import util_pkcs11 : pkcs11_check_return_value, pkcs11_get_slot, pkcs11_start_session, pkcs11_login,
@@ -2357,13 +2430,13 @@ int button_radioKeyAsym_cb(Ihandle* ih)
                 assumeWontThrow(writefln("%d  %s   %(%02X %)", id, tr.GetAttributeId("TITLE", id).fromStringz, nodeFS? nodeFS.data : ub32.init));
             }
 +/
++/
             // change the choice leaving 'create'  TODO check if this is necessary
             AA["toggle_RSA_PrKDF_PuKDF_change"].SetIntegerVALUE(1);
             toggle_radioKeyAsym_cb(AA["toggle_RSA_PrKDF_PuKDF_change"].GetHandle, 1);
             keyAsym_Id.set(keyAsym_IdCurrent, true);
-            hstat.SetString(IUP_TITLE, "SUCCESS: RSA_key_pair_create_and_generate");
+//            hstat.SetString(IUP_TITLE, "SUCCESS: RSA_key_pair_create_and_generate");
             GC.collect(); // just a check
-+/
             return IUP_DEFAULT; // case "toggle_RSA_key_pair_create_and_generate"
 
         case "toggle_RSA_key_pair_try_sign":
@@ -2508,7 +2581,7 @@ int button_radioKeyAsym_cb(Ihandle* ih)
             catch (Exception e) { printf("### Exception in button_radioKeyAsym_cb() for toggle_RSA_key_pair_try_sign\n"); return IUP_DEFAULT; /* todo: handle exception */ }
             assert(prFile && puFile);
 
-            CardCtl_generate_crypt_asym  cga = { file_id_pub: fidRSApublic.getushort(), perform_mse: true };
+            CardCtl_generate_crypt_asym  agc = { file_id_pub: fidRSApublic.getushort(), perform_mse: true };
             enum string commands = `
             int rv;
             // from tools/pkcs15-init.c  main
@@ -2582,22 +2655,22 @@ int button_radioKeyAsym_cb(Ihandle* ih)
                 return IUP_DEFAULT;
 
 //            ubyte[]  encryptedSignature = new ubyte[sigLen];
-            cga.data_len = sigLen;
-            cga.data[0..sigLen] = signature[0..sigLen];
+            agc.data_len = sigLen;
+            agc.data[0..sigLen] = signature[0..sigLen];
 
-            rv= sc_card_ctl(card, SC_CARDCTL_ACOS5_ENCRYPT_ASYM, &cga);
+            rv= sc_card_ctl(card, SC_CARDCTL_ACOS5_ENCRYPT_ASYM, &agc);
             if (rv < 0)
                 return IUP_DEFAULT;
-            assert(equal(cga.data[sigLen-digestInfo.length..sigLen], digestInfo[]));
+            assert(equal(agc.data[sigLen-digestInfo.length..sigLen], digestInfo[]));
             hstat.SetString(IUP_TITLE, "SUCCESS: Signature generation and signature verification (same hash), printed to stdout");
-            assumeWontThrow(writefln("### encrypted signature: %(%02X %)", cga.data[0..sigLen] /*encryptedSignature*/));
+            assumeWontThrow(writefln("### encrypted signature: %(%02X %)", agc.data[0..sigLen] /*encryptedSignature*/));
             // strip PKCS#1-v1.5 padding01 and digestInfo/oid from encryptedSignature
 //            encryptedSignature = encryptedSignature[1..$];
 //            encryptedSignature = find(encryptedSignature, 0);
 //            encryptedSignature = encryptedSignature[1..$];
 //            encryptedSignature = encryptedSignature[encryptedSignature[3]+6..$];
 //            assert(equal(hash[], encryptedSignature));
-            assumeWontThrow(writefln("### encrypted signature, padding and digestInfo/oid stripped: %(%02X %)", cga.data[sigLen-digestInfo.length+19..sigLen] /*encryptedSignature*/));
+            assumeWontThrow(writefln("### encrypted signature, padding and digestInfo/oid stripped: %(%02X %)", agc.data[sigLen-digestInfo.length+19..sigLen] /*encryptedSignature*/));
 /+
             // try encryption and decryption
             ubyte[] ciphertext = new ubyte[sigLen];
@@ -2633,7 +2706,7 @@ int button_radioKeyAsym_cb(Ihandle* ih)
                Thus the driver doesn't implement that and anyway, it's better done in opensc with openssl
                but cry_pso_7_4_3_8_2A_asym_encrypt_RSA can do similar for "verification", the last hashLen bytes are the ones to compare: */
             rv= cry_pso_7_4_3_8_2A_asym_encrypt_RSA(card, msg, ciphertext);
-//            rv= sc_card_ctl(card, SC_CARDCTL_ACOS5_ENCRYPT_ASYM, &cga);
+//            rv= sc_card_ctl(card, SC_CARDCTL_ACOS5_ENCRYPT_ASYM, &agc);
             if (rv < 0)
                 return IUP_DEFAULT;
             assumeWontThrow(writefln("\n### encrypted hash (with 'self-made' padding): %(%02X %)", ciphertext));

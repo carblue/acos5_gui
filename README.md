@@ -1,9 +1,13 @@
 # acos5_64_gui
 An Administration tool for ACS ACOS5-64 (v2: Smart Card/CryptoMate64 and v3: Smart Card/CryptoMate Nano), based on driver acos5_64 and acos5_64_pkcs15init for OpenSC.
 
-For some of OpenSC's internal card drivers, there exist command-line tools. This is the GraphicalUserInterface tool for external driver acos5_64, built using the IUP GUI framework.
+For some of OpenSC's internal card drivers, there exist command-line tools. This is the Graphical User Interface tool for external driver acos5_64, built using the IUP GUI framework.
 
 The repo is now based on a new driver implementation [acos5_64](https://github.com/carblue/acos5_64 "https://github.com/carblue/acos5_64") (since release v0.0.7).<br>
+
+
+**ATTENTION**: I'm releasing this with a known bug (when generating an RSA key pair into new files): The RSA key pair generation and PrKDF, PuKDF update completes, but afterwards some missing internal data structure and GUI update crashes the application. Just restart and all should be there as expected.
+
 
 Next to libraries required according to dub.json, both of the following libraries are prerequisites being installed and OpenSC (opensc.conf) configured to use them:
 [acos5_64](https://github.com/carblue/acos5_64 "https://github.com/carblue/acos5_64") and
