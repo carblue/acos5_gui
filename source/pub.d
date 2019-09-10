@@ -39,6 +39,7 @@ import util_opensc : fs, appdf, tnTypePtr, decompose;
 import key_asym : set_more_for_keyAsym_Id;
 
 bool isNewKeyPairId;
+bool isNewKeyPairId_explicit;
 
 // tag types
 struct _keyAsym_RSAmodulusLenBits{}
@@ -127,6 +128,7 @@ enum string commonConstructor =`
 mixin template Pub_boilerplate(T,V)
 {
     @property V get() const @nogc nothrow /*pure*/ @safe { return _value; }
+    bool get_hexRep() const @nogc nothrow /*pure*/ @safe { return _hexRep; }
 
     void emit_self() nothrow
     {
@@ -265,7 +267,7 @@ V[2] mapping:
             if (privORpub is null)
             {
                 programmatically = true;
-                _value = isNewKeyPairId? [v[0],0] : [0,0];
+                _value = (isNewKeyPairId_explicit? v : isNewKeyPairId? [v[0],0] : [0,0]);
             }
             else
             {

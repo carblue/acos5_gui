@@ -123,8 +123,9 @@ import util_opensc : connect_card, readFile/*, decompose*/, PKCS15Path_FileType,
 
 import acos5_64_shared_rust : CardCtl_generate_crypt_asym, SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES,
     SC_CARDCTL_ACOS5_ENCRYPT_ASYM, SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT_GET,
-    SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT_SET, CardCtl_generate_asym_inject;
-//SC_CARDCTL_ACOS5_GET_COUNT_FILES_CURR_DF, SC_CARDCTL_ACOS5_GET_FILE_INFO, CardCtlArray8, CardCtlArray32;
+    SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT_SET, CardCtl_generate_asym_inject, CardCtlArray32,
+    SC_CARDCTL_ACOS5_HASHMAP_GET_FILE_INFO;
+//SC_CARDCTL_ACOS5_GET_COUNT_FILES_CURR_DF, SC_CARDCTL_ACOS5_GET_FILE_INFO, CardCtlArray8;
 
 //import asn1_pkcs15 : CIO_RSA_private, CIO_RSA_public, CIO_Auth_Pin, encodeEntry_PKCS15_PRKDF, encodeEntry_PKCS15_PUKDF;
 import wrapper.libtasn1;
@@ -181,6 +182,10 @@ enum /* matrixKeyAsymRowName */
     r_AC_Update_Delete_RSApublicFile,   // readonly
     r_AC_Create_Delete_RSADir,          // readonly
     r_AC_Crypto_RSAprivateFile_RSApublicFile,  // readonly
+
+//    r_acos_internal,              // readonly
+//    r_keyAsym_crtModeGenerate,    // toggle
+//    r_keyAsym_usageGenerate,
 }
 
 
@@ -261,7 +266,7 @@ void keyAsym_initialize_PubObs()
     keyAsym_Modifiable       .connect(&change_calcPrKDF.watch);
     keyAsym_RSAmodulusLenBits.connect(&change_calcPrKDF.watch);
     keyAsym_usagePrKDF       .connect(&change_calcPrKDF.watch);
-//  fidRSAprivate            .connect(&change_calcPrKDF.watch);
+    fidRSAprivate            .connect(&change_calcPrKDF.watch);
 
     keyAsym_Id               .connect(&change_calcPuKDF.watch); // THIS MUST BE the first entry for change_calcPuKDF ! If no keyAsym_Id is selected, this MUST be the only one accessible
     keyAsym_Label            .connect(&change_calcPuKDF.watch);
@@ -269,7 +274,7 @@ void keyAsym_initialize_PubObs()
     keyAsym_Modifiable       .connect(&change_calcPuKDF.watch);
     keyAsym_RSAmodulusLenBits.connect(&change_calcPuKDF.watch);
     keyAsym_usagePuKDF       .connect(&change_calcPuKDF.watch);
-//  fidRSApublic             .connect(&change_calcPuKDF.watch);
+    fidRSApublic             .connect(&change_calcPuKDF.watch);
 
     keyAsym_fidAppDir    .connect(&statusInput.watch);
     fidRSAprivate        .connect(&statusInput.watch);
@@ -505,6 +510,32 @@ class Obs_change_calcPrKDF
     @property ref PKCS15_ObjectTyp  pkcs15_ObjectTyp() @nogc nothrow /*pure*/ @safe { return _PrKDFentry; }
     @property     const(int)        get()        const @nogc nothrow /*pure*/ @safe { return _value; }
 
+    void watch(string msg, int[2] v)
+    {
+        int asn1_result;
+        int outLen;
+        ubyte[16]  str; // verify, that a value for "privateRSAKey.privateRSAKeyAttributes.value.indirect.path.path" does exist for this keyAsym_Id
+        switch(msg)
+        {
+            case "_fidRSAprivate":
+                asn1_result = asn1_read_value(_PrKDFentry.structure_new, pkcs15_names[PKCS15_FILE_TYPE.PKCS15_RSAPrivateKey][2], str, outLen);
+                if (asn1_result == ASN1_ELEMENT_NOT_FOUND) // != ASN1_SUCCESS
+                {
+                    assumeWontThrow(writeln("### asn1_read_value privateRSAKey.privateRSAKeyAttributes.value.indirect.path.path: ", asn1_strerror2(asn1_result)));
+                    exit(1);
+                }
+                assert(outLen>=2);
+                str[outLen-2] = (v[0]>>8) & 0xFF;
+                str[outLen-1] = (v[0]   ) & 0xFF;
+                asn1_write_value(_PrKDFentry.structure_new, toStringz(pkcs15_names[PKCS15_FILE_TYPE.PKCS15_RSAPrivateKey][2]), str.ptr, outLen);
+                break;
+            default:
+                writeln(msg); stdout.flush();
+                assert(0, "Unknown observation");
+        }
+        present();
+    }
+
     void watch(string msg, int v)
     {
         import core.bitop : bitswap;
@@ -688,6 +719,32 @@ class Obs_change_calcPuKDF
 //    @property const(ubyte[]) new_encodedData() const @nogc nothrow /*pure*/ @safe { return _PuKDFentry.der_new; }
     @property ref PKCS15_ObjectTyp  pkcs15_ObjectTyp() @nogc nothrow /*pure*/ @safe { return _PuKDFentry; }
     @property     const(int)        get()        const @nogc nothrow /*pure*/ @safe { return _value; }
+
+    void watch(string msg, int[2] v)
+    {
+        int asn1_result;
+        int outLen;
+        ubyte[16]  str; // verify, that a value for "privateRSAKey.privateRSAKeyAttributes.value.indirect.path.path" does exist for this keyAsym_Id
+        switch(msg)
+        {
+            case "_fidRSApublic":
+                asn1_result = asn1_read_value(_PuKDFentry.structure_new, pkcs15_names[PKCS15_FILE_TYPE.PKCS15_RSAPublicKey][2], str, outLen);
+                if (asn1_result == ASN1_ELEMENT_NOT_FOUND) // != ASN1_SUCCESS
+                {
+                    assumeWontThrow(writeln("### asn1_read_value publicRSAKey.publicRSAKeyAttributes.value.indirect.path.path: ", asn1_strerror2(asn1_result)));
+                    exit(1);
+                }
+                assert(outLen>=2);
+                str[outLen-2] = (v[0]>>8) & 0xFF;
+                str[outLen-1] = (v[0]   ) & 0xFF;
+                asn1_write_value(_PuKDFentry.structure_new, toStringz(pkcs15_names[PKCS15_FILE_TYPE.PKCS15_RSAPublicKey][2]), str.ptr, outLen);
+                break;
+            default:
+                writeln(msg); stdout.flush();
+                assert(0, "Unknown observation");
+        }
+        present();
+    }
 
     void watch(string msg, int v)
     {
@@ -1275,7 +1332,8 @@ int matrixKeyAsym_drop_cb(Ihandle* /*self*/, Ihandle* drop, int lin, int col)
                 {
                     if ((iD= getIdentifier(elem, "privateRSAKey.commonKeyAttributes.iD")) < 0)
                         continue;
-                    SetIntegerId("", i++, iD);
+                    //SetIntegerId("", i++, iD);
+                    SetStringId("", i++, to!string(iD, keyAsym_Id.get_hexRep? 16 : 10));
                 }
                 SetAttributeId("", i, null);
                 SetAttributeStr(IUP_VALUE, null);
@@ -1344,7 +1402,7 @@ v: Indicates if item was selected or unselected (1 or 0). Always 1 for the popup
     assert(t);
     int val;
     try
-        val = fromStringz(t).to!int;
+        val = to!int(fromStringz(t), keyAsym_Id.get_hexRep? 16 : 10); // fromStringz(t).to!int;
     catch(Exception e) { printf("### Exception in matrixKeyAsym_dropselect_cb\n"); return IUP_CONTINUE; }
 ////    printf("matrixKeyAsym_dropselect_cb(lin: %d, col: %d, text (t) of the item whose state was changed: %s, mumber (i) of the item whose state was changed: %d, selected (v): %d)\n", lin, col, t, i, v);
     if (v/*selected*/ && col==1)
@@ -2072,7 +2130,19 @@ int button_radioKeyAsym_cb(Ihandle* ih)
             return IUP_DEFAULT; // case "toggle_RSA_key_pair_delete"
 
         case "toggle_RSA_key_pair_create_and_generate":
+        {
             ubyte keyAsym_IdCurrent = cast(ubyte)keyAsym_Id.get;
+            CardCtlArray32 info_priv;
+            CardCtlArray32 info_publ;
+            CardCtl_generate_asym_inject agi = { do_generate_rsa_crt: keyAsym_crtModeGenerate.get()!=0,
+                do_generate_rsa_add_decrypt_for_sign: keyAsym_usageGenerate.get.among(3,6)!=0,
+                do_generate_with_standard_rsa_pub_exponent: true
+            };
+            if (any(valuePublicExponent.get[0..8]) || ub82integral(valuePublicExponent.get[8..16]) != 0x10001) {
+                agi.do_generate_with_standard_rsa_pub_exponent = false;
+                agi.rsa_pub_exponent = valuePublicExponent.get;
+            }
+
 version(all) {
             enum string commands = `
 /*
@@ -2124,16 +2194,6 @@ keyAsym_usageGenerate,
                 | SC_PKCS15_PRKEY_ACCESS_NEVEREXTRACTABLE
                 | SC_PKCS15_PRKEY_ACCESS_LOCAL;
 
-            CardCtl_generate_asym_inject agi = { do_generate_rsa_crt: keyAsym_crtModeGenerate.get()!=0,
-                do_generate_rsa_add_decrypt_for_sign: keyAsym_usageGenerate.get.among(3,6)!=0,
-                do_generate_with_standard_rsa_pub_exponent: true
-            };
-            if (!agi.do_generate_with_standard_rsa_pub_exponent) {
-            }
-            if (any(valuePublicExponent.get[0..8]) || ub82integral(valuePublicExponent.get[8..16]) != 0x10001) {
-                agi.do_generate_with_standard_rsa_pub_exponent = false;
-                agi.rsa_pub_exponent = valuePublicExponent.get;
-            }
             rv = sc_lock(p15card.card);
             if (rv == SC_SUCCESS) {
                 sc_card_ctl(card, SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT_SET, &agi);
@@ -2141,21 +2201,72 @@ keyAsym_usageGenerate,
                 if (rv != SC_SUCCESS)
                 {
                     sc_unlock(p15card.card);
-                    hstat.SetString(IUP_TITLE, "SUCCESS: RSA_key_pair_create_and_generate");
+                    hstat.SetString(IUP_TITLE, "ERROR: RSA_key_pair_create_and_generate failed !!!");
                     return IUP_DEFAULT;
                 }
                 else {
                     sc_card_ctl(card, SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT_GET, &agi);
-                    assumeWontThrow(writefln("File priv created: %X", agi.file_id_priv));
-                    assumeWontThrow(writefln("File pub created:  %X", agi.file_id_pub));
-                    //TODO update file system
+////assumeWontThrow(writefln("File priv created: %X", agi.file_id_priv));
+////assumeWontThrow(writefln("File pub created:  %X", agi.file_id_pub));
+                    info_priv.key = agi.file_id_priv;
+                    info_publ.key = agi.file_id_pub;
+                    sc_card_ctl(card, SC_CARDCTL_ACOS5_HASHMAP_GET_FILE_INFO, &info_priv);
+                    sc_card_ctl(card, SC_CARDCTL_ACOS5_HASHMAP_GET_FILE_INFO, &info_publ);
+////assumeWontThrow(writefln("%(%02X %)", info_priv.value));
+////assumeWontThrow(writefln("%(%02X %)", info_publ.value));
+                    isNewKeyPairId_explicit = true;
+                    fidRSAprivate.set( [ub22integral(info_priv.value[2..4]), ub22integral(info_priv.value[4..6])], true );
+                    fidRSApublic.set ( [ub22integral(info_publ.value[2..4]), ub22integral(info_publ.value[4..6])], true );
+                    isNewKeyPairId_explicit = false;
                 }
             }
             sc_unlock(p15card.card);
 `;
             mixin (connect_card!commands);
-            hstat.SetString(IUP_TITLE, "SUCCESS: RSA_key_pair_create_and_generate");
 
+
+////
+            // update internal structure and file system
+            int prPosEnd, puPosEnd;
+            prPosEnd =  !PRKDF.empty? PRKDF[$ - 1].posEnd : 0;
+            puPosEnd =  !PUKDF.empty? PUKDF[$ - 1].posEnd : 0;
+            PKCS15_ObjectTyp PrKDFentry = change_calcPrKDF.pkcs15_ObjectTyp;
+            PKCS15_ObjectTyp PuKDFentry = change_calcPuKDF.pkcs15_ObjectTyp;
+////assumeWontThrow(writefln("private: %s\n", PrKDFentry));
+////assumeWontThrow(writefln("public:  %s\n", PuKDFentry));
+            PRKDF ~= PKCS15_ObjectTyp(prPosEnd, cast(int)(prPosEnd+PrKDFentry.der_new.length), PrKDFentry.der_new.dup, null, asn1_dup_node(PrKDFentry.structure_new, ""), null);
+            PUKDF ~= PKCS15_ObjectTyp(puPosEnd, cast(int)(puPosEnd+PuKDFentry.der_new.length), PuKDFentry.der_new.dup, null, asn1_dup_node(PuKDFentry.structure_new, ""), null);
+            PrKDFentry.der       = PRKDF[$-1].der;
+            asn1_delete_structure(&PrKDFentry.structure);
+            PrKDFentry.structure = PRKDF[$-1].structure;
+
+            PuKDFentry.der       = PUKDF[$-1].der;
+            asn1_delete_structure(&PuKDFentry.structure);
+            PuKDFentry.structure = PUKDF[$-1].structure;
+
+            auto pos_priv = fs.insertAsChildLast(appdf, info_priv.value);
+            auto pos_publ = fs.insertAsChildLast(appdf, info_publ.value);
+            auto tr = cast(iup.iup_plusD.Tree) AA["tree_fs"];
+            int id_appdf, rv;
+            with (tr)
+            {
+                id_appdf = GetId(appdf);
+                SetStringId(IUP_ADDLEAF, id_appdf, assumeWontThrow(format!" %04X  %s"(ub22integral(info_publ.value[2..4]),
+                  file_type(2, cast(EFDB)info_publ.value[0], ub22integral(info_publ.value[2..4]), info_publ.value[4..6]))) ~"    "~pkcs15_names[info_publ.value[6]][0]);
+                rv = SetUserId(id_appdf+1, pos_publ);
+                assert(rv);
+                SetAttributeId("TOGGLEVALUE", id_appdf+1, info_publ.value[7]==5? IUP_ON : IUP_OFF);
+//                SetAttributeId(IUP_IMAGE,     id_appdf+1, "IUP_IMGBLANK");
+                SetAttributeId(IUP_IMAGE,     id_appdf+1, IUP_IMGBLANK);
+
+                SetStringId(IUP_ADDLEAF, id_appdf, assumeWontThrow(format!" %04X  %s"(ub22integral(info_priv.value[2..4]),
+                  file_type(2, cast(EFDB)info_priv.value[0], ub22integral(info_priv.value[2..4]), info_priv.value[4..6]))) ~"    "~pkcs15_names[info_priv.value[6]][0]);
+                rv = SetUserId(id_appdf+1, pos_priv);
+                assert(rv);
+                SetAttributeId("TOGGLEVALUE", id_appdf+1, info_priv.value[7]==5? IUP_ON : IUP_OFF);
+//                SetAttributeId(IUP_IMAGE,     id_appdf+1, "IUP_IMGBLANK");
+                SetAttributeId(IUP_IMAGE,     id_appdf+1, IUP_IMGBLANK);
+            }
 }
 /+
             { // scope for the Cryptoki session; upon leaving, everything related get's closed/released
@@ -2435,10 +2546,11 @@ keyAsym_usageGenerate,
             AA["toggle_RSA_PrKDF_PuKDF_change"].SetIntegerVALUE(1);
             toggle_radioKeyAsym_cb(AA["toggle_RSA_PrKDF_PuKDF_change"].GetHandle, 1);
             keyAsym_Id.set(keyAsym_IdCurrent, true);
-//            hstat.SetString(IUP_TITLE, "SUCCESS: RSA_key_pair_create_and_generate");
+            hstat.SetString(IUP_TITLE, "SUCCESS: RSA_key_pair_create_and_generate");
             GC.collect(); // just a check
-            return IUP_DEFAULT; // case "toggle_RSA_key_pair_create_and_generate"
 
+            return IUP_DEFAULT; // case "toggle_RSA_key_pair_create_and_generate"
+        }
         case "toggle_RSA_key_pair_try_sign":
             version(none) { // THE scope for all referring to the connection via libp11 and openssl engine "pkcs11"; will show up in debug log as opensc-pkcs11
 /*

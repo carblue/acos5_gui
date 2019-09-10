@@ -497,8 +497,8 @@ So the existence of this callback defines the matrix operation mode.
     auto matrix = new Matrix("matrixKeyAsym");
     with (matrix)
     {
-        SetInteger(IUP_NUMLIN,         r_AC_Crypto_RSAprivateFile_RSApublicFile);
-        SetInteger(IUP_NUMLIN_VISIBLE, r_AC_Crypto_RSAprivateFile_RSApublicFile);
+        SetInteger(IUP_NUMLIN,         r_AC_Crypto_RSAprivateFile_RSApublicFile/*r_keyAsym_usageGenerate*/);
+        SetInteger(IUP_NUMLIN_VISIBLE, r_AC_Crypto_RSAprivateFile_RSApublicFile/*r_keyAsym_usageGenerate*/);
         SetInteger(IUP_NUMCOL,          2);
         SetInteger(IUP_NUMCOL_VISIBLE,  2);
         SetAttribute(IUP_RESIZEMATRIX, IUP_YES);
@@ -518,7 +518,7 @@ So the existence of this callback defines the matrix operation mode.
 
         SetAttributeId2("",  r_keyAsym_RSAmodulusLenBits,          0,   __("Modulus bitLength"));
         SetAttributeId2("",  r_keyAsym_RSAmodulusLenBits,          2,   __("keypair files, PrKDF, PuKDF"));
-        SetAttributeId2("",  r_keyAsym_crtModeGenerate, 0, __("    New private key to be stored acc. ChineseRemainderTheorem ?"));
+        SetAttributeId2("",  r_keyAsym_crtModeGenerate, 0, __("    New private key to be stored acc. CRT (Chinese Remainder Theorem format?"));
         SetAttributeId2("",  r_keyAsym_crtModeGenerate, 2,   __("CRT contents do or don't exist in private key file"));
         SetAttributeId2("",  r_keyAsym_usageGenerate,   0,
         __("    New private key core capability (4)sign, (2)decrypt, (6)sign+decrypt (enter as int, shown as text)"));
@@ -534,7 +534,7 @@ So the existence of this callback defines the matrix operation mode.
         SetAttributeId2("",  r_fidRSAprivate,           2,   __("PrKDF, public key file"));
         SetAttributeId2("",  r_fidRSApublic,            0,   __("File id of public key (2 bytes hex.)"));
         SetAttributeId2("",  r_fidRSApublic,            2,   __("PuKDF, private key file"));
-        SetAttributeId2("",  r_sizeNewRSAprivateFile,   0,   __("Private key file size (bytes) required / available"));
+        SetAttributeId2("",  r_sizeNewRSAprivateFile,   0,   __("Private key file size (bytes) required (depends on new key CRT setting) / available"));
         SetAttributeId2("",  r_sizeNewRSAprivateFile,   2,   __("Header (FCI) of private key file"));
         SetAttributeId2("",  r_sizeNewRSApublicFile,    0,   __("Public key file size (bytes) required / available"));
         SetAttributeId2("",  r_sizeNewRSApublicFile,    2,   __("Header (FCI) of public key file"));
