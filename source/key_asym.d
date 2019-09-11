@@ -82,7 +82,7 @@ import std.algorithm.mutation : remove;
 //import std.algorithm.iteration : uniq;
 //import std.algorithm.sorting : sort;
 //import std.typecons : Tuple, tuple;
-import std.string : /*chomp, */  toStringz, fromStringz, representation;
+import std.string : /*chomp, */  toStringz, fromStringz, representation, strip;
 import std.conv : to;
 import std.signals;
 
@@ -1281,8 +1281,11 @@ int matrixKeyAsym_dropcheck_cb(Ihandle* /*self*/, int lin, int col)
         return IUP_IGNORE; // draw nothing
 //    printf("matrixKeyAsym_dropcheck_cb(%d, %d)\n", lin, col);
 //    printf("matrixKeyAsym_dropcheck_cb  %s\n", AA["radioKeyAsym"].GetAttributeVALUE());
+
     immutable activeToggle = AA["radioKeyAsym"].GetStringVALUE();
-    immutable isSelectedKeyPairId = AA["matrixKeyAsym"].GetIntegerId2("", r_keyAsym_Id, 1) != 0;
+    string str_keyAsym_Id = strip(AA["matrixKeyAsym"].GetStringId2("", r_keyAsym_Id, 1));
+    if (str_keyAsym_Id.empty)  str_keyAsym_Id = "0";
+    immutable isSelectedKeyPairId = assumeWontThrow(to!int(str_keyAsym_Id, keyAsym_Id.get_hexRep? 16 : 10) != 0); // AA["matrixKeyAsym"].GetIntegerId2("", r_keyAsym_Id, 1) != 0;
     switch (lin)
     {
     /* dropdown */
