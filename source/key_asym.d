@@ -156,15 +156,15 @@ enum /* matrixKeyAsymRowName */
     r_keyAsym_Modifiable,         // toggle
     r_keyAsym_usagePrKDF,
 //  r_keyAsym_usagePuKDF,         // hidden
-    r_keyAsym_authId,             // readonly
 
     r_keyAsym_RSAmodulusLenBits,  // dropdown
     r_valuePublicExponent,
 
-    r_acos_internal,              // readonly
-    r_keyAsym_crtModeGenerate,    // toggle
-    r_keyAsym_usageGenerate,
+//    r_acos_internal,              // readonly
+//    r_keyAsym_crtModeGenerate,    // toggle    1284, 1325 (, 1450)
+//    r_keyAsym_usageGenerate,
 
+    r_keyAsym_authId,             // readonly
     r_fidRSAprivate,              // readonly
     r_fidRSApublic,               // readonly
     r_keyAsym_fidAppDir,          // readonly
@@ -178,14 +178,14 @@ enum /* matrixKeyAsymRowName */
     r_statusInput,                // readonly
 
     r_AC_Update_PrKDF_PuKDF,            // readonly
+    r_AC_Crypto_RSAprivateFile_RSApublicFile,  // readonly
     r_AC_Update_Delete_RSAprivateFile,  // readonly
     r_AC_Update_Delete_RSApublicFile,   // readonly
     r_AC_Create_Delete_RSADir,          // readonly
-    r_AC_Crypto_RSAprivateFile_RSApublicFile,  // readonly
 
-//    r_acos_internal,              // readonly
-//    r_keyAsym_crtModeGenerate,    // toggle
-//    r_keyAsym_usageGenerate,
+    r_acos_internal,              // readonly
+    r_keyAsym_crtModeGenerate,    // toggle    1284, 1325 (, 1450)
+    r_keyAsym_usageGenerate,
 }
 
 
@@ -234,7 +234,7 @@ void keyAsym_initialize_PubObs()
     keyAsym_usagePrKDF        = new Pub!_keyAsym_usagePrKDF       (r_keyAsym_usagePrKDF,        AA["matrixKeyAsym"]);
     keyAsym_Modifiable        = new Pub!_keyAsym_Modifiable       (r_keyAsym_Modifiable,        AA["matrixKeyAsym"]);
     keyAsym_authId            = new Pub!_keyAsym_authId           (r_keyAsym_authId,            AA["matrixKeyAsym"], true);
-    keyAsym_Id                = new Pub!_keyAsym_Id               (r_keyAsym_Id,                AA["matrixKeyAsym"], true);
+    keyAsym_Id                = new Pub!_keyAsym_Id               (r_keyAsym_Id,                AA["matrixKeyAsym"], false);
     keyAsym_fidAppDir         = new Pub!_keyAsym_fidAppDir        (r_keyAsym_fidAppDir,         AA["matrixKeyAsym"], true);
     fidRSAprivate             = new PubA2!_fidRSAprivate          (r_fidRSAprivate,             AA["matrixKeyAsym"]);
     fidRSApublic              = new PubA2!_fidRSApublic           (r_fidRSApublic,              AA["matrixKeyAsym"]);
@@ -288,7 +288,7 @@ void keyAsym_initialize_PubObs()
 //// values to start with
     keyAsym_fidAppDir      .set(appdf is null? 0 : ub22integral(appdf.data[2..4]), true);
     keyAsym_crtModeGenerate.set(true, true);
-    keyAsym_usageGenerate  .set(4,   true); // this is only for acos-generation; no variable depends on this
+    keyAsym_usageGenerate  .set(6,   true); // this is only for acos-generation; no variable depends on this, except statusInput
     AC_Update_PrKDF_PuKDF  .set([prkdf is null? 0xFF : prkdf.data[25], pukdf is null? 0xFF : pukdf.data[25]], true); // no variable depends on this
     AC_Create_Delete_RSADir.set([appdf is null? 0xFF : appdf.data[25], appdf is null? 0xFF : appdf.data[24]], true); // no variable depends on this
 
@@ -375,7 +375,9 @@ class Obs_usagePuKDF
             _value &= ~1;
         if ((v&32)==0) // if non-unwrap, then remove wrap
             _value &= ~16;
-
+/**/
+if (v==0) _value=0;
+/**/
 ////assumeWontThrow(writefln(typeof(this).stringof~" object was set to value %s", _value));
         emit("_keyAsym_usagePuKDF", _value);
 
@@ -558,6 +560,10 @@ class Obs_change_calcPrKDF
                         _PrKDFentry.der = (cast(immutable(ubyte)[])hexString!"30 2C 30 0A 0C 01 3F 03 02 06   C0 04 01 00 30 0C 04 01 FF 03   03 06 20 00 03 02 03 B8
                                            A1 10 30 0E 30 08 04 06 3F 00 41 00 00 00 02 02 10 00").dup;
                         // all settings are preselected (except for keyAsym_authId) and must be set afterwards
+                        if (keyAsym_authId.get==0) {
+                            keyAsym_authId.set(1, true);
+                            assumeWontThrow(writeln("### why keyAsym_authId had value 0 here ?"));
+                        }
                         _PrKDFentry.der[13] = cast(ubyte)keyAsym_authId.get; // FIXME
                         _PrKDFentry.der[18] = cast(ubyte)nextUniqueId;
 //                        _PrKDFentry.der[30] = cast(ubyte)v;
@@ -1251,9 +1257,9 @@ int set_more_for_keyAsym_Id(int keyAsym_Id) nothrow
         rsaPub  = fs.rangePreOrder().locate!"equal(a.data[2..4], b[])"(fidRSApublic.getub2);
         assert(rsaPriv);
         assert(rsaPub);
+        AA["matrixKeyAsym"].SetStringId2("", r_AC_Crypto_RSAprivateFile_RSApublicFile, 1, assumeWontThrow(format!"%02X"(rsaPriv.data[26])) ~" / "~ assumeWontThrow(format!"%02X"(rsaPub.data[26])));
         AA["matrixKeyAsym"].SetStringId2("", r_AC_Update_Delete_RSAprivateFile,        1, assumeWontThrow(format!"%02X"(rsaPriv.data[25])) ~" / "~ assumeWontThrow(format!"%02X"(rsaPriv.data[30])));
         AA["matrixKeyAsym"].SetStringId2("", r_AC_Update_Delete_RSApublicFile,         1, assumeWontThrow(format!"%02X"(rsaPub.data[25]))  ~" / "~ assumeWontThrow(format!"%02X"(rsaPub.data[30])));
-        AA["matrixKeyAsym"].SetStringId2("", r_AC_Crypto_RSAprivateFile_RSApublicFile, 1, assumeWontThrow(format!"%02X"(rsaPriv.data[26])) ~" / "~ assumeWontThrow(format!"%02X"(rsaPub.data[26])));
 
         enum string commands = `
         int rv;
@@ -1277,13 +1283,13 @@ extern(C) nothrow :
 
 int matrixKeyAsym_dropcheck_cb(Ihandle* /*self*/, int lin, int col)
 {
-    if (col!=1 || lin>r_keyAsym_crtModeGenerate)
+    if (col!=1 || (lin > r_keyAsym_RSAmodulusLenBits && lin < r_keyAsym_crtModeGenerate))
         return IUP_IGNORE; // draw nothing
 //    printf("matrixKeyAsym_dropcheck_cb(%d, %d)\n", lin, col);
 //    printf("matrixKeyAsym_dropcheck_cb  %s\n", AA["radioKeyAsym"].GetAttributeVALUE());
 
     immutable activeToggle = AA["radioKeyAsym"].GetStringVALUE();
-    string str_keyAsym_Id = strip(AA["matrixKeyAsym"].GetStringId2("", r_keyAsym_Id, 1));
+    string str_keyAsym_Id = assumeWontThrow(strip(AA["matrixKeyAsym"].GetStringId2("", r_keyAsym_Id, 1)));
     if (str_keyAsym_Id.empty)  str_keyAsym_Id = "0";
     immutable isSelectedKeyPairId = assumeWontThrow(to!int(str_keyAsym_Id, keyAsym_Id.get_hexRep? 16 : 10) != 0); // AA["matrixKeyAsym"].GetIntegerId2("", r_keyAsym_Id, 1) != 0;
     switch (lin)
@@ -1318,7 +1324,7 @@ int matrixKeyAsym_dropcheck_cb(Ihandle* /*self*/, int lin, int col)
 
 int matrixKeyAsym_drop_cb(Ihandle* /*self*/, Ihandle* drop, int lin, int col)
 {
-    if (col!=1 || lin>r_keyAsym_crtModeGenerate)
+    if (col!=1 || (lin > r_keyAsym_RSAmodulusLenBits && lin < r_keyAsym_crtModeGenerate))
         return IUP_IGNORE; // draw nothing
 //    printf("matrixKeyAsym_drop_cb(%d, %d)\n", lin, col);
     immutable activeToggle = AA["radioKeyAsym"].GetStringVALUE();
@@ -1330,15 +1336,15 @@ int matrixKeyAsym_drop_cb(Ihandle* /*self*/, Ihandle* drop, int lin, int col)
         case r_keyAsym_Id:
             if (activeToggle != "toggle_RSA_key_pair_create_and_generate")
             {
-                int iD, i = 1;
+                int iD, i;
                 foreach (const ref elem; PRKDF)
                 {
                     if ((iD= getIdentifier(elem, "privateRSAKey.commonKeyAttributes.iD")) < 0)
                         continue;
                     //SetIntegerId("", i++, iD);
-                    SetStringId("", i++, to!string(iD, keyAsym_Id.get_hexRep? 16 : 10));
+                    SetStringId("", ++i, to!string(iD, keyAsym_Id.get_hexRep? 16 : 10));
                 }
-                SetAttributeId("", i, null);
+                SetAttributeId("", ++i, null);
                 SetAttributeStr(IUP_VALUE, null);
                 return IUP_DEFAULT; // show the dropdown values
             }
@@ -1443,7 +1449,7 @@ int matrixKeyAsym_edition_cb(Ihandle* ih, int lin, int col, int mode, int /*upda
     {
         AA["statusbar"].SetString(IUP_TITLE, "statusbar");
         // toggle rows always readonly, if they are NOT enabled as toggles; otherwise: enabled as toggles, they don't go through edition_cb
-        if (col!=1 || lin.among(r_keyAsym_Modifiable, r_keyAsym_crtModeGenerate))
+        if (col!=1 || lin.among( r_keyAsym_Modifiable, r_keyAsym_crtModeGenerate))
             return IUP_IGNORE;
         // readonly, unconditionally
         if (lin.among( // r_keyAsym_usagePuKDF,  hidden
@@ -1467,7 +1473,8 @@ int matrixKeyAsym_edition_cb(Ihandle* ih, int lin, int col, int mode, int /*upda
         // readonly, condition  isSelectedKeyPairId
         if (!isSelectedKeyPairId)
         {
-            if (lin.among(r_keyAsym_Label,
+            if (lin.among(
+                          r_keyAsym_Label,
                           r_keyAsym_usagePrKDF,
                           r_keyAsym_RSAmodulusLenBits))
                 return IUP_IGNORE;
@@ -1507,7 +1514,7 @@ int matrixKeyAsym_edition_cb(Ihandle* ih, int lin, int col, int mode, int /*upda
                 break; //return IUP_DEFAULT;
 
             case "toggle_RSA_key_pair_create_and_generate":
-                if (lin==r_keyAsym_Id)
+                if (lin == r_keyAsym_Id)
                     return IUP_IGNORE;
                 break; //return IUP_DEFAULT;
 
@@ -1517,7 +1524,7 @@ int matrixKeyAsym_edition_cb(Ihandle* ih, int lin, int col, int mode, int /*upda
     } // if (mode==1)
 
     //mode==0
-    assert(lin!=r_keyAsym_authId);
+    assert(lin != r_keyAsym_authId);
 
     Handle h = createHandle(ih);
 
@@ -1535,8 +1542,8 @@ int matrixKeyAsym_edition_cb(Ihandle* ih, int lin, int col, int mode, int /*upda
             if (!(tmp&2))
                 tmp &= 524;
             // if nothing remains, then set "sign"
-            if (!tmp)
-                tmp = 4;
+//            if (!tmp)
+//                tmp = 4;
             // checking against keyAsym_usageGenerate done in status
             keyAsym_usagePrKDF.set(tmp, true); // strange, doesn't update with new string
             h.SetStringVALUE(keyUsageFlagsInt2string(tmp));
@@ -1573,7 +1580,7 @@ int matrixKeyAsym_edition_cb(Ihandle* ih, int lin, int col, int mode, int /*upda
 
 int matrixKeyAsym_togglevalue_cb(Ihandle* /*self*/, int lin, int /*col*/, int status)
 {
-//    assert(col==1 && lin.among(r_keyAsym_Modifiable, r_keyAsym_crtModeGenerate));
+//    assert(col==1 && lin.among( r_keyAsym_Modifiable, r_keyAsym_crtModeGenerate));
 ////    printf("matrixKeyAsym_togglevalue_cb(%d, %d) status: %d\n", lin, col, status);
     switch (lin)
     {
@@ -1615,6 +1622,8 @@ int toggle_radioKeyAsym_cb(Ihandle* ih, int state)
                 matrixKeyAsym_dropselect_cb(h.GetHandle, r_keyAsym_Id, 1, null, Id.to!string.toStringz, cast(int)i+1, 1);
                 break;
             }
+    keyAsym_crtModeGenerate.set(true, true);
+    keyAsym_usageGenerate  .set(6,   true); // this is only for acos-generation; no variable depends on this, except statusInput
         AA["statusbar"].SetString(IUP_TITLE, "statusbar");
         return IUP_DEFAULT;
     }
@@ -1711,7 +1720,7 @@ int toggle_radioKeyAsym_cb(Ihandle* ih, int state)
         default:  assert(0);
     } // switch (activeToggle)
 //    printf("invoke recalculation of statusInput\n");
-    valuePublicExponent.emit_self(); // invokes updating statusInput for am activated toggle; (valuePublicExponent is arbitrary here, just one, that statusInput depends on)
+    valuePublicExponent.emit_self(); // invokes updating statusInput for an activated toggle; (valuePublicExponent is arbitrary here, just one, that statusInput depends on)
     // a 'clean' alternative would be, to introduce a Publisher toggle, that statusInput depends on
     return IUP_DEFAULT;
 } // toggle_radioKeyAsym_cb
@@ -2183,6 +2192,7 @@ keyAsym_usageGenerate,
 //        args->guid = (unsigned char *)opt_md_container_guid;
 //        args->guid_len = strlen(opt_md_container_guid);
 //    }
+version(OPENSC_VERSION_LATEST)
             args.user_consent = 0; // opt_user_consent;
             args.x509_usage = 0; // opt_x509_usage;
             if (keyAsym_usagePrKDF.get&4)

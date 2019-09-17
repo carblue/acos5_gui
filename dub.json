@@ -9,12 +9,12 @@
 		"iup": "~>3.27.0-alpha.2",
 		"tasn1:wrapper": "~>0.0.7",
 		"pkcs11": "~>2.40.0-alpha.4",
-		"opensc": "~>0.19.0-beta.1",
+		"opensc": "~>0.20.0-alpha.1",
 		"openssl": "~>2.0.1+1.1.0h"
 	},
 	"subConfigurations": {
 		"pkcs11": "derelict",
-		"opensc": "deimos"
+		"opensc": "deimosPrior"
 	},
 	"systemDependencies": "IUP-Portable User Interface shared libraries installed, OpenSC installation, acos5_64 driver and pkcs15init libraries installed, opensc.conf configured appropriately; (not yet required: for gettext the exports available from libintl.so or GLib)",
 	"unused-libs-posix": ["iupimglib"],
@@ -28,14 +28,14 @@
 
 	"dflags-posix-dmd": ["-defaultlib=libphobos2.so"],
 	"dflags-posix-ldc": ["-defaultlib=phobos2-ldc-shared,druntime-ldc-shared"],
-	"fixme-dflagsx-posix-gdc": ["failure", "with", "slides"],
+	"suspended-dflags-posix-gdc": ["failure", "with", "not-yet-available", "std.range.package: slide (remove private at 'Explicitly set to private to delay the release until 2.076')"],
 
 	"lflags": ["--no-undefined", "--as-needed", "--version-script=acos5_64_gui.ver"],
 	"suspended-lflags-posix-ldc": ["-rpath=$HOME/Downloads/dlang/ldc2-1.17.0-linux-x86_64/lib"],
 	"postBuildCommands": ["strip --strip-unneeded $$DUB_TARGET_NAME"],
-	"alternatives-versions": ["Have_acos5_64", "I18N to be used only with gettext/libintl.so available", "OPENSC_VERSION_UPCOMING to be used only with OpenSC v0.20.0", "USE_LIBRESSL"],
-	"versions-posix": ["Have_acos5_64", "I18N"],
-	"versions-windows": ["Have_acos5_64"],
+	"alternatives-versions": ["I18N to be used only with gettext/libintl.so available", "OPENSC_VERSION_UPCOMING to be used only with OPENSC_VERSION_LATEST together with OpenSC v0.21.0", "not yet ready: USE_LIBRESSL"],
+	"versions-posix": ["I18N"],
+	"versions-windows": [],
 	"configurations": [
 		{
 			"name": "application",
@@ -49,7 +49,7 @@
 			"targetType": "executable",
 			"excludedSourceFiles": [],
 			"dflags": ["-dip1000", "-preview=dip1000", "-preview=markdown"],
-			"suspended-buildRequirements": ["disallowDeprecations"]
+			"buildRequirements": ["disallowDeprecations"]
 		},
 		{
 			"name": "unittest",

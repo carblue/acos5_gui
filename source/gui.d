@@ -497,8 +497,8 @@ So the existence of this callback defines the matrix operation mode.
     auto matrix = new Matrix("matrixKeyAsym");
     with (matrix)
     {
-        SetInteger(IUP_NUMLIN,         r_AC_Crypto_RSAprivateFile_RSApublicFile/*r_keyAsym_usageGenerate*/);
-        SetInteger(IUP_NUMLIN_VISIBLE, r_AC_Crypto_RSAprivateFile_RSApublicFile/*r_keyAsym_usageGenerate*/);
+        SetInteger(IUP_NUMLIN,         r_keyAsym_usageGenerate/*r_AC_Create_Delete_RSADir*/);
+        SetInteger(IUP_NUMLIN_VISIBLE, r_keyAsym_usageGenerate/*r_AC_Create_Delete_RSADir*/);
         SetInteger(IUP_NUMCOL,          2);
         SetInteger(IUP_NUMCOL_VISIBLE,  2);
         SetAttribute(IUP_RESIZEMATRIX, IUP_YES);
@@ -514,19 +514,19 @@ So the existence of this callback defines the matrix operation mode.
         SetAttributeId2("",  0,                       0,   __("RSA key pair and PrKDF, PuKDF attributes"));
         SetAttributeId2("",  0,                       1,   __("value"));
         SetAttributeId2("",  0,                       2,   __("Stored where? (private key file should be unreadable)"));
-        SetAttributeId2("",  r_acos_internal,         0,   __("Acos key generation settings"));
+        SetAttributeId2("",  r_acos_internal,         0,   __("Acos new private key generation settings"));
 
         SetAttributeId2("",  r_keyAsym_RSAmodulusLenBits,          0,   __("Modulus bitLength"));
         SetAttributeId2("",  r_keyAsym_RSAmodulusLenBits,          2,   __("keypair files, PrKDF, PuKDF"));
         SetAttributeId2("",  r_keyAsym_crtModeGenerate, 0, __("    New private key to be stored acc. CRT (Chinese Remainder Theorem format?"));
-        SetAttributeId2("",  r_keyAsym_crtModeGenerate, 2,   __("CRT contents do or don't exist in private key file"));
+        SetAttributeId2("",  r_keyAsym_crtModeGenerate, 2,   __("CRT contents will or won't exist in new private key"));
         SetAttributeId2("",  r_keyAsym_usageGenerate,   0,
         __("    New private key core capability (4)sign, (2)decrypt, (6)sign+decrypt (enter as int, shown as text)"));
         SetAttributeId2("",  r_keyAsym_usageGenerate,   2,   __("private key file"));
         SetAttributeId2("",  r_keyAsym_Label,            0,   __("Key pair label"));
-        SetAttributeId2("",  r_keyAsym_Label,            2,   __("PrKDF, PuKDF"));
+        SetAttributeId2("",  r_keyAsym_Label,            2,   "PrKDF, PuKDF");
         SetAttributeId2("",  r_keyAsym_Id,               0,   __("Key pair id (1 byte hex. 01..FF)"));
-        SetAttributeId2("",  r_keyAsym_Id,               2,   __("PrKDF, PuKDF"));
+        SetAttributeId2("",  r_keyAsym_Id,               2,   "PrKDF, PuKDF");
 
         SetAttributeId2("",  r_keyAsym_fidAppDir,       0,   __("File id of enclosing directory (2 bytes hex.)"));
         SetAttributeId2("",  r_keyAsym_fidAppDir,       2,   __("PrKDF, PuKDF"));
@@ -545,7 +545,7 @@ So the existence of this callback defines the matrix operation mode.
         __("PuKDF change calc. (How many bytes more or less will be required to store the changes)")); //  / does it fit into file size? A/A
         SetAttributeId2("",  r_change_calcPuKDF,        1,   "?");
         SetAttributeId2("",  r_keyAsym_authId,       0,   __("authId (that protects the private key; 1 byte hex. 01..FF)"));
-        SetAttributeId2("",  r_keyAsym_authId,        2,   __("PrKDF"));
+        SetAttributeId2("",  r_keyAsym_authId,        2,   "PrKDF");
         SetAttributeId2("",  r_valuePublicExponent,     0,
         __("Public exponent e (a prime, default 0x10001; max 16 bytes hex., leading zero bytes trimmed)  0x"));
         SetAttributeId2("",  r_valuePublicExponent,     2,   __("public key file"));
@@ -553,12 +553,12 @@ So the existence of this callback defines the matrix operation mode.
         __("Status of input (whether all required info/limits/conditions are okay for the operation. A problem often refers to key usage/capability"));
         SetAttributeId2("",  r_statusInput,             1,  "No");
         SetRGBId2(IUP_BGCOLOR, r_statusInput, 1,  255, 0, 0);
-        SetAttributeId2("",  r_keyAsym_usagePrKDF, 0,   __("Private key usage PrKDF (enter as int, 2.. max 558, shown as text)"));
-        SetAttributeId2("",  r_keyAsym_usagePrKDF, 2,   __("PrKDF"));
+        SetAttributeId2("",  r_keyAsym_usagePrKDF, 0,   __("Private key usage PrKDF (enter as int, 2.. max 558, shown as text). There is some inherent logic applied, depending on toggle. If that fails, it defaults to 'sign'"));
+        SetAttributeId2("",  r_keyAsym_usagePrKDF, 2,   "PrKDF (, deduced content: PuKDF)");
 //        SetAttributeId2("",  r_usageRSApublicKeyPuKDF,  0,   __("Public key usage PuKDF (enter as int, 1.. max 209, shown as text)"));
 //        SetAttributeId2("",  r_usageRSApublicKeyPuKDF,  2,   __("PuKDF"));
         SetAttributeId2("",  r_keyAsym_Modifiable,       0,   __("Key pair is modifiable?"));
-        SetAttributeId2("",  r_keyAsym_Modifiable,       2,   __("PrKDF, PuKDF"));
+        SetAttributeId2("",  r_keyAsym_Modifiable,       2,   "PrKDF, PuKDF");
 
         SetAttributeId2("",  r_AC_Update_PrKDF_PuKDF,   0,
         __("Access Control condition for Update: PrKDF / PuKDF (SCB hex shown; 0x00 means unrestricted)"));
@@ -569,7 +569,7 @@ So the existence of this callback defines the matrix operation mode.
         SetAttributeId2("",  r_AC_Create_Delete_RSADir,        0,
         __("Access Control condition for Create / Delete EF within enclosing DF"));
         SetAttributeId2("",  r_AC_Crypto_RSAprivateFile_RSApublicFile,        0,
-        __("Access Control condition for Perform Crypto Operation  priv. / pub."));
+        __("Access Control condition for Perform Crypto Operation with key file  Private / Public"));
 
         SetAttribute(IUP_TOGGLECENTERED, IUP_YES);
 

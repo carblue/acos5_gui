@@ -168,8 +168,8 @@ enum PKCS15_FILE_TYPE : ubyte
 mixin FreeEnumMembers!PKCS15_FILE_TYPE;
 
 string[5][] pkcs15_names = [
-    [ "EF(PrKDF)",        "PKCS15.PrivateKeyType",     "privateKeys.path.path",         "PKCS15.PrivateKeyType", "privateRSAKey\nprivateECKey"],    // 0
-    [ "EF(PuKDF)",        "PKCS15.PublicKeyType",      "publicKeys.path.path",          "PKCS15.PublicKeyType",  "publicRSAKey\npublicECKey"],
+    [ "EF(PrKDF)",        "PKCS15.PrivateKeyType",     "privateKeys.path.path",         "PKCS15.PrivateKeyType", "privateRSAKey"],    // 0  [4]:"privateRSAKey\nprivateECKey"
+    [ "EF(PuKDF)",        "PKCS15.PublicKeyType",      "publicKeys.path.path",          "PKCS15.PublicKeyType",  "publicRSAKey"],      //    [4]:"publicRSAKey\npublicECKey"
     [ "EF(PuKD_TRUSTED)", "PKCS15.PublicKeyType",      "trustedPublicKeys.path.path",   "PKCS15.PublicKeyType", ""],
     [ "EF(SKDF)",         "PKCS15.SecretKeyType",      "secretKeys.path.path",          "PKCS15.SecretKeyTypeChoice", "secretKey"],
     [ "EF(CDF)",          "PKCS15.CertificateType",    "certificates.path.path",        "PKCS15.CertificateType", "x509Certificate"],
@@ -1137,7 +1137,6 @@ version(Posix)
     with (EFDB)
     if (!fdb.among(Transparent_EF, Linear_Fixed_EF, Linear_Variable_EF, Cyclic_EF /*omit reading CHV_EF, Sym_Key_EF*/, RSA_Key_EF, ECC_KEY_EF, Purse_EF, SE_EF))
         return;
-
     Handle h = AA["fs_text"];
     ubyte[] buf = new ubyte[size? size : mrl];
     ubyte* response;
@@ -1178,8 +1177,32 @@ version(Posix)
             int xLen;
             while (offsetTable[$-1] < size  &&  buf[offsetTable[$-1]] != 0)
                 offsetTable ~= min( cast(uint) (offsetTable[$-1]+1+ asn1_get_length_der(buf[offsetTable[$-1]+1..$],xLen)+xLen), size );
-//              offsetTable ~= min(cast(uint) ( offsetTable[$-1]+ decodedLengthOctets(buf, offsetTable[$-1]+1) ), size);
 
+/+
+            uint idx() { return offsetTable[$-1]; }
+//          offsetTable ~= min( cast(uint) (idx+1+ asn1_get_length_der(buf[idx+1..$], xLen)+xLen), size );
+//            assumeWontThrow(writefln("\nfid 0x[%(%02X %)]", fid));
+//            assumeWontThrow(writeln("size ", size));
+//            assumeWontThrow(writeln("offsetTable ", offsetTable));
+            while (idx < size  &&  buf[idx] != 0) {
+//                c_ulong  y = asn1_get_length_der(buf[idx+1..$], xLen); // inDer must start at L of TLV
+//assumeWontThrow(writeln("y:    ", y));
+//assumeWontThrow(writeln("xLen: ", xLen));
+/*
+                static if (is(c_ulong == ulong)) {
+                    if (y > 0xFFFFFFFF_FFFFFFFB)
+                        break;
+                }
+                else {
+                    if (y > 0xFFFFFFFB)
+                        break;
+                }
+*/
+                offsetTable ~= min( cast(uint) (idx+1+(asn1_get_length_der(buf[idx+1..$], xLen))+xLen ), size );
+            }
+//            assumeWontThrow(writeln("offsetTable ", offsetTable));
+//        if (fid == [0x50, 0x32]) { PKCS15fileType = expectedFileType; return; }
++/
             if (offsetTable.length<2)
                 offsetTable ~= cast(uint)buf.length;
 ////assumeWontThrow(writefln("offsetTable[0]: %s, offsetTable[$-1]: %s", offsetTable[0], offsetTable[$-1]));
@@ -1421,7 +1444,8 @@ if (rv != buf.length)
                     AODF  ~= PKCS15_ObjectTyp(sw[0], sw[1], buf[sw[0]..sw[1]], null, asn1_dup_node(structure, ""), null);
                 break;
 
-            case PKCS15_Cert, PKCS15_RSAPublicKey, PKCS15_ECCPUBLICKEY, PKCS15_TOKENINFO:
+            case PKCS15_Cert, PKCS15_RSAPublicKey, PKCS15_ECCPUBLICKEY, PKCS15_TOKENINFO://,  PKCS15_UNUSED, PKCS15_APPDF,
+                 //PKCS15_RSAPrivateKey, PKCS15_SecretKey, PKCS15_Pin, PKCS15_Data, PKCS15_ECCPRIVATEKEY, PKCS15_NONE:
                 break;
 
             default:  assert(0);

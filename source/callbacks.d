@@ -180,7 +180,7 @@ int selectbranchleaf_cb(Ihandle* /*ih*/, int id, int status)
 
     if (status==0 || id==0)
     {
-        AA["fs_text"].SetAttributeVALUE(""); // clear content
+        AA["fs_text"].     SetAttributeVALUE(""); // clear content
         AA["fs_text_asn1"].SetAttributeVALUE("");
 
         Handle h = AA["list_op_file_possible"];

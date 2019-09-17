@@ -49,7 +49,7 @@ version(Have_acos5_64) {
 	mixin FreeEnumMembers!ISO7816_RFU_TAG_FCP_;
 }
 +/
-version(OPENSC_VERSION_UPCOMING)
+//version(OPENSC_VERSION_LATEST)
 enum /*ISO7816_RFU_TAG_FCP_ */ : ubyte
 {
 	ISO7816_RFU_TAG_FCP_SFI  = 0x88,  /* L:1,    V: Short File Identifier (SFI). 5 LSbs of File ID if unspecified. Applies to: Any file */

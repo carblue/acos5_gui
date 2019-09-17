@@ -85,6 +85,48 @@ main:                   import pkcs11;
 
 int main(string[])
 {
+/*
+name: tokenInfo  type: SEQUENCE
+  name: version  type: INTEGER  value: 0x01
+  name: serialNumber  type: OCT_STR  value: 000000000000
+  name: manufacturerID  type: UTF8_STR  value: Advanced Card Systems Ltd.
+  name: label  type: UTF8_STR  value: CTM64_000000000000
+  name: tokenflags  type: BIT_STR  value(4): 20  ->  0010
+
+damaged by ACSCMU:
+30 32 02 01 01 04 04 00 00 00 00 03 02 04 20 0C
+1A 41 64 76 61 6E 63 65 64 20 43 61 72 64 20 53
+79 73 74 65 6D 73 20 4C 74 64 2E A0 07 0C 05 62
+61 62 61 6E 36 34 30 36 38 38 31 43 37 03 02 04
+20
+
+3032020101040400000000030204200C1A416476616E63656420436172642053797374656D73204C74642EA0070C05626162616E36343036383831433703020420
+
+    import common.simclist : list_t;
+    import libopensc.opensc;
+    import libopensc.types;
+    import libopensc.pkcs15;
+    import pkcs15init.pkcs15init;
+    import scconf.scconf;
+    writeln("list_t.sizeof:  ", list_t.sizeof); // 120
+    writeln("sc_card.sizeof: ", sc_card.sizeof); // 1400
+    writeln("sc_reader.sizeof: ", sc_reader.sizeof); // 208
+    writeln("sc_security_env.sizeof: ", sc_security_env.sizeof); // 808
+    writeln("sc_ef_atr.sizeof: ", sc_ef_atr.sizeof); // 176
+
+    writeln("sc_reader_driver.sizeof: ", sc_reader_driver.sizeof); // 32
+    writeln("sc_pin_cmd_pin.sizeof: ", sc_pin_cmd_pin.sizeof); // 4456
+    writeln("sc_card_operations.sizeof: ", sc_card_operations.sizeof); // 280
+    writeln("sc_context.sizeof: ", sc_context.sizeof); // 632
+    writeln("sc_pkcs15_object.sizeof: ", sc_pkcs15_object.sizeof); // 2768
+    writeln("sc_pkcs15_card.sizeof: ", sc_pkcs15_card.sizeof); // 152
+    writeln("sc_file.sizeof: ", sc_file.sizeof); // 448
+    writeln("scconf_context.sizeof: ", scconf_context.sizeof); // 32
+    writeln("sc_pkcs15init_prkeyargs.sizeof: ", sc_pkcs15init_prkeyargs.sizeof); // 800
+    writeln("sc_pkcs15init_skeyargs.sizeof: ", sc_pkcs15init_skeyargs.sizeof); // 584
+    writeln("sc_pkcs15_prkey_info.sizeof: ", sc_pkcs15_prkey_info.sizeof); // 440
+    writeln("sc_pkcs15_pubkey_info.sizeof: ", sc_pkcs15_pubkey_info.sizeof); // 464
+*/
     writeln;
 //    writeln("CardCtl_generate_crypt_asym.sizeof:  ", CardCtl_generate_crypt_asym.sizeof); // CardCtl_generate_crypt_asym.sizeof:  552
 //    writeln("CardCtl_generate_asym_inject.sizeof: ", CardCtl_generate_asym_inject.sizeof);// CardCtl_generate_asym_inject.sizeof: 24
