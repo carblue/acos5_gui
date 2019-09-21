@@ -128,8 +128,8 @@ private Hbox create_cryptoki_slot_tokeninfo_tab()
     matrix = new Matrix("slot_token");
     with (matrix)
     {
-        SetInteger(IUP_NUMLIN,         43);
-        SetInteger(IUP_NUMLIN_VISIBLE, 43);
+        SetInteger(IUP_NUMLIN,         45);
+        SetInteger(IUP_NUMLIN_VISIBLE, 45);
         SetInteger(IUP_NUMCOL,          1);
         SetInteger(IUP_NUMCOL_VISIBLE,  1);
         SetAttribute(IUP_RESIZEMATRIX, IUP_YES);
@@ -197,6 +197,10 @@ private Hbox create_cryptoki_slot_tokeninfo_tab()
         SetAttributeId2("", 42,  1,   "No");
         SetAttributeId2("", 43,  0,   "Token is verified to comply with FIPS 140-2 Level 3 file system requirements");
         SetAttributeId2("", 43,  1,   "N/A");
+        SetAttributeId2("", 44,  0,   "Token ROM SHA1 value");
+        SetAttributeId2("", 44,  1,   "N/A");
+        SetAttributeId2("", 45,  0,   "Token free space estimated/total in kB");
+        SetAttributeId2("", 45,  1,   "N/A / 64");
 
         SetAttribute(IUP_TOGGLECENTERED,  IUP_YES);
         SetCallback(IUP_DROPCHECK_CB,  cast(Icallback) &slot_token_dropcheck_cb);

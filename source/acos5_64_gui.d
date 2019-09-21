@@ -212,8 +212,27 @@ version(I18N)
         import libopensc.types : sc_serial_number;
         import libopensc.cardctl : SC_CARDCTL_GET_SERIALNR;
         import util_general : ubaIntegral2string;
-        import acos5_64_shared_rust : SC_CARDCTL_ACOS5_GET_COS_VERSION;
-
+        import acos5_64_shared_rust : SC_CARDCTL_ACOS5_GET_COS_VERSION, SC_CARDCTL_ACOS5_GET_ROM_SHA1, CardCtlArray20, SC_CARD_TYPE_ACOS5_64_V2, SC_CARDCTL_ACOS5_GET_FREE_SPACE;
+/+ +/
+        CardCtlArray20  rom_sha1;
+        if (card.type > SC_CARD_TYPE_ACOS5_64_V2) {
+            rc = sc_card_ctl(card, SC_CARDCTL_ACOS5_GET_ROM_SHA1, &rom_sha1);
+            if (rc != SC_SUCCESS)
+            {
+                writeln("FAILED: SC_CARDCTL_ACOS5_GET_ROM_SHA1");
+                //exit(1);
+            }
+            AA["slot_token"].SetStringId2("", 44,  1, ubaIntegral2string(rom_sha1.value));
+        }
+        uint  free_space;
+        rc = sc_card_ctl(card, SC_CARDCTL_ACOS5_GET_FREE_SPACE, &free_space);
+        if (rc != SC_SUCCESS)
+        {
+            writeln("FAILED: SC_CARDCTL_ACOS5_GET_FREE_SPACE");
+            //exit(1);
+        }
+        AA["slot_token"].SetStringId2("", 45,  1, format("%5.0f", free_space /1024.) ~" / 64");
+/+ +/
         sc_serial_number  serial_number;
         rc = sc_card_ctl(card, SC_CARDCTL_GET_SERIALNR, &serial_number);
         if (rc != SC_SUCCESS)

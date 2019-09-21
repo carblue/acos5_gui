@@ -27,6 +27,7 @@
 
 module acos5_64_shared_rust;
 
+import core.stdc.config : c_ulong;
 /+
 	/* ACOS5 driver */
 	SC_CARD_TYPE_ACOS5_BASE = 16000,
@@ -78,37 +79,37 @@ enum ubyte BLOCKCIPHER_PAD_TYPE_ANSIX9_23           =  4; // If N padding bytes 
  */
 //alias card_ctl_tf = int function(sc_card* card, c_ulong request, void* data);
 
-enum uint SC_CARDCTL_ACOS5_GET_COUNT_FILES_CURR_DF   =  0x0000_0011; // data: size_t* (*mut usize)
-enum uint SC_CARDCTL_ACOS5_GET_FILE_INFO             =  0x0000_0012; // data: CardCtlArray8*
-enum uint SC_CARDCTL_ACOS5_GET_FREE_SPACE            =  0x0000_0014; // data: uint* (*mut c_uint)
-enum uint SC_CARDCTL_ACOS5_GET_IDENT_SELF            =  0x0000_0015; // data: uint* (*mut c_uint)
-enum uint SC_CARDCTL_ACOS5_GET_COS_VERSION           =  0x0000_0016; // data: CardCtlArray8*
+enum c_ulong SC_CARDCTL_ACOS5_GET_COUNT_FILES_CURR_DF   =  0x0000_0011; // data: size_t* (*mut usize)
+enum c_ulong SC_CARDCTL_ACOS5_GET_FILE_INFO             =  0x0000_0012; // data: CardCtlArray8*
+enum c_ulong SC_CARDCTL_ACOS5_GET_FREE_SPACE            =  0x0000_0014; // data: uint* (*mut c_uint)
+enum c_ulong SC_CARDCTL_ACOS5_GET_IDENT_SELF            =  0x0000_0015; // data: uint* (*mut c_uint)
+enum c_ulong SC_CARDCTL_ACOS5_GET_COS_VERSION           =  0x0000_0016; // data: CardCtlArray8*
 /* available only since ACOS5-64 V3: */
-enum uint SC_CARDCTL_ACOS5_GET_ROM_MANUFACTURE_DATE  =  0x0000_0017; // data: uint* (*mut c_uint)
-enum uint SC_CARDCTL_ACOS5_GET_ROM_SHA1              =  0x0000_0018; // data: CardCtlArray20*
-enum uint SC_CARDCTL_ACOS5_GET_OP_MODE_BYTE          =  0x0000_0019; // data: uint* (*mut c_uint)
-enum uint SC_CARDCTL_ACOS5_GET_FIPS_COMPLIANCE       =  0x0000_001A; // data: uint* (*mut c_uint)
-enum uint SC_CARDCTL_ACOS5_GET_PIN_AUTH_STATE        =  0x0000_001B; // data: CardCtlAuthState*
-enum uint SC_CARDCTL_ACOS5_GET_KEY_AUTH_STATE        =  0x0000_001C; // data: CardCtlAuthState*
+enum c_ulong SC_CARDCTL_ACOS5_GET_ROM_MANUFACTURE_DATE  =  0x0000_0017; // data: uint* (*mut c_uint)
+enum c_ulong SC_CARDCTL_ACOS5_GET_ROM_SHA1              =  0x0000_0018; // data: CardCtlArray20*
+enum c_ulong SC_CARDCTL_ACOS5_GET_OP_MODE_BYTE          =  0x0000_0019; // data: uint* (*mut c_uint)
+enum c_ulong SC_CARDCTL_ACOS5_GET_FIPS_COMPLIANCE       =  0x0000_001A; // data: uint* (*mut c_uint)
+enum c_ulong SC_CARDCTL_ACOS5_GET_PIN_AUTH_STATE        =  0x0000_001B; // data: CardCtlAuthState*
+enum c_ulong SC_CARDCTL_ACOS5_GET_KEY_AUTH_STATE        =  0x0000_001C; // data: CardCtlAuthState*
 
-enum uint SC_CARDCTL_ACOS5_HASHMAP_SET_FILE_INFO     =  0x0000_001E; // data: null
-enum uint SC_CARDCTL_ACOS5_HASHMAP_GET_FILE_INFO     =  0x0000_001F; // data: *mut CardCtlArray32
+enum c_ulong SC_CARDCTL_ACOS5_HASHMAP_SET_FILE_INFO     =  0x0000_001E; // data: null
+enum c_ulong SC_CARDCTL_ACOS5_HASHMAP_GET_FILE_INFO     =  0x0000_001F; // data: *mut CardCtlArray32
 
-enum uint SC_CARDCTL_ACOS5_SDO_CREATE                =  0x0000_0020; // data: *mut sc_file
-enum uint SC_CARDCTL_ACOS5_SDO_DELETE                =  0x0000_0021; // data:
-enum uint SC_CARDCTL_ACOS5_SDO_STORE                 =  0x0000_0022; // data:
+enum c_ulong SC_CARDCTL_ACOS5_SDO_CREATE                =  0x0000_0020; // data: *mut sc_file
+enum c_ulong SC_CARDCTL_ACOS5_SDO_DELETE                =  0x0000_0021; // data:
+enum c_ulong SC_CARDCTL_ACOS5_SDO_STORE                 =  0x0000_0022; // data:
 
-enum uint SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES  =  0x0000_0023; // data: *mut CardCtl_generate_asym;  RSA files exist, sec_env setting excluded
-enum uint SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT_SET =  0x0000_0024; // data: *mut CardCtl_generate_asym_inject,do_generate_inject
-enum uint SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT_GET =  0x0000_0025; // data: *mut CardCtl_generate_asym_inject,do_generate_inject
+enum c_ulong SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES  =  0x0000_0023; // data: *mut CardCtl_generate_asym;  RSA files exist, sec_env setting excluded
+enum c_ulong SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT_SET =  0x0000_0024; // data: *mut CardCtl_generate_asym_inject,do_generate_inject
+enum c_ulong SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT_GET =  0x0000_0025; // data: *mut CardCtl_generate_asym_inject,do_generate_inject
 
-enum uint SC_CARDCTL_ACOS5_ENCRYPT_SYM               =  0x0000_0027; // data: *mut CardCtl_crypt_sym
-enum uint SC_CARDCTL_ACOS5_ENCRYPT_ASYM              =  0x0000_0028; // data: *mut CardCtl_crypt_asym; Signature verification with public key
+enum c_ulong SC_CARDCTL_ACOS5_ENCRYPT_SYM               =  0x0000_0027; // data: *mut CardCtl_crypt_sym
+enum c_ulong SC_CARDCTL_ACOS5_ENCRYPT_ASYM              =  0x0000_0028; // data: *mut CardCtl_crypt_asym; Signature verification with public key
 
-enum uint SC_CARDCTL_ACOS5_DECRYPT_SYM               =  0x0000_0029; // data: *mut CardCtl_crypt_sym
-////enum uint SC_CARDCTL_ACOS5_DECRYPT_ASYM          =  0x0000_002A; // data: *mut CardCtl_crypt_asym; is available via decipher
+enum c_ulong SC_CARDCTL_ACOS5_DECRYPT_SYM               =  0x0000_0029; // data: *mut CardCtl_crypt_sym
+////enum c_ulong SC_CARDCTL_ACOS5_DECRYPT_ASYM          =  0x0000_002A; // data: *mut CardCtl_crypt_asym; is available via decipher
 
-enum uint SC_CARDCTL_ACOS5_CREATE_MF_FILESYSTEM      =  0x0000_002B; // data: *mut CardCtlArray20,  create_mf_file_system
+enum c_ulong SC_CARDCTL_ACOS5_CREATE_MF_FILESYSTEM      =  0x0000_002B; // data: *mut CardCtlArray20,  create_mf_file_system
 
 /* common types and general function(s) */
 

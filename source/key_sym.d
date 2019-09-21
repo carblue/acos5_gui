@@ -347,10 +347,10 @@ class Obs_keySym_algoStore
             case 256:  _value = _keySym_algoFamily=="DES"? 0x14 : 0x22; break;
             default:  goto case 192; // as long as _keySym_keyLenBits wasn't set
         }
-writefln("  "~typeof(this).stringof~" object was set to value 0x%02X", _value);
+////writefln("  "~typeof(this).stringof~" object was set to value 0x%02X", _value);
         if (_keySym_keyLenBits && !_keySym_algoFamily.empty)
         {
-writefln("  "~typeof(this).stringof~" object was set to value 0x%02X", _value);
+////writefln("  "~typeof(this).stringof~" object was set to value 0x%02X", _value);
             emit("_keySym_algoStore", _value);
         }
 
