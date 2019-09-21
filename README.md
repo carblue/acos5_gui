@@ -36,6 +36,21 @@ From CD:<br>
 For Linux: install package `libtasn1-6` (providing libtasn1.so.6): for Windows, the required files are included in the [tasn1 binding](https://github.com/carblue/tasn1 "https://github.com/carblue/tasn1").
 
 
+Build<br>
+Inspect dub.json and check whether the settings are correct for You. If You go with the DMD compiler, then only this 1 important point remains, referring to this section:
+```
+	"subConfigurations": {
+		"pkcs11": "derelict",
+		"opensc": "deimos"
+	},
+```
+the entry for `"opensc":` must be `"deimos"` if OpenSC version 0.20.0 is installed, or<br>
+the entry for `"opensc":` must be `"deimosPrior"` if OpenSC version 0.19.0 is installed. Other OpenSC versions are not suitable.
+
+One of the D compilers DMD or LDC, and DUB are required (downloads from https://dlang.org/download.html have DUB included), then run e.g. wih DMD installed<br>
+dub build  (or `dub run`, in order to build and invoke acos5_64_gui)
+
+
 ![alt text](Screenshot_20190912_acos5_64_gui.png "figure 1")<br>
 figure 1
 
