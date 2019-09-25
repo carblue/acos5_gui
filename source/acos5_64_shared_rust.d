@@ -92,6 +92,8 @@ enum c_ulong SC_CARDCTL_ACOS5_GET_FIPS_COMPLIANCE       =  0x0000_001A; // data:
 enum c_ulong SC_CARDCTL_ACOS5_GET_PIN_AUTH_STATE        =  0x0000_001B; // data: CardCtlAuthState*
 enum c_ulong SC_CARDCTL_ACOS5_GET_KEY_AUTH_STATE        =  0x0000_001C; // data: CardCtlAuthState*
 
+enum c_ulong SC_CARDCTL_ACOS5_GET_KEY                   =  0x0000_001D; // data: *mut CardCtlArray1285,  get_key
+
 enum c_ulong SC_CARDCTL_ACOS5_HASHMAP_SET_FILE_INFO     =  0x0000_001E; // data: null
 enum c_ulong SC_CARDCTL_ACOS5_HASHMAP_GET_FILE_INFO     =  0x0000_001F; // data: *mut CardCtlArray32
 
@@ -138,6 +140,12 @@ struct CardCtlArray32
 {
     ushort     key;        // IN   file_id
     ubyte[32]  value;      // OUT  in the order as acos5_64_gui defines // alias  TreeTypeFS = Tree_k_ary!ub32;
+}
+
+struct CardCtlArray1285 {
+    uint         offset; // IN
+    size_t       le;     // IN
+    ubyte[1285]  resp;   // OUT
 }
 
 struct CardCtl_generate_crypt_asym

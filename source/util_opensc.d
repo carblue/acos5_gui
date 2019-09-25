@@ -98,7 +98,7 @@ import tree_k_ary;
 import acos5_64_shared;
 import util_general;
 import acos5_64_shared_rust : SC_CARDCTL_ACOS5_GET_COUNT_FILES_CURR_DF, SC_CARDCTL_ACOS5_GET_FILE_INFO, CardCtlArray8,
-    CardCtlArray32, SC_CARDCTL_ACOS5_HASHMAP_GET_FILE_INFO;
+    CardCtlArray32, SC_CARDCTL_ACOS5_HASHMAP_GET_FILE_INFO, SC_CARDCTL_ACOS5_GET_KEY, CardCtlArray1285;
 import callbacks : isappDFexists;
 
 struct PKCS15_ObjectTyp
@@ -1135,7 +1135,7 @@ version(Posix)
     import wrapper.libtasn1 : asn1_visit_structure;
 
     with (EFDB)
-    if (!fdb.among(Transparent_EF, Linear_Fixed_EF, Linear_Variable_EF, Cyclic_EF /*omit reading CHV_EF, Sym_Key_EF*/, RSA_Key_EF, ECC_KEY_EF, Purse_EF, SE_EF))
+    if (fdb.among(MF, DF, CHV_EF, Sym_Key_EF) || pn.data[24]==0xFF)
         return;
     Handle h = AA["fs_text"];
     ubyte[] buf = new ubyte[size? size : mrl];
@@ -1237,12 +1237,14 @@ if (rv != buf.length)
             return;
         case RSA_Key_EF, ECC_KEY_EF:
 //assumeWontThrow(writefln("sc_get_data params: offset: 0, buf.ptr: %s, buf.length: %s", buf.ptr, buf.length));
-            rv= sc_get_data(card, 0, buf.ptr, buf.length);
+            CardCtlArray1285 key_data = { le: min(buf.length, 1285) };
+            rv= sc_card_ctl(card, SC_CARDCTL_ACOS5_GET_KEY, &key_data);
             if (rv != buf.length || rv==0) {
                 // if rv==0 it's probably because the file is non-readable
 //                assumeWontThrow(writefln("### returned length from sc_get_data to short: Received %s, but expected %s. fid: %(%02X %)", rv, buf.length, fid));
                 return;
             }
+            buf[0..key_data.le] = key_data.resp[0..key_data.le];
             h.SetString("APPEND", " ");
             foreach (chunk; chunks(buf, 48))
             {
