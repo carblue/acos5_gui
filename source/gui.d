@@ -1015,7 +1015,7 @@ Dialog create_dialog_dlg0()
 /*      nothing implemented for that so far
         create_opensc_conf_tab,
 */
-        create_virgin_init,
+//        create_virgin_init,
     ];
 /*
     version(Windows) {} // because currently the ssh-agent will be used within ssh_tab, which is not available for Windows

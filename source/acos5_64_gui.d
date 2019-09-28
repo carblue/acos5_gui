@@ -803,7 +803,7 @@ The checks may be grouped into these categories:
         {
             h.SetIntegerId2 ("",  5,  1, cast(int) slotCount);
             if (slotCount==0 && rv == CKR_OK)
-                writeln("### There is no PKCS#15 strucure, thus no slot can be assigned! ###");
+                writeln("### There is no (complete) PKCS#15 strucure, thus no slot can be assigned! (Maybe TokenInfo is missing?) ###");
             else
                 writeln("Error: Could not find any slots or more than 10 slots with a token present found "~
                     "(dev: adjust array size?)");

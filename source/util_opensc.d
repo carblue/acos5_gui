@@ -1236,12 +1236,12 @@ if (rv != buf.length)
             // these types don't get ASN.1 decoded
             return;
         case RSA_Key_EF, ECC_KEY_EF:
-//assumeWontThrow(writefln("sc_get_data params: offset: 0, buf.ptr: %s, buf.length: %s", buf.ptr, buf.length));
+//assumeWontThrow(writefln("get_key params: offset: 0, buf.ptr: %s, buf.length: %s", buf.ptr, buf.length));
             CardCtlArray1285 key_data = { le: min(buf.length, 1285) };
             rv= sc_card_ctl(card, SC_CARDCTL_ACOS5_GET_KEY, &key_data);
             if (rv != buf.length || rv==0) {
                 // if rv==0 it's probably because the file is non-readable
-//                assumeWontThrow(writefln("### returned length from sc_get_data to short: Received %s, but expected %s. fid: %(%02X %)", rv, buf.length, fid));
+//                assumeWontThrow(writefln("### returned length from get_key to short: Received %s, but expected %s. fid: %(%02X %)", rv, buf.length, fid));
                 return;
             }
             buf[0..key_data.le] = key_data.resp[0..key_data.le];
@@ -1300,9 +1300,15 @@ if (rv != buf.length)
         asn1_result = asn1_der_decoding(&structure, fdb.among(EFDB.RSA_Key_EF,EFDB.ECC_KEY_EF)? response[0..responselen] : buf[sw[0]..sw[1]], errorDescription);
         if (asn1_result != ASN1_SUCCESS)
         {
-            assumeWontThrow(writeln("### asn1Decoding: ", errorDescription));
-            assumeWontThrow(writefln("### asn1Decoding: expectedFileType(%s), sw0(%s), sw1(%s), pn.data(%(%02X %), bytes(%(%02X %))", expectedFileType, sw[0], sw[1], pn.data, fdb.among(EFDB.RSA_Key_EF,EFDB.ECC_KEY_EF)? response[0..responselen] : buf[sw[0]..sw[1]]));
-            continue;
+            if (expectedFileType <= PKCS15_AODF && buf[0]==0) {
+                PKCS15fileType = expectedFileType;
+                return;
+            }
+            else {
+                assumeWontThrow(writeln("### asn1Decoding: ", errorDescription));
+                assumeWontThrow(writefln("### asn1Decoding: expectedFileType(%s), sw0(%s), sw1(%s), pn.data(%(%02X %), bytes(%(%02X %))", expectedFileType, sw[0], sw[1], pn.data, fdb.among(EFDB.RSA_Key_EF,EFDB.ECC_KEY_EF)? response[0..responselen] : buf[sw[0]..sw[1]]));
+                continue;
+            }
         }
         PKCS15fileType = expectedFileType;
         ubyte[16]  str;
