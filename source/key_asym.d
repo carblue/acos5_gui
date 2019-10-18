@@ -111,11 +111,11 @@ import iup.iup_plusD;
 
 import libintl : _, __;
 
-import util_general;// : ub22integral;
+import util_general;
 import acos5_64_shared;
 import pub;
 
-import util_opensc : connect_card, readFile/*, decompose*/, PKCS15Path_FileType, pkcs15_names,
+import util_opensc : connect_card, readFile, PKCS15Path_FileType, pkcs15_names,
     PKCS15_FILE_TYPE, fs, PRKDF, PUKDF, AODF, SKDF,
     PKCS15_ObjectTyp, errorDescription, PKCS15, appdf, tnTypePtr,
     aid, is_ACOSV3_opmodeV3_FIPS_140_2L3, is_ACOSV3_opmodeV3_FIPS_140_2L3_active,
@@ -124,10 +124,8 @@ import util_opensc : connect_card, readFile/*, decompose*/, PKCS15Path_FileType,
 import acos5_64_shared_rust : CardCtl_generate_crypt_asym, SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES,
     SC_CARDCTL_ACOS5_ENCRYPT_ASYM, SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT_GET,
     SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT_SET, CardCtl_generate_asym_inject, CardCtlArray32,
-    SC_CARDCTL_ACOS5_HASHMAP_GET_FILE_INFO, CardCtlArray1285, SC_CARDCTL_ACOS5_GET_KEY;
-//SC_CARDCTL_ACOS5_GET_COUNT_FILES_CURR_DF, SC_CARDCTL_ACOS5_GET_FILE_INFO, CardCtlArray8;
+    SC_CARDCTL_ACOS5_HASHMAP_GET_FILE_INFO;
 
-//import asn1_pkcs15 : CIO_RSA_private, CIO_RSA_public, CIO_Auth_Pin, encodeEntry_PKCS15_PRKDF, encodeEntry_PKCS15_PUKDF;
 import wrapper.libtasn1;
 import pkcs11;
 
@@ -1268,10 +1266,8 @@ int set_more_for_keyAsym_Id(int keyAsym_Id) nothrow
         rv= sc_select_file(card, &path, null);
         assert(rv==0);
         ub16 buf;
-        CardCtlArray1285 key_data = { offset: 5, le: buf.length };
-        rv= sc_card_ctl(card, SC_CARDCTL_ACOS5_GET_KEY, &key_data);
+        rv= sc_read_binary(card, 5, buf.ptr, buf.length, 0);
         assert(rv==buf.length);
-        buf[0..key_data.le] = key_data.resp[0..key_data.le];
         valuePublicExponent.set(buf, true);
 `;
         mixin (connect_card!commands);
@@ -1540,9 +1536,9 @@ int matrixKeyAsym_edition_cb(Ihandle* ih, int lin, int col, int mode, int /*upda
             // if no "sign",   then also no "signRecover" and no "nonRepudiation"
             if (!(tmp&4))
                 tmp &= 34;
-            // if no "decrypt", then also no "unwrap"
-            if (!(tmp&2))
-                tmp &= 524;
+//            // if no "decrypt", then also no "unwrap"
+//            if (!(tmp&2))
+//                tmp &= 524;
             // if nothing remains, then set "sign"
 //            if (!tmp)
 //                tmp = 4;

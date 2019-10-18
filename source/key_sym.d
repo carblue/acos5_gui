@@ -1942,10 +1942,8 @@ int button_radioKeySym_cb(Ihandle* ih)
             rv = sc_pkcs15init_authenticate(profile, p15card, file, SC_AC_OP.SC_AC_OP_UPDATE);
             if (rv < 0)
                 return IUP_DEFAULT;
-            ubyte MRL = skFile.data[4];
-            auto buf_delete = new ubyte[MRL];
-            rv= sc_update_record(card, keySym_recordNo.get, buf_delete.ptr, buf_delete.length, SC_RECORD_BY_REC_NR);
-            assert(rv == buf_delete.length);
+            rv = sc_delete_record(card, keySym_recordNo.get);
+            assert(rv == skFile.data[4]);
 `;
             mixin (connect_card!commands);
             hstat.SetString(IUP_TITLE, "SUCCESS: Delete key");
@@ -1964,7 +1962,7 @@ int button_radioKeySym_cb(Ihandle* ih)
 
             asn1_delete_structure(&front_structure);
             GC.collect(); // just a check
-assumeWontThrow(writeln(SKDF));
+////assumeWontThrow(writeln(SKDF));
             break; // case "toggle_sym_delete"
 
         case "toggle_sym_update", "toggle_sym_updateSMkeyHost", "toggle_sym_updateSMkeyCard", "toggle_sym_create_write":

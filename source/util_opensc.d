@@ -98,7 +98,7 @@ import tree_k_ary;
 import acos5_64_shared;
 import util_general;
 import acos5_64_shared_rust : SC_CARDCTL_ACOS5_GET_COUNT_FILES_CURR_DF, SC_CARDCTL_ACOS5_GET_FILE_INFO, CardCtlArray8,
-    CardCtlArray32, SC_CARDCTL_ACOS5_HASHMAP_GET_FILE_INFO, SC_CARDCTL_ACOS5_GET_KEY, CardCtlArray1285;
+    CardCtlArray32, SC_CARDCTL_ACOS5_HASHMAP_GET_FILE_INFO;
 import callbacks : isappDFexists;
 
 struct PKCS15_ObjectTyp
@@ -676,7 +676,7 @@ template connect_card(string commands, string returning="IUP_CONTINUE", string l
         ctx.flags |= SC_CTX_FLAG_ENABLE_DEFAULT_DRIVER;
         ctx.debug_ = SC_LOG_DEBUG_NORMAL/*verbose*/;
         sc_ctx_log_to_file(ctx, toStringz(debug_file));
-        if (sc_set_card_driver(ctx, "acos5_64"))
+        if (sc_set_card_driver(ctx, "acos5-external"))
             return `~returning~`;
 
         sc_notify_init();
@@ -800,6 +800,7 @@ int enum_dir(int depth, tnTypePtr pos, ref PKCS15Path_FileType[] collector) noth
             {
                 // discard everything from file_info except  fid = file_info.value[2..4]
                 CardCtlArray8  file_info = { reference: fno };
+                // TODO reference for EVO starts from 1
                 rv = sc_card_ctl(card, SC_CARDCTL_ACOS5_GET_FILE_INFO, &file_info); // acos will deliver 8 bytes: [FDB, DCB(always 0), FILE ID, FILE ID, SIZE or MRL, SIZE or NOR, SFI, LCSI]
                 if (rv != SC_SUCCESS)
                 {
@@ -1128,7 +1129,7 @@ selectbranchleaf_cb(Ihandle* ih, int id, int status)
 void readFile(tnTypePtr pn, ub2 fid, EFDB fdb, ubyte sacRead, ushort size, ubyte mrl, ubyte nor,
     ubyte expectedFileType, ref ubyte PKCS15fileType, out PKCS15Path_FileType[] pkcs15Extracted, bool doExtract=false) nothrow
 {
-//assumeWontThrow(writefln("readFile(ub2 %s, EFDB %s, expectedFileType %s)", fid, fdb, expectedFileType));
+////assumeWontThrow(writefln("readFile(ub2 %s, EFDB %s, expectedFileType %s, fileInfo: %s)", fid, fdb, expectedFileType, pn.data[0..8]));
     import wrapper.libtasn1 : asn1_get_length_der, asn1_create_element, asn1_delete_structure, asn1_dup_node, ASN1_SUCCESS, asn1_strerror2,
         asn1_der_decoding/*, asn1_visit_structure*/, ASN1_PRINT_NAME_TYPE_VALUE, asn1_read_value, ASN1_ELEMENT_NOT_FOUND;
 version(Posix)
@@ -1236,15 +1237,14 @@ if (rv != buf.length)
             // these types don't get ASN.1 decoded
             return;
         case RSA_Key_EF, ECC_KEY_EF:
-//assumeWontThrow(writefln("get_key params: offset: 0, buf.ptr: %s, buf.length: %s", buf.ptr, buf.length));
-            CardCtlArray1285 key_data = { le: min(buf.length, 1285) };
-            rv= sc_card_ctl(card, SC_CARDCTL_ACOS5_GET_KEY, &key_data);
+//assumeWontThrow(writefln("sc_read_binary: idx: 0, buf.ptr: %s, buf.length: %s", buf.ptr, buf.length));
+            rv= sc_read_binary(card, 0, buf.ptr, buf.length, 0);
             if (rv != buf.length || rv==0) {
                 // if rv==0 it's probably because the file is non-readable
 //                assumeWontThrow(writefln("### returned length from get_key to short: Received %s, but expected %s. fid: %(%02X %)", rv, buf.length, fid));
                 return;
             }
-            buf[0..key_data.le] = key_data.resp[0..key_data.le];
+//            buf[0..key_data.le] = key_data.resp[0..key_data.le];
             h.SetString("APPEND", " ");
             foreach (chunk; chunks(buf, 48))
             {

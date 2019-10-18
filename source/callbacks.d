@@ -455,13 +455,13 @@ int btn_virgin_init_cb(Ihandle* ih)
 {
 //    TODO The link between matrixinit-entry-values and pins.value array is missing, thus don#t actually do something currently
     enum string commands = `
-        import libopensc.opensc : sc_card_ctl;
-        import acos5_64_shared_rust : SC_CARDCTL_ACOS5_CREATE_MF_FILESYSTEM;
+//        import libopensc.opensc : sc_card_ctl;
+//        import acos5_64_shared_rust : SC_CARDCTL_ACOS5_CREATE_MF_FILESYSTEM;
 
         CardCtlArray20  pins;
         pins.value = [8, 0x38, 0x37, 0x36, 0x35, 0x34, 0x33, 0x32, 0x31, 0,   // +91
                       8, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0 ];
-        sc_card_ctl(card, SC_CARDCTL_ACOS5_CREATE_MF_FILESYSTEM, &pins);
+//        sc_card_ctl(card, SC_CARDCTL_ACOS5_CREATE_MF_FILESYSTEM, &pins);
 `;
 ////    mixin (connect_card!(commands, "EXIT_FAILURE", "3"));
     return IUP_DEFAULT;

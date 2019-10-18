@@ -169,14 +169,8 @@ assumeWontThrow(writefln("### unreadable: ed.fid: %(%02X %)", ed.fid));
                     // possible fdb: 1 (ordinary transparent), 9 (RSA transparent)
                     if (/*true*/ed.readable)
                     {
-                        if (ed.fdb == 1)
+//                      if (ed.fdb == 1 || ed.fdb == 9)
                             rv = sc_read_binary(card, 0, buf.ptr, buf.length, 0 /*flags*/);
-                        else {
-                            CardCtlArray1285 key_data = { le: buf.length };
-                            rv= sc_card_ctl(card, SC_CARDCTL_ACOS5_GET_KEY, &key_data);
-                            assert(rv==buf.length);
-                            buf[0..key_data.le] = key_data.resp[0..key_data.le];
-                        }
                         if (!(rv>0 && rv==buf.length))
                         {
 assumeWontThrow(writeln("### rv: ", rv));

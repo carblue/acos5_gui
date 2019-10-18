@@ -960,7 +960,7 @@ private Vbox create_virgin_init()
     child_array ~= matrix;
 
     auto btn_virgin_init    = new Button(  __("virgin_init"));
-    btn_virgin_init.SetCallback(IUP_ACTION, &btn_virgin_init_cb);
+//    btn_virgin_init.SetCallback(IUP_ACTION, &btn_virgin_init_cb);
     child_array ~= btn_virgin_init;
 /*
 This is to be used only, if the card is virgin, i.e. has no MF and is in Manufacturer Stage.
