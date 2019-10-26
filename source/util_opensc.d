@@ -1,5 +1,5 @@
 /*
- * util_opensc.d: Program acos5_64_gui's helper functions related to OpenSC and driver
+ * util_opensc.d: Program acos5_gui's helper functions related to OpenSC and driver
  *
  * Copyright (C) 2018, 2019  Carsten Blüggel <bluecars@posteo.eu>
  *
@@ -97,7 +97,7 @@ import wrapper.libtasn1 : asn1_node;
 import tree_k_ary;
 import acos5_64_shared;
 import util_general;
-import acos5_64_shared_rust : SC_CARDCTL_ACOS5_GET_COUNT_FILES_CURR_DF, SC_CARDCTL_ACOS5_GET_FILE_INFO, CardCtlArray8,
+import acos5_shared_rust : SC_CARDCTL_ACOS5_GET_COUNT_FILES_CURR_DF, SC_CARDCTL_ACOS5_GET_FILE_INFO, CardCtlArray8,
     CardCtlArray32, SC_CARDCTL_ACOS5_HASHMAP_GET_FILE_INFO;
 import callbacks : isappDFexists;
 
@@ -650,7 +650,7 @@ template connect_card(string commands, string returning="IUP_CONTINUE", string l
         import libopensc.errors;
         import libopensc.log;
         import ui.notify : sc_notify_init;
-        import acos5_64_shared_rust : SC_CARD_TYPE_ACOS5_64_V3;
+        import acos5_shared_rust : SC_CARD_TYPE_ACOS5_64_V3;
 
         import acos5_64_shared;
         import std.exception : assumeWontThrow;
@@ -660,7 +660,7 @@ template connect_card(string commands, string returning="IUP_CONTINUE", string l
 
         int rc; // used for any return code except Cryptoki return codes, see next decl
         sc_context*         ctx;
-        sc_context_param_t  ctx_param = { 0, "acos5_64_gui " };
+        sc_context_param_t  ctx_param = { 0, "acos5_gui " };
 
         if ((rc= sc_context_create(&ctx, &ctx_param)) != SC_SUCCESS)
         {
@@ -676,7 +676,7 @@ template connect_card(string commands, string returning="IUP_CONTINUE", string l
         ctx.flags |= SC_CTX_FLAG_ENABLE_DEFAULT_DRIVER;
         ctx.debug_ = SC_LOG_DEBUG_NORMAL/*verbose*/;
         sc_ctx_log_to_file(ctx, toStringz(debug_file));
-        if (sc_set_card_driver(ctx, "acos5-external"))
+        if (sc_set_card_driver(ctx, "acos5_external"))
             return `~returning~`;
 
         sc_notify_init();
@@ -697,7 +697,7 @@ template connect_card(string commands, string returning="IUP_CONTINUE", string l
         if (rc || !card)
             return `~returning~`;
 /* */ //TODO it's required only once for SC_CARD_TYPE_ACOS5_64_V3, not with every connect_card: inefficient.
-        import acos5_64_shared_rust : SC_CARDCTL_ACOS5_GET_OP_MODE_BYTE, SC_CARDCTL_ACOS5_GET_FIPS_COMPLIANCE;
+        import acos5_shared_rust : SC_CARDCTL_ACOS5_GET_OP_MODE_BYTE, SC_CARDCTL_ACOS5_GET_FIPS_COMPLIANCE;
 
         if (card.type==SC_CARD_TYPE_ACOS5_64_V3)
         {

@@ -1,5 +1,5 @@
 /*
- * key_sym.d: Program acos5_64_gui's 'AES/3DES/DES key handling' file
+ * key_sym.d: Program acos5_gui's 'AES/3DES/DES key handling' file
  *
  * Copyright (C) 2018, 2019  Carsten Blüggel <bluecars@posteo.eu>
  *
@@ -64,7 +64,7 @@ import util_opensc : connect_card, readFile, decompose, PKCS15Path_FileType, pkc
     tnTypePtr, aid, is_ACOSV3_opmodeV3_FIPS_140_2L3,
     my_pkcs15init_callbacks, tlv_Range_mod, file_type, getIdentifier, is_ACOSV3_opmodeV3_FIPS_140_2L3_active, getPath;
 
-import acos5_64_shared_rust : CardCtl_crypt_sym, SC_CARDCTL_ACOS5_ENCRYPT_SYM, SC_CARDCTL_ACOS5_DECRYPT_SYM,
+import acos5_shared_rust : CardCtl_crypt_sym, SC_CARDCTL_ACOS5_ENCRYPT_SYM, SC_CARDCTL_ACOS5_DECRYPT_SYM,
     BLOCKCIPHER_PAD_TYPE_PKCS5, BLOCKCIPHER_PAD_TYPE_ZEROES;
 
 //import wrapper.libtasn1 : asn1_node;
@@ -75,6 +75,8 @@ import deimos.openssl.des : DES_KEY_SZ, DES_cblock, DES_set_odd_parity, DES_is_w
 // tag types, Obs
 struct _keySym_algoStore{}
 struct _keySym_keyRef{}
+
+enum isEVO = false;
 
 enum skLabel  = ".commonObjectAttributes.label";
 enum skFlags  = ".commonObjectAttributes.flags";
@@ -341,10 +343,10 @@ class Obs_keySym_algoStore
 //aesKey,  0x02, 0x12, 0x22
         switch (_keySym_keyLenBits)
         {
-            case  64:  _value = _keySym_algoFamily=="DES"? 0x05 : 0x02; break;
-            case 128:  _value = _keySym_algoFamily=="DES"? 0x04 : 0x02; break;
-            case 192:  _value = _keySym_algoFamily=="DES"? 0x14 : 0x12; break;
-            case 256:  _value = _keySym_algoFamily=="DES"? 0x14 : 0x22; break;
+            case  64:  _value = _keySym_algoFamily=="DES"? (isEVO? 0x11 : 0x05) : (isEVO? 0x22 : 0x02); break;
+            case 128:  _value = _keySym_algoFamily=="DES"? (isEVO? 0x12 : 0x04) : (isEVO? 0x22 : 0x02); break;
+            case 192:  _value = _keySym_algoFamily=="DES"? (isEVO? 0x14 : 0x14) : (isEVO? 0x24 : 0x12); break;
+            case 256:  _value = _keySym_algoFamily=="DES"? (isEVO? 0x14 : 0x14) : (isEVO? 0x28 : 0x22); break;
             default:  goto case 192; // as long as _keySym_keyLenBits wasn't set
         }
 ////writefln("  "~typeof(this).stringof~" object was set to value 0x%02X", _value);
@@ -1851,8 +1853,8 @@ const char[] button_radioKeySym_cb_common2 =`
             // from tools/pkcs15-init.c  main
             sc_pkcs15_card*  p15card;
             sc_profile*      profile;
-            const(char)*     opt_profile      = "acos5_64"; //"pkcs15";
-            const(char)*     opt_card_profile = "acos5_64";
+            const(char)*     opt_profile      = "acos5_external"; //"pkcs15";
+            const(char)*     opt_card_profile = "acos5_external";
             sc_file*         file;
 
             sc_pkcs15init_set_callbacks(&my_pkcs15init_callbacks);

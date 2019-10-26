@@ -1,5 +1,5 @@
 /*
- * acos5_64_gui.d: Program acos5_64_gui's main file
+ * acos5_gui.d: Program acos5_gui's main file
  *
  * Copyright (C) 2018, 2019  Carsten Blüggel <bluecars@posteo.eu>
  *
@@ -26,7 +26,7 @@
  * TODO check about countermeasures like locking etc. provided by PKCS#11
  */
 
-module acos5_64_gui;
+module acos5_gui;
 
 
 import core.memory : GC;
@@ -71,14 +71,14 @@ import callbacks : btn_sanity_cb,
 import key_asym : keyAsym_initialize_PubObs, prkdf, pukdf;
 import key_sym  : keySym_initialize_PubObs,  skdf;
 
-//import acos5_64_shared_rust : CardCtl_generate_crypt_asym, CardCtl_generate_asym_inject;
+//import acos5_shared_rust : CardCtl_generate_crypt_asym, CardCtl_generate_asym_inject;
 /+
 Local imports:
 enum string commands1 : import util_general : ubaIntegral2string;
                         import libopensc.opensc : sc_card_ctl;
                         import libopensc.types : sc_serial_number;
-                        import libopensc.cardctl    : SC_CARDCTL_GET_SERIALNR;
-                        import acos5_64_shared_rust : SC_CARDCTL_ACOS5_HASHMAP_SET_FILE_INFO;
+                        import libopensc.cardctl : SC_CARDCTL_GET_SERIALNR;
+                        import acos5_shared_rust : SC_CARDCTL_ACOS5_HASHMAP_SET_FILE_INFO;
 main:                   import pkcs11;
                         import util_pkcs11 : pkcs11_check_return_value/*, pkcs11_get_slot*/;
 +/
@@ -157,9 +157,9 @@ version(I18N)
 {
     /* Setting the i18n environment */
     setlocale (LC_ALL, "");
-    cast(void) bindtextdomain ("acos5_64_gui", getenv("PWD"));
-    cast(void) textdomain ("acos5_64_gui");
-    /*printf("bind_textdomain_codeset: %s\n",*/cast(void) bind_textdomain_codeset("acos5_64_gui", "UTF-8");//);
+    cast(void) bindtextdomain ("acos5_gui", getenv("PWD"));
+    cast(void) textdomain ("acos5_gui");
+    /*printf("bind_textdomain_codeset: %s\n",*/cast(void) bind_textdomain_codeset("acos5_gui", "UTF-8");//);
 }
 
     /* IUP initialization */
@@ -174,7 +174,7 @@ version(I18N)
     /* IUP Config */
 /*
     config = new Config;
-    config.SetAttribute("APP_NAME", "acos5_64_gui");
+    config.SetAttribute("APP_NAME", "acos5_gui");
     if ((ret= config.LoadConfig) != 0)
     {
         writeln("IupConfigLoad return value: ", ret);
@@ -184,11 +184,11 @@ version(I18N)
     /*
     Workflow:
 
-    entry in $HOME/.acos5_64_gui
+    entry in $HOME/.acos5_gui
     [group]  group shall be the token serial no.
     key=1
     Configuration file
-      If there is none, then this card/token wasn't seen before by acos5_64_gui: Be conservative and do basic checks including:
+      If there is none, then this card/token wasn't seen before by acos5_gui: Be conservative and do basic checks including:
         Is there a MF ?
         Run sanityCheck, if yes
         If no MF, then offer initialization, perhaps based on export/archive
@@ -198,7 +198,7 @@ version(I18N)
           appDF exists yes/no (at least 1 shall exist, more can't be handled currently)
           sanityCheck has run (at least once)
 
-    acos5_64_gui runMode:
+    acos5_gui runMode:
        - reduced
        - full (no restrictions what to select from the user interface)
 
@@ -212,7 +212,7 @@ version(I18N)
         import libopensc.types : sc_serial_number;
         import libopensc.cardctl : SC_CARDCTL_GET_SERIALNR;
         import util_general : ubaIntegral2string;
-        import acos5_64_shared_rust : SC_CARDCTL_ACOS5_GET_COS_VERSION, SC_CARDCTL_ACOS5_GET_ROM_SHA1, CardCtlArray20, SC_CARD_TYPE_ACOS5_64_V2, SC_CARDCTL_ACOS5_GET_FREE_SPACE;
+        import acos5_shared_rust : SC_CARDCTL_ACOS5_GET_COS_VERSION, SC_CARDCTL_ACOS5_GET_ROM_SHA1, CardCtlArray20, SC_CARD_TYPE_ACOS5_64_V2, SC_CARDCTL_ACOS5_GET_FREE_SPACE;
 /+ +/
         CardCtlArray20  rom_sha1;
         if (card.type > SC_CARD_TYPE_ACOS5_64_V2) {
@@ -273,7 +273,7 @@ version(I18N)
     {
         enum string commands2 = `
         import libopensc.opensc : sc_card_ctl;
-        import acos5_64_shared_rust : SC_CARDCTL_ACOS5_HASHMAP_SET_FILE_INFO;
+        import acos5_shared_rust : SC_CARDCTL_ACOS5_HASHMAP_SET_FILE_INFO;
 
         /*
            This is the idea:
@@ -486,7 +486,7 @@ id   p
     AA["fs_text"].SetAttributeVALUE("");
     AA["fs_text"].SetString(IUP_APPEND, " ");
     AA["fs_text"].SetString(IUP_APPEND, "The translation feature is used currently for the superfluous button text Exit only.\n");
-    AA["fs_text"].SetString(IUP_APPEND, "It translates to Beenden, if the locale is a german one and if de/LC_MESSAGES/acos5_64_gui.mo got pushed\n");
+    AA["fs_text"].SetString(IUP_APPEND, "It translates to Beenden, if the locale is a german one and if de/LC_MESSAGES/acos5_gui.mo got pushed\n");
     AA["fs_text"].SetString(IUP_APPEND, `
 A remark upfront: While ACOS supports SFI (Short File Identifier), it's used neither by opensc, nor by the driver or this app. Only regular FID (File Identifier) 2 Bytes long are used !
 Also, pathes are used only as absolute pathes, thus beginning at root FID 0x3F00. A path may consist of max 8 FID components (opensc limitation), but it's recommended to use only max 5 FID components,
@@ -602,7 +602,7 @@ The primary choice among 4 alternatives is, what to do (choosable within the fol
 A - Don't change anything stored in the RSA key pair files, thus modifiable is only: "Key pair label", "authId", within reasonable limits "Private key usage PrKDF", "Key pair is modifiable?"
 B - Do remove a RSA key pair (delete files and adapt EF(PrKDF) and EF(PuKDF).
 C - The RSA key pair files do exist already and get reused: Do regenerate the RSA key pair, with private file known to the card only (should be unreadable, thus it never can be compromised).
-D - The RSA key pair files don't exist: Do create new RSA key pair files sized as required and generate the RSA key pair. The file ids are not freely choosable but dictated by the acos5_64.profile file.
+D - The RSA key pair files don't exist: Do create new RSA key pair files sized as required and generate the RSA key pair. The file ids are not freely choosable but dictated by the acos5_external.profile file.
 
 It seems to be non-deterministic which parameters N (modulus) and d (private exponent) will be choosen by the internal acos library code and it isn't affected by the CVE-2017-15361 vulnerability (ROCA)
 Choices C and B allow to change everything (for B there is the limit what fits into the existing files, possibly limiting modulus bits and/or the CRT choice).
@@ -710,7 +710,7 @@ The only way to have an exact clone of a card/token as archive file is to genera
 
 Perhaps I'll offer some single-file-import facility, i.e. limitited to certain files like RSA or certificates etc.
 
-At the moment, my intention is primaryly to get users started with some base installations/import archives supplied to choose from, which are known to work with acos5_64_gui
+At the moment, my intention is primaryly to get users started with some base installations/import archives supplied to choose from, which are known to work with acos5_gui
 
 
 , but shall list activate commands in the end as required. The batch of 'commands_create' thus gets split into 2 parts:

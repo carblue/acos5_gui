@@ -1,5 +1,5 @@
 /*
- * key_asym.d: Program acos5_64_gui's 'RSA key pair handling' file
+ * key_asym.d: Program acos5_gui's 'RSA key pair handling' file
  *
  * Copyright (C) 2018, 2019  Carsten Blüggel <bluecars@posteo.eu>
  *
@@ -32,7 +32,7 @@ public V3:
 I think of a working PKCS#11 application as of a quite complex machinery:
 This is the call stack:
 
-PKCS#11 application like acos5_64_gui, calls
+PKCS#11 application like acos5_gui, calls
     function in opensc-pkcs11.so
           function in libopensc.so
               function in libacos4_64.so, the driver and SM module
@@ -121,7 +121,7 @@ import util_opensc : connect_card, readFile, PKCS15Path_FileType, pkcs15_names,
     aid, is_ACOSV3_opmodeV3_FIPS_140_2L3, is_ACOSV3_opmodeV3_FIPS_140_2L3_active,
     my_pkcs15init_callbacks, tlv_Range_mod, file_type, getIdentifier;
 
-import acos5_64_shared_rust : CardCtl_generate_crypt_asym, SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES,
+import acos5_shared_rust : CardCtl_generate_crypt_asym, SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES,
     SC_CARDCTL_ACOS5_ENCRYPT_ASYM, SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT_GET,
     SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT_SET, CardCtl_generate_asym_inject, CardCtlArray32,
     SC_CARDCTL_ACOS5_HASHMAP_GET_FILE_INFO;
@@ -1031,7 +1031,7 @@ bool[ ] mapping:
 }
 
 
-/* ATTENTION: this must be synchronous how opensc generates new ones from profile acos5_64.profile
+/* ATTENTION: this must be synchronous how opensc generates new ones from profile acos5_external.profile
 currently the template defines for
 EF public-key:  starting from file-id = 4131
 EF private-key: starting from file-id = 41F1
@@ -1073,7 +1073,7 @@ void populate_info_from_getResponse(ref ub32 info, /*const*/ ubyte[MAX_FCI_GET_R
 */
     } // foreach (d,T,L,V; tlv_Range_mod(rbuf[2..2+len]))
 //    assumeWontThrow(writefln("%(%02X %)", info));
-/+ from removed in acos5_64_init
+/+ from removed in acos5_init
     else {
         fsData data;
         data.path[0..2] = [0x3F, 0];
@@ -1870,8 +1870,8 @@ int button_radioKeyAsym_cb(Ihandle* ih)
             // from tools/pkcs15-init.c  main
             sc_pkcs15_card*  p15card;
             sc_profile*      profile;
-            const(char)*     opt_profile      = "acos5_64"; //"pkcs15";
-            const(char)*     opt_card_profile = "acos5_64";
+            const(char)*     opt_profile      = "acos5_external"; //"pkcs15";
+            const(char)*     opt_card_profile = "acos5_external";
             sc_file*         file;
 
             sc_pkcs15init_set_callbacks(&my_pkcs15init_callbacks);
@@ -1949,8 +1949,8 @@ int button_radioKeyAsym_cb(Ihandle* ih)
             // from tools/pkcs15-init.c  main
             sc_pkcs15_card*  p15card;
             sc_profile*      profile;
-            const(char)*     opt_profile      = "acos5_64"; //"pkcs15";
-            const(char)*     opt_card_profile = "acos5_64";
+            const(char)*     opt_profile      = "acos5_external"; //"pkcs15";
+            const(char)*     opt_card_profile = "acos5_external";
             sc_file*         file;
 
             sc_pkcs15init_set_callbacks(&my_pkcs15init_callbacks);
@@ -2037,8 +2037,8 @@ int button_radioKeyAsym_cb(Ihandle* ih)
             // from tools/pkcs15-init.c  main
             sc_pkcs15_card*  p15card;
             sc_profile*      profile;
-            const(char)*     opt_profile      = "acos5_64"; //"pkcs15";
-            const(char)*     opt_card_profile = "acos5_64";
+            const(char)*     opt_profile      = "acos5_external"; //"pkcs15";
+            const(char)*     opt_card_profile = "acos5_external";
             sc_file*         file;
 
             sc_pkcs15init_set_callbacks(&my_pkcs15init_callbacks);
@@ -2163,8 +2163,8 @@ keyAsym_usageGenerate,
             // from tools/pkcs15-init.c  main
             sc_pkcs15_card*  p15card;
             sc_profile*      profile;
-            const(char)*     opt_profile      = "acos5_64"; //"pkcs15";
-            const(char)*     opt_card_profile = "acos5_64";
+            const(char)*     opt_profile      = "acos5_external"; //"pkcs15";
+            const(char)*     opt_card_profile = "acos5_external";
             uint keybits = keyAsym_RSAmodulusLenBits.get;
 
             sc_pkcs15init_set_callbacks(&my_pkcs15init_callbacks);
@@ -2322,7 +2322,7 @@ version(OPENSC_VERSION_LATEST)
                   google: load shared object local global variable
                   https://softwareengineering.stackexchange.com/questions/244664/global-variable-in-a-linux-shared-library
                 */
-                // libacos5_64.so is loaded already, we need the library handle
+                // libacos5.so is loaded already, we need the library handle
                 version(Posix) /*version(CRuntime_Glibc)*/
                 {
                     import std.path : baseName, stripExtension;
@@ -2357,7 +2357,7 @@ version(OPENSC_VERSION_LATEST)
                     while(null != pl)
                     {
 //                        printf("%s\n", pl.path);
-                        if (baseName(stripExtension(fromStringz(pl.path) ) ) == "libacos5_64")
+                        if (baseName(stripExtension(fromStringz(pl.path) ) ) == "libacos5")
                         {
                             lh = cast(void*)pl;
                             break;
@@ -2462,8 +2462,8 @@ version(OPENSC_VERSION_LATEST)
             // from tools/pkcs15-init.c  main
             sc_pkcs15_card*  p15card;
             sc_profile*      profile;
-            const(char)*     opt_profile      = "acos5_64"; //"pkcs15";
-            const(char)*     opt_card_profile = "acos5_64";
+            const(char)*     opt_profile      = "acos5_external"; //"pkcs15";
+            const(char)*     opt_card_profile = "acos5_external";
             sc_file*         file;
 
             sc_pkcs15init_set_callbacks(&my_pkcs15init_callbacks);
@@ -2710,8 +2710,8 @@ version(OPENSC_VERSION_LATEST)
             // from tools/pkcs15-init.c  main
             sc_pkcs15_card*  p15card;
             sc_profile*      profile;
-            const(char)*     opt_profile      = "acos5_64"; //"pkcs15";
-            const(char)*     opt_card_profile = "acos5_64";
+            const(char)*     opt_profile      = "acos5_external"; //"pkcs15";
+            const(char)*     opt_card_profile = "acos5_external";
             sc_file*         file;
 
             sc_pkcs15init_set_callbacks(&my_pkcs15init_callbacks);

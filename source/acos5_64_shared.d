@@ -1,5 +1,5 @@
 /*
- * acos5_64_shared.d: Program acos5_64_gui's shared (with D driver) file, mostly types
+ * acos5_64_shared.d: Program acos5_gui's shared (with D driver) file, mostly types
  *
  * Copyright (C) 2018, 2019  Carsten Blüggel <bluecars@posteo.eu>
  *

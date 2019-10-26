@@ -1,0 +1,49 @@
+{
+	"name": "wrapper",
+	"dependencies": {
+		"tasn1:deimos": "*"
+	},
+	"targetType": "library",
+	"targetPath": "../lib",
+	"sourcePaths": ["."],
+	"importPaths": [".", "../deimos"],
+	"comment-libs-posix": ["tasn1"],
+	"libs-linux": [":libtasn1.so.6"],
+	"lflags": [],
+
+	"alternative_libname_if_no_dev_package_installed: libs-linux": [":libtasn1.so.6"],
+	"alternative_libname_if_no_dev_package_installed: libs-osx": [":libtasn1.6.dylib"],
+	"alternative_nonstandard_liblocation: lflags-posix": [
+		"     -L/path/to/some/dir",
+		"-rpath=/path/to/some/dir"
+	],
+
+	"sourceFiles-windows-x86_64": [
+		"../lib/windows-x86_64/libtasn1-6.lib"
+	],
+	"copyFiles-windows-x86_64": [
+		"../lib/windows-x86_64/libtasn1-6.dll"
+	],
+
+	"configurations": [
+		{
+			"name": "library",
+			"versions": [],
+			"dflags": []
+		},
+		{
+			"name": "docs",
+			"versions": [],
+			"dflags-dmd": ["-dip1000", "-preview=dip1000", "-Dddocs_wrapper", "-preview=markdown"],
+			"dflags-ldc": ["-dip1000", "-preview=dip1000", "-Dddocs_wrapper", "-preview=markdown"],
+			"buildRequirements": ["disallowDeprecations"]
+		},
+		{
+			"name": "travis",
+			"versions": ["travis"],
+			"dflags-dmd": ["-dip1000", "-preview=dip1000"],
+			"dflags-ldc": ["-dip1000", "-preview=dip1000"],
+			"buildRequirements": ["disallowDeprecations"]
+		}
+	]
+}

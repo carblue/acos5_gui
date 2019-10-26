@@ -1,0 +1,100 @@
+This binding supports some version identifiers, some of which are essential to know about when compiling/linking against a binary
+libopensc.so/dll.
+Except SIMCLIST_WITH_THREADS (,SIMCLIST_DUMPRESTORE), ENABLE_SM and ENABLE_OPENSSL which stem from Opensc source code,
+they are introduced by this binding:
+
+When I talk about versions here, the version of OpenSC, especially it's binary libopensc.so/.dll is referred to, not that of this
+package ('opensc'), which is arbitrary in this context (except the statement, that this binding supports OpenSC's API versions
+0.17.0 and 0.18.0) !
+Let's assume a project called "carddriver", that depends on this package.
+
+There are then - whith regard to DUB - 2 dub.json files to be considered for specification of version identifiers.
+Both are suitable choices: DUB "passes" version identifiers "down" to it's dependencies, overriding possibly conflicting settings
+and also "up" to the card-driver's dub.json for a common set of version identifiers.
+
+Some version identifiers can be thougth of as rarely changing, making this package's dub.json a good choice.
+I consider this to be true for the next (libopensc related version identifiers), thus taken care for in this package's dub.json
+according to defaults of a Linux build of latest opensc version.
+
+Compiling-and-Installing-OpenSC-on-Unix-flavors (if the distribution doesn't provide one of the two latest OpenSC packages, and
+this is no option: https://launchpad.net/~gertvdijk/+archive/ubuntu/opensc-backports) is easy/straightforward:
+I prefer to git clone (or download)  0.18.0 tagged (or whatever is the latest) from https://github.com/OpenSC/OpenSC.git over
+tarballs from sourceforge (there was/is an issue with sourceforge ref. 0.15.0 ref. Linux).
+
+https://github.com/OpenSC/OpenSC/wiki/Compiling-and-Installing-OpenSC-on-Unix-flavors <br>
+In order to easily undo an installation as well (e.g. when the distribution later includes the latest OpenSC version), I prefer
+(on Debian/Ubuntu) sudo checkinstall instead of sudo make install.
+https://wiki.debian.org/CheckInstall
+
+
+Specifying the libopensc's binary version from OpenSC to link against and related settings:
+===========================================================================================
+
+version=
+
+OPENSC_VERSION_LATEST  [default: set]
+(which currently is OpenSC 0.18.0, or more precisely, what is stated in this packages README.md early in the beginning; thus in
+view of an upcoming version presumably 0.19.0, OPENSC_VERSION_LATEST remains refering to 0.18.0 until I upgraded this binding and
+the README.md to support 0.19.0 and 0.18.0, dropping 0.17.0 support then).
+Set version=OPENSC_VERSION_LATEST, if linking against OpenSC's latest version 0.18.0, otherwise don't, which implies linking
+against OpenSC's version 0.17.0.
+This controls differences in OpenSC API that have to be taken care of (e.g. some structs have other fields and differing .sizeof,
+module auxdata available or not, new functions available or not etc.).
+This also controls, which functions are actually callable from the OpenSC binary (if there are differences independent from API
+differences).
+
+
+PATCH_LIBOPENSC_EXPORTS  [default: not set]
+For OpenSC's version 0.17.0 and 0.18.0, the declarations in scopes version(PATCH_LIBOPENSC_EXPORTS) are NOT available/exported
+from their binaries, thus You are reminded by compiler errors rather than linker errors.
+Set version=PATCH_LIBOPENSC_EXPORTS to get the D declarations and You'll know what needs patching OpenSC's sources (IIRC patch
+src/libopensc/libopensc.exports), if it's required to be called from the driver.
+It's also helpfull, to compile the "carddriver"  with "lflags" : ["--no-undefined", "and possibly other flags"]
+
+
+SIMCLIST_WITH_THREADS  [default: not set]
+by default, OpenSC get's build without  SIMCLIST_WITH_THREADS  being defined, and in this case there is no need to care about this
+version identifier (just don't use it).
+Otherwise, being defined for the OpenSC build, version=SIMCLIST_WITH_THREADS   ***MUST***  be used in order to match list_t.sizeof
+and all .sizeof of types that depend on list_t !
+
+
+SIMCLIST_DUMPRESTORE  [default: not set]
+by default, OpenSC get's build without  SIMCLIST_DUMPRESTORE  being defined, and in this case there is no need to care about this
+version identifier (just don't use it).
+Otherwise, being defined for the OpenSC build, version=SIMCLIST_DUMPRESTORE   is up to You to set or not.
+
+
+ENABLE_SM  [default: set]
+Same as with all version identifiers in this libopensc related section, this has to match how libopensc was build. The default is
+with SM (Secure Messaging) enabled !
+Depending what is used by "carddriver", it may be required to link to libsmm-local.so/.dll as well (but in my acos5_64 driver I
+provide all SM functionality independently from libsmm-local.so and thus must inhibit loading of libsmm-local.so for name clashing
+reason; for acos5_64 this also entails the impossibility to call functions from module common.simclist).
+
+ENABLE_OPENSSL  [default: set]
+Actually, nothing in the binding code depends on version(ENABLE_OPENSSL), though it's expected, that the opensc binary was build
+with ENABLE_OPENSSL defined. Otherwise (not tested), a lot won't work or just crash.
+Thus even without having any effect, the version identifier is included in dub.json in order to express the expectation !
+
+Except ref. SIMCLIST_DUMPRESTORE, any mismatch in this section will sooner or later inevitably cause a SIGSEGV.
+
+
+Other version identifiers, intended for development/debugging only
+==================================================================
+
+ENABLE_TOSTRING  [default: not set]
+This is for debugging/watching what is going on related to values, an alternative to scattered 'sc_do_log(s)'. A developper will
+appreciate the deep insight and know how to make use of it.
+Without version=ENABLE_TOSTRING (configuration deimos), this binding (mostly) doesn't need compilation and dub.json is configured
+accordingly.
+Mostly: That refers to, that occasionally the 'deimos' configuration throws linker errors (undefined reference) at You referring
+to sc_crt.init. I didn't yet figure out the reason, maybe it's a peculiarity of some compiler version.
+In that case I switch to configuration 'toString' and don't set ENABLE_TOSTRING.
+
+ENABLE_TOSTRING_SM_GP   [default: not set]
+ENABLE_TOSTRING_SM_CWA  [default: not set]
+ENABLE_TOSTRING_SM_DH   [default: not set]
+There is a union within struct sm_info, holding either GlobalPlatform or CWA-14890 or Diffie-Hellman data for SM secure channel
+establishment. Only with version=ENABLE_SM and version=ENABLE_TOSTRING, and only one of these ENABLE_TOSTRING_SM_* set, it
+controls, which part of the union to be considered in function toString of struct sm_info.

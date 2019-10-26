@@ -49,7 +49,7 @@ import acos5_64_shared;
 
 import util_opensc : connect_card, readFile, decompose, PKCS15Path_FileType, PKCS15_FILE_TYPE,
     is_ACOSV3_opmodeV3_FIPS_140_2L3, is_ACOSV3_opmodeV3_FIPS_140_2L3_active, tnTypePtr, tlv_Range_mod, fsInfoSize;
-import acos5_64_shared_rust : SC_CARD_TYPE_ACOS5_64_V3, CardCtlArray8, CardCtlArray20;
+import acos5_shared_rust : SC_CARD_TYPE_ACOS5_64_V3, CardCtlArray8, CardCtlArray20;
 
 ub8 map2DropDown = [1, 2, 3, 4, 5, 6, 7, 8];
 
@@ -456,7 +456,7 @@ int btn_virgin_init_cb(Ihandle* ih)
 //    TODO The link between matrixinit-entry-values and pins.value array is missing, thus don#t actually do something currently
     enum string commands = `
 //        import libopensc.opensc : sc_card_ctl;
-//        import acos5_64_shared_rust : SC_CARDCTL_ACOS5_CREATE_MF_FILESYSTEM;
+//        import acos5_shared_rust : SC_CARDCTL_ACOS5_CREATE_MF_FILESYSTEM;
 
         CardCtlArray20  pins;
         pins.value = [8, 0x38, 0x37, 0x36, 0x35, 0x34, 0x33, 0x32, 0x31, 0,   // +91

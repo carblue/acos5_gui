@@ -1,5 +1,5 @@
 /*
- * acos5_64_shared_rust.d: Program acos5_64_gui's shared (with Rust driver) file, mostly types
+ * acos5_shared_rust.d: Program acos5_gui's shared (with Rust driver) file, mostly types
  *
  * Copyright (C) 2019  Carsten Blüggel <bluecars@posteo.eu>
  *
@@ -22,10 +22,10 @@
 
 /*
  * There is no topical reason why things are here other than this one:
- * Code/declarations required by both acos5_64 driver and tool acos5_64_gui
+ * Code/declarations required by both acos5 driver and tool acos5_gui
  */
 
-module acos5_64_shared_rust;
+module acos5_shared_rust;
 
 import core.stdc.config : c_ulong;
 /+
@@ -35,8 +35,8 @@ import core.stdc.config : c_ulong;
 	SC_CARD_TYPE_ACOS5_32, /* implemented in card-acos5.c (adaption required to be NOT responsible for ATR:
 														 3B:BE:96:00:00:41:05:20:00:00:00:00:00:00:00:00:00:90:00 any more, but SC_CARD_TYPE_ACOS5_64_V2 is ! ) */
 +/
-enum int SC_CARD_TYPE_ACOS5_64_V2  = 16_003; /* driver acos5_64 implemented as external module: https://github.com/carblue/acos5_64  */
-enum int SC_CARD_TYPE_ACOS5_64_V3  = 16_004; /* driver acos5_64 */
+enum int SC_CARD_TYPE_ACOS5_64_V2  = 16_003; /* driver acos5 implemented as external module: https://github.com/carblue/acos5  */
+enum int SC_CARD_TYPE_ACOS5_64_V3  = 16_004; /* driver acos5 */
 enum int SC_CARD_TYPE_ACOS5_64_EVO = 16_005;
 
 /+
@@ -137,7 +137,7 @@ struct CardCtlAuthState
 struct CardCtlArray32
 {
     ushort     key;        // IN   file_id
-    ubyte[32]  value;      // OUT  in the order as acos5_64_gui defines // alias  TreeTypeFS = Tree_k_ary!ub32;
+    ubyte[32]  value;      // OUT  in the order as acos5_gui defines // alias  TreeTypeFS = Tree_k_ary!ub32;
 }
 
 struct CardCtl_generate_crypt_asym
@@ -161,7 +161,7 @@ struct CardCtl_generate_crypt_asym
 
 struct CardCtl_generate_asym_inject {
     ubyte[16]  rsa_pub_exponent; // IN public exponent
-    ushort     file_id_priv;       // OUT  if any of file_id_priv/file_id_pub is 0, then file_id selection will depend on acos5_64.profile,
+    ushort     file_id_priv;       // OUT  if any of file_id_priv/file_id_pub is 0, then file_id selection will depend on acos5_external.profile,
     ushort     file_id_pub;       // OUT  if both are !=0, then the given values are preferred
     bool       do_generate_rsa_crt;         // IN whether RSA private key file shall be generated in ChineseRemainderTheorem-style
     bool       do_generate_rsa_add_decrypt_for_sign; // IN whether RSA private key file shall be generated adding decrypt capability iff sign is requested

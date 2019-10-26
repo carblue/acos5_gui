@@ -1,5 +1,5 @@
 /*
- * import_export.d: Program acos5_64_gui's 'import from/export to filesystem' file
+ * import_export.d: Program acos5_gui's 'import from/export to filesystem' file
  *
  * Copyright (C) 2018, 2019  Carsten Blüggel <bluecars@posteo.eu>
  *
@@ -35,7 +35,7 @@ import libopensc.errors;
 import libopensc.log;
 import libopensc.iso7816;
 
-import acos5_64_shared_rust;
+import acos5_shared_rust;
 
 import iup.iup_plusD;
 

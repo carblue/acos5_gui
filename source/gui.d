@@ -1,5 +1,5 @@
 /*
- * gui.d: Program acos5_64_gui's Graphical User Interface file, based on IUP
+ * gui.d: Program acos5_gui's Graphical User Interface file, based on IUP
  *
  * Copyright (C) 2018, 2019  Carsten Blüggel <bluecars@posteo.eu>
  *
@@ -228,7 +228,7 @@ private Vbox create_opensc_conf_tab()
 {
     Control[] child_array;
 
-    child_array ~= new Label(  "This page allows editing opensc.conf (and later acos5_64.profile). Root privileges will be required for storing"); // will be collected
+    child_array ~= new Label(  "This page allows editing opensc.conf (and later acos5_external.profile). Root privileges will be required for storing"); // will be collected
     child_array ~= new Label(  "There are 2 modes how to handle Root privileges: Either enter admin password in this app, or in a shell for a command sudo patch -b /etc/opensc/opensc.conf conf.diff"); // will be collected
 
     auto vbox = new Vbox(new Vbox(child_array, FILL_TYPE.FILL_BETWEEN), new Fill);
@@ -1031,7 +1031,7 @@ Dialog create_dialog_dlg0()
 
     auto vbox = new Vbox(/*new Fill, */ /*hbox,*/ /*, new Fill*/ tabs, lbl_statusbar);
     auto dialog = new Dialog("dlg0", true, vbox);
-    dialog.SetAttribute(IUP_TITLE, __("tool for driver acos5_64"));
+    dialog.SetAttribute(IUP_TITLE, __("tool for driver acos5"));
     dialog.SetAttribute(IUP_MARGIN, "2x2");
     return dialog;
 }
