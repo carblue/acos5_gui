@@ -199,7 +199,7 @@ private Hbox create_cryptoki_slot_tokeninfo_tab()
         SetAttributeId2("", 43,  1,   "N/A");
         SetAttributeId2("", 44,  0,   "Token ROM SHA1 value");
         SetAttributeId2("", 44,  1,   "N/A");
-        SetAttributeId2("", 45,  0,   "Token free space estimated/total in kB");
+        SetAttributeId2("", 45,  0,   "Token free space estimated/total in KiB");
         SetAttributeId2("", 45,  1,   "N/A / 64");
 
         SetAttribute(IUP_TOGGLECENTERED,  IUP_YES);

@@ -78,16 +78,16 @@ version(ENABLE_SM)
 		SM_CMD_MUTUAL_AUTHENTICATION = 0x20,
 
 		SM_CMD_RSA                   = 0x100,
-		SM_CMD_RSA_GENERATE          = 257,    // ACOS5-64v2.00: YES
-		SM_CMD_RSA_UPDATE            = 258,    // ACOS5-64v2.00: YES
-		SM_CMD_RSA_READ_PUBLIC       = 259,    // ACOS5-64v2.00: YES
+		SM_CMD_RSA_GENERATE          = 257,
+		SM_CMD_RSA_UPDATE            = 258,
+		SM_CMD_RSA_READ_PUBLIC       = 259,
 
 		SM_CMD_FILE                  = 512,
-		SM_CMD_FILE_READ             = 513,    // ACOS5-64v2.00: YES
-		SM_CMD_FILE_UPDATE           = 514,    // ACOS5-64v2.00: YES
-		SM_CMD_FILE_CREATE           = 515,    // ACOS5-64v2.00: YES
+		SM_CMD_FILE_READ             = 513,
+		SM_CMD_FILE_UPDATE           = 514,
+		SM_CMD_FILE_CREATE           = 515,
 		SM_CMD_FILE_DELETE           = 516,
-		SM_CMD_FILE_ERASE            = 517,    // ACOS5-64v2.00: YES
+		SM_CMD_FILE_ERASE            = 517,
 
 		SM_CMD_PIN                   = 768,
 		SM_CMD_PIN_VERIFY            = 769,

@@ -701,7 +701,7 @@ template connect_card(string commands, string returning="IUP_CONTINUE", string l
 
         if (card.type==SC_CARD_TYPE_ACOS5_64_V3)
         {
-            uint  op_mode_byte = 0x7FFF_FFFF;
+            ubyte  op_mode_byte = 0xFF;
             rc = sc_card_ctl(card, SC_CARDCTL_ACOS5_GET_OP_MODE_BYTE, &op_mode_byte);
             if (rc != SC_SUCCESS)
             {
@@ -712,14 +712,14 @@ template connect_card(string commands, string returning="IUP_CONTINUE", string l
             AA["slot_token"].SetStringId2("", 42,  1, is_ACOSV3_opmodeV3_FIPS_140_2L3? "Yes" : "No");
             if (is_ACOSV3_opmodeV3_FIPS_140_2L3)
             {
-                uint  is_fips_compliant;
+                bool  is_fips_compliant;
                 rc = sc_card_ctl(card, SC_CARDCTL_ACOS5_GET_FIPS_COMPLIANCE, &is_fips_compliant);
                 if (rc != SC_SUCCESS)
                 {
                     assumeWontThrow(writeln("FAILED: SC_CARDCTL_ACOS5_GET_FIPS_COMPLIANCE"));
 //                    return rc;
                 }
-                is_ACOSV3_opmodeV3_FIPS_140_2L3_active = is_fips_compliant==1;
+                is_ACOSV3_opmodeV3_FIPS_140_2L3_active = is_fips_compliant;
                 AA["slot_token"].SetStringId2("", 43,  1, is_ACOSV3_opmodeV3_FIPS_140_2L3_active? "Yes" : "No");
             }
         }
@@ -787,7 +787,7 @@ int enum_dir(int depth, tnTypePtr pos, ref PKCS15Path_FileType[] collector) noth
             return rv;
         }
 
-        size_t  count_files_curr_df;
+        ushort  count_files_curr_df;
         rv = sc_card_ctl(card, SC_CARDCTL_ACOS5_GET_COUNT_FILES_CURR_DF, &count_files_curr_df);
         if (rv != SC_SUCCESS)
         {
@@ -1163,7 +1163,9 @@ version(Posix)
     {
         case Transparent_EF:
             rv = sc_read_binary(card, 0, buf.ptr, buf.length, 0 /*flags*/);
-            assert(rv>0 && rv==buf.length);
+            assert((rv>0 && rv==buf.length) || rv==SC_ERROR_SECURITY_STATUS_NOT_SATISFIED);
+            if (rv==SC_ERROR_SECURITY_STATUS_NOT_SATISFIED)
+                return;
 //assumeWontThrow(writefln("0x[%(%02X %)]", buf));
 //            if (buf[0] == 0)
 //                return;
@@ -1223,7 +1225,10 @@ version(Posix)
                 }
                 else
                     rv = sc_read_record(card, rec_idx, buf.ptr, buf.length, SC_RECORD_BY_REC_NR);
-////                assert(rv>0 && rv==buf.length);
+////                assert( rv>0 && rv==buf.length);
+                    assert((rv>0 && rv==buf.length) || rv==SC_ERROR_SECURITY_STATUS_NOT_SATISFIED);
+                    if (rv==SC_ERROR_SECURITY_STATUS_NOT_SATISFIED)
+                        return;
 if (rv != buf.length)
     assumeWontThrow(writefln("### returned length from sc_read_record to short: Received %s, but expected %s. fid: %(%02X %)", rv, buf.length, fid));
 //assumeWontThrow(writefln("0x[%(%02X %)]", buf));

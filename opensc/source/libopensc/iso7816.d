@@ -16,15 +16,15 @@ enum : ubyte {
 enum ubyte ISO7816_TAG_FCI         = 0x6F;
 
 enum /*ISO7816_TAG_FCP_*/ : ubyte {
-	ISO7816_TAG_FCP            = 0x62,  /* ACOS: For file creation only; get response will supply ISO7816_TAG_FCI */
+	ISO7816_TAG_FCP            = 0x62,  /* ACOS5: For file creation only; get response will supply ISO7816_TAG_FCI */
 	ISO7816_TAG_FCP_SIZE       = 0x80,  /* L:2,    V: Number of data bytes in the file, excluding structural information. Applies to: Transparent EFs */
-	ISO7816_TAG_FCP_SIZE_FULL  = 0x81,  /* L:2,    V: Number of data bytes in the file, including structural information if any. Applies to: Any file;   not used by ACOS5-64 */
-	ISO7816_TAG_FCP_TYPE       = 0x82,  /* L:1-4,  V: File descriptor byte, optionally more. Applies to: Any file;   ACOS5-64 uses up to 6 bytes */
+	ISO7816_TAG_FCP_SIZE_FULL  = 0x81,  /* L:2,    V: Number of data bytes in the file, including structural information if any. Applies to: Any file;   not used by ACOS5 */
+	ISO7816_TAG_FCP_TYPE       = 0x82,  /* L:1-4,  V: File descriptor byte, optionally more. Applies to: Any file;   ACOS5 uses up to 6 bytes */
 	ISO7816_TAG_FCP_FID        = 0x83,  /* L:2,    V: File identifier. Applies to: Any file */
 	ISO7816_TAG_FCP_DF_NAME    = 0x84,  /* L:1-16, V: DF name. Applies to: DFs */
-	ISO7816_TAG_FCP_PROP_INFO  = 0x85,  /* L:var., V: Proprietary information. Applies to: Any file;   not used by ACOS5-64 */
-	ISO7816_TAG_FCP_ACLS       = 0x86,  /* L:var., V: Security attributes (coding outside the scope of this part of ISO/IEC 7816). Applies to: Any file;   not used by ACOS5-64 */
-//  ISO7816_TAG_FCP_EXTEF      = 0x87,  /* L:2,    V: Identifier of an EF containing an extension of the FCI. Applies to: Any file;   not used by ACOS5-64 */
+	ISO7816_TAG_FCP_PROP_INFO  = 0x85,  /* L:var., V: Proprietary information. Applies to: Any file;   not used by ACOS5 */
+	ISO7816_TAG_FCP_ACLS       = 0x86,  /* L:var., V: Security attributes (coding outside the scope of this part of ISO/IEC 7816). Applies to: Any file;   not used by ACOS5 */
+//  ISO7816_TAG_FCP_EXTEF      = 0x87,  /* L:2,    V: Identifier of an EF containing an extension of the FCI. Applies to: Any file;   not used by ACOS5 */
 	/*                           0x88  to
 	                             0x9E  :   RFU Reserved Future Use */
 	ISO7816_TAG_FCP_LCS        = 0x8A,  /* L:1,    V: Life Cycle Status Integer (LCSI). Applies to: Any file */

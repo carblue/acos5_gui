@@ -461,8 +461,8 @@ version(ENABLE_TOSTRING)
 		SC_AC_OP_LOCK                   = 1,   // Irreversibly block a file, called TERMINATE by acos
 		SC_AC_OP_DELETE                 = 2,   // Delete a uniquely identifiable object (such as a file, application or key).
 		SC_AC_OP_CREATE                 = 3,
-		SC_AC_OP_REHABILITATE           = 4,   // INS 44: Unblock a file.           ACOS5-64: Activate   File
-		SC_AC_OP_INVALIDATE             = 5,   // INS 04: Reversibly block a file.  ACOS5-64: Deactivate File
+		SC_AC_OP_REHABILITATE           = 4,   // INS 44: Unblock a file.           ACOS5: Activate   File
+		SC_AC_OP_INVALIDATE             = 5,   // INS 04: Reversibly block a file.  ACOS5: Deactivate File
 		SC_AC_OP_LIST_FILES             = 6,
 		SC_AC_OP_CRYPTO                 = 7,
 		SC_AC_OP_DELETE_SELF            = 8,   // ATTENTION: how it's used in opensc-tool/opensc-explorer and how acos differentiates this from SC_AC_OP_DELETE
@@ -484,8 +484,8 @@ version(ENABLE_TOSTRING)
 		SC_AC_OP_WRITE                  = 24,  // commonly used
 		SC_AC_OP_RESIZE                 = 25,  // currently used rarely(authentic)
 		SC_AC_OP_GENERATE               = 26,  // currently used rarely(3 cards)
-		SC_AC_OP_CREATE_EF              = 27,  // currently used rarely(isoApplet, acos5_64); profile.c: "CREATE-EF"
-		SC_AC_OP_CREATE_DF              = 28,  // currently used rarely(isoApplet, acos5_64); profile.c: "CREATE-DF"
+		SC_AC_OP_CREATE_EF              = 27,  // currently used rarely(isoApplet, acos5); profile.c: "CREATE-EF"
+		SC_AC_OP_CREATE_DF              = 28,  // currently used rarely(isoApplet, acos5); profile.c: "CREATE-DF"
 		SC_AC_OP_ADMIN                  = 29,  // currently unused
 		SC_AC_OP_PIN_USE                = 30,  // currently unused; profile.c: "PIN-USE"
 		SC_MAX_AC_OPS                   = 31,
@@ -593,10 +593,10 @@ version(ENABLE_TOSTRING)
 		uint       type;         /* values see enum SC_FILE_TYPE */ /* See constant values defined above */
 		uint       ef_structure; /* values see enum SC_FILE_EF   */
 		uint       status;       /* Life Cycle status Integer LCSI */
-		uint       shareable;    /* true(1), false(0) according to ISO 7816-4:2005 Table 14 */ /* ACOS5_64: always no */
+		uint       shareable;    /* true(1), false(0) according to ISO 7816-4:2005 Table 14 */ /* ACOS5: always no */
 		size_t     size;         /* Size of file (in bytes) */
 		int        id;           /* file identifier (2 bytes) */
-		int        sid;          /* short EF identifier (1 byte) */ /*ACOS5_64: 1 byte  Short File Identifier (SFI) */
+		int        sid;          /* short EF identifier (1 byte) */ /*ACOS5: 1 byte  Short File Identifier (SFI) */
 		sc_acl_entry*[SC_MAX_AC_OPS] acl; /* Access Control List */
 
 version(OPENSC_VERSION_LATEST) {

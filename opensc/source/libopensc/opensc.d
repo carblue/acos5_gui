@@ -1074,7 +1074,12 @@ enum {
 		size_t               max_recv_size;  /* Max Le supported by the card */
 		sc_app_info*[SC_MAX_CARD_APPS] app;
 		int                  app_count;
+
+version(OPENSC_VERSION_LATEST) {}
+else {
 		sc_file*             ef_dir;
+}
+
 		sc_ef_atr*           ef_atr;
 		sc_algorithm_info*   algorithms;
 		int                  algorithm_count;
@@ -1909,9 +1914,9 @@ int iso7816_update_binary_sfid(sc_card* card, ubyte sfid,
 } // extern(C) @nogc nothrow
 
 /* some wrappers */
-// when using this for acos5_64 with apdu.le, apdu.le must be between 1 and 255
+// when using this for acos5 with apdu.le, apdu.le must be between 1 and 255
 int bytes2apdu()(scope sc_context* ctx, scope const ubyte[] buf, out sc_apdu apdu) @nogc nothrow pure @trusted
 { return  sc_bytes2apdu(ctx, &buf[0], buf.length, &apdu); }
 
 /* Next is not opensc, not Deimos-like, needs compiling irrespective of version(ENABLE_TOSTRING) set or not:
- * See in acos5_64 package, file util_general_opensc.d: More structs, functions to help with opensc. */
+ * See in acos5 package, file util_general_opensc.d: More structs, functions to help with opensc. */

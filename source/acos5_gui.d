@@ -214,9 +214,10 @@ version(I18N)
         import util_general : ubaIntegral2string;
         import acos5_shared_rust : SC_CARDCTL_ACOS5_GET_COS_VERSION, SC_CARDCTL_ACOS5_GET_ROM_SHA1, CardCtlArray20, SC_CARD_TYPE_ACOS5_64_V2, SC_CARDCTL_ACOS5_GET_FREE_SPACE;
 /+ +/
+/*
         CardCtlArray20  rom_sha1;
         if (card.type > SC_CARD_TYPE_ACOS5_64_V2) {
-            rc = sc_card_ctl(card, SC_CARDCTL_ACOS5_GET_ROM_SHA1, &rom_sha1);
+            rc = sc_card_ctl(card, SC_CARDCTL_ACOS5_GET_ROM_SHA1, &rom_sha1); // that's very slow
             if (rc != SC_SUCCESS)
             {
                 writeln("FAILED: SC_CARDCTL_ACOS5_GET_ROM_SHA1");
@@ -224,6 +225,7 @@ version(I18N)
             }
             AA["slot_token"].SetStringId2("", 44,  1, ubaIntegral2string(rom_sha1.value));
         }
+*/
         uint  free_space;
         rc = sc_card_ctl(card, SC_CARDCTL_ACOS5_GET_FREE_SPACE, &free_space);
         if (rc != SC_SUCCESS)

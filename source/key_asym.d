@@ -123,7 +123,7 @@ import util_opensc : connect_card, readFile, PKCS15Path_FileType, pkcs15_names,
 
 import acos5_shared_rust : CardCtl_generate_crypt_asym, SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES,
     SC_CARDCTL_ACOS5_ENCRYPT_ASYM, SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT_GET,
-    SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT_SET, CardCtl_generate_asym_inject, CardCtlArray32,
+    SC_CARDCTL_ACOS5_SDO_GENERATE_KEY_FILES_INJECT_SET, CardCtl_generate_inject_asym, CardCtlArray32,
     SC_CARDCTL_ACOS5_HASHMAP_GET_FILE_INFO;
 
 import wrapper.libtasn1;
@@ -2144,7 +2144,7 @@ int button_radioKeyAsym_cb(Ihandle* ih)
             ubyte keyAsym_IdCurrent = cast(ubyte)keyAsym_Id.get;
             CardCtlArray32 info_priv;
             CardCtlArray32 info_publ;
-            CardCtl_generate_asym_inject agi = { do_generate_rsa_crt: keyAsym_crtModeGenerate.get()!=0,
+            CardCtl_generate_inject_asym agi = { do_generate_rsa_crt: keyAsym_crtModeGenerate.get()!=0,
                 do_generate_rsa_add_decrypt_for_sign: keyAsym_usageGenerate.get.among(3,6)!=0,
                 do_generate_with_standard_rsa_pub_exponent: true
             };

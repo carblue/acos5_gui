@@ -34,7 +34,7 @@ simclist_restrict (C's restrict keyword) got translated to scope in D in the fol
 and also ignored, if -dip1000 isn't used.
 Also, -dip1000 related attribute adornment only makes sense if the functions are intended for @safe usage:
 That requires inspecting the C source code and setting @trusted where applicable.
-As driver acos5_64 doesn't use the list functions anyway, I'm not going through that hassle of bothering about
+As driver acos5 doesn't use the list functions anyway, I'm not going through that hassle of bothering about
 consistent scope attributes here !
 Only the parameter storage class in was removed as it is an equivalent of something else which may change !
 TODO inspect/overhaul all toString methods (somewhere there is still a bug):

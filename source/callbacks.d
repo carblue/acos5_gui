@@ -368,7 +368,7 @@ int btn_sanity_cb(Ihandle* ih)
     int rv;
     if (card.type==SC_CARD_TYPE_ACOS5_64_V3)
     {
-        uint  op_mode_byte = 0x7FFF_FFFF;
+        ubyte  op_mode_byte = 0xFF;
         rv = sc_card_ctl(card, SC_CARDCTL_ACOS5_GET_OP_MODE_BYTE, &op_mode_byte);
         if (rv < 0)
             return IUP_DEFAULT;

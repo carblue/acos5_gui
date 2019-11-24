@@ -31,7 +31,7 @@
 	"suspended-dflags-posix-gdc": ["failure", "with", "not-yet-available", "std.range.package: slide (remove private at 'Explicitly set to private to delay the release until 2.076')"],
 
 	"lflags": ["--no-undefined", "--as-needed", "--version-script=acos5_gui.ver"],
-	"suspended-lflags-posix-ldc": ["-rpath=/home/bodo/Downloads/dlang/ldc2-1.18.0-linux-x86_64/lib"],
+	"suspended-lflags-posix-ldc": ["-rpath=$HOME/Downloads/dlang/ldc2-1.18.0-linux-x86_64/lib"],
 	"postBuildCommands": ["strip --strip-unneeded $$DUB_TARGET_NAME"],
 	"alternatives-versions": ["I18N to be used only with gettext/libintl.so available", "OPENSC_VERSION_UPCOMING to be used only with OPENSC_VERSION_LATEST together with OpenSC v0.21.0", "not yet ready: USE_LIBRESSL"],
 	"versions-posix": ["I18N"],

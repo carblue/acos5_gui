@@ -128,16 +128,16 @@ scconf_block* _sc_match_atr_block(sc_context* ctx, sc_card_driver* driver, sc_at
 	int _sc_card_add_rsa_alg(sc_card* card, uint key_length, c_ulong flags, c_ulong exponent);
 	int _sc_card_add_ec_alg(sc_card* card, uint key_length, c_ulong flags, c_ulong ext_flags, sc_object_id* curve_oid);
 version(PATCH_LIBOPENSC_EXPORTS) {
-	int _sc_card_add_algorithm(sc_card* card, const(sc_algorithm_info)* info);                     // duplicated for acos5_64 : missingExport_sc_card_add_algorithm
-	int _sc_card_add_symmetric_alg(sc_card* card, uint algorithm, uint key_length, c_ulong flags); // duplicated for acos5_64 : missingExport_sc_card_add_symmetric_alg
+	int _sc_card_add_algorithm(sc_card* card, const(sc_algorithm_info)* info);                     // duplicated for acos5
+	int _sc_card_add_symmetric_alg(sc_card* card, uint algorithm, uint key_length, c_ulong flags); // duplicated for acos5
 
 	/********************************************************************/
 	/*                 pkcs1 padding/encoding functions                 */
 	/********************************************************************/
 
-	int sc_pkcs1_strip_01_padding(sc_context* ctx, const(ubyte)* in_dat, size_t in_len,        // duplicated for acos5_64 : missingExport_sc_pkcs1_strip_01_padding
+	int sc_pkcs1_strip_01_padding(sc_context* ctx, const(ubyte)* in_dat, size_t in_len,        // duplicated for acos5
 		ubyte* out_dat, size_t* out_len);
-	int sc_pkcs1_strip_02_padding(sc_context* ctx, const(ubyte)* in_dat, size_t in_len,        // duplicated for acos5_64 : missingExport_sc_pkcs1_strip_02_padding
+	int sc_pkcs1_strip_02_padding(sc_context* ctx, const(ubyte)* in_dat, size_t in_len,        // duplicated for acos5
 		ubyte* out_dat, size_t* out_len);
 	int sc_pkcs1_strip_digest_info_prefix(uint* algorithm,
 		const(ubyte)* in_dat, size_t in_len, ubyte* out_dat, size_t* out_len);

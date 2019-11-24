@@ -82,7 +82,7 @@ version(NOLOG)
 enum log(PS...) = "{}";
 else
 enum log(PS...) = "sc_do_log(ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__" ~ First2QuotedArgStringOf!PS ~ ");";
-//                sc_do_log(      card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_64_card_ctl",
+//                sc_do_log(      card.ctx, SC_LOG_DEBUG_NORMAL, __MODULE__, __LINE__, "acos5_card_ctl",
 //                    "so_pin (%s), label (%s)", sc_dump_hex(so_pin, so_pin_len), label);
 
 //void sc_do_log(sc_context_t *ctx, int level, const char *file, int line, const char *func, const char *format, ...)
