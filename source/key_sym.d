@@ -1937,6 +1937,7 @@ int button_radioKeySym_cb(Ihandle* ih)
 
             if (rv >= 0 && buf.length)
                 rv = sc_update_binary(card, haystack.front.posStart, buf.ptr, buf.length, 0);
+//assumeWontThrow(writefln("toggle_sym_delete: rv: %s, buf.length: %s, %s", rv, buf.length, __LINE__));
             assert(rv==buf.length);
 
             // update record
@@ -1944,8 +1945,9 @@ int button_radioKeySym_cb(Ihandle* ih)
             rv = sc_pkcs15init_authenticate(profile, p15card, file, SC_AC_OP.SC_AC_OP_UPDATE);
             if (rv < 0)
                 return IUP_DEFAULT;
-            rv = sc_delete_record(card, keySym_recordNo.get);
-            assert(rv == skFile.data[4]);
+//rv = sc_delete_record(card, keySym_recordNo.get);
+//assumeWontThrow(writefln("toggle_sym_delete: rv: %s, skFile.data[4]: %s, %s", rv, skFile.data[4], __LINE__));
+//            assert(rv == skFile.data[4]);
 `;
             mixin (connect_card!commands);
             hstat.SetString(IUP_TITLE, "SUCCESS: Delete key");

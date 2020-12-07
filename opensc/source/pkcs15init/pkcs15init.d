@@ -337,8 +337,7 @@ struct sc_pkcs15init_prkeyargs {
 	c_ulong          x509_usage;
 	uint             flags;
 	uint             access_flags;
-    version(OPENSC_VERSION_LATEST)
-    int              user_consent;
+	int              user_consent;
 
 	union anonymous {
 		sc_pkcs15init_keyarg_gost_params  gost;
@@ -441,11 +440,9 @@ struct sc_pkcs15init_skeyargs {
 	uint           access_flags;
 	c_ulong        algorithm; /* User requested algorithm */
 	c_ulong        value_len; /* User requested length */
-    version(OPENSC_VERSION_LATEST) {
-    int            session_object; /* If nonzero. this is a session object, which will
+	int            session_object; /* If nonzero. this is a session object, which will
                                       be cleared from card when the session is closed.*/
-    int            user_consent;
-    }
+	int            user_consent;
 	sc_pkcs15_skey key;
 
 version(ENABLE_TOSTRING)
@@ -613,7 +610,6 @@ int  sc_pkcs15init_sanity_check(sc_pkcs15_card*, sc_profile*);
 int  sc_pkcs15init_finalize_profile(sc_card* card, sc_profile* profile,
 				sc_aid* aid);
 
-version(OPENSC_VERSION_LATEST)
 version(PATCH_LIBOPENSC_EXPORTS)
 int	sc_pkcs15init_unwrap_key(sc_pkcs15_card* p15card, sc_profile* profile,
 		sc_pkcs15_object* key, u8* wrapped_key, size_t wrapped_key_len,

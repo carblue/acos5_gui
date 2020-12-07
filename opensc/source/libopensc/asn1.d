@@ -97,6 +97,9 @@ version(PATCH_LIBOPENSC_EXPORTS)
 
 	/* non-inverting version */
 	int sc_asn1_decode_bit_string_ni(const(ubyte)* inbuf, size_t inlen, void* outbuf, size_t outlen);
+version(OPENSC_VERSION_LATEST)
+	int sc_asn1_decode_integer(const(ubyte)* inbuf, size_t inlen, int* out_, int strict);
+else
 	int sc_asn1_decode_integer(const(ubyte)* inbuf, size_t inlen, int* out_);
 	int sc_asn1_decode_object_id(const(ubyte)* inbuf, size_t inlen, sc_object_id* id);
 	int sc_asn1_encode_object_id(ubyte** buf, size_t* buflen, const(sc_object_id)* id);
@@ -110,10 +113,7 @@ version(PATCH_LIBOPENSC_EXPORTS)
 	int sc_asn1_write_element(sc_context* ctx, uint tag, const(ubyte)* data, size_t datalen, ubyte** out_, size_t* outlen);
 
 	int sc_asn1_sig_value_rs_to_sequence(sc_context* ctx, ubyte* in_, size_t inlen, ubyte** buf, size_t* buflen);
-version(OPENSC_VERSION_LATEST)
 	int sc_asn1_sig_value_sequence_to_rs(sc_context* ctx, const(ubyte)* in_, size_t inlen, ubyte* buf, size_t buflen);
-else
-	int sc_asn1_sig_value_sequence_to_rs(sc_context* ctx, ubyte* in_, size_t inlen, ubyte* buf, size_t buflen);
 
 	enum : uint {
 		SC_ASN1_CLASS_MASK      = 0x3000_0000,

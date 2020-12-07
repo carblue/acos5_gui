@@ -52,10 +52,6 @@ version(ENABLE_SM)
 	import libopensc.types;
 	import libopensc.opensc : sc_card, sc_context;
 
-	enum SHA_DIGEST_LENGTH    = 20;
-	enum SHA1_DIGEST_LENGTH   = 20;
-	enum SHA256_DIGEST_LENGTH = 32;
-
 	enum SM_TYPE : uint {
 		SM_TYPE_GP_SCP01 = 0x100,
 		SM_TYPE_CWA14890 = 0x400,

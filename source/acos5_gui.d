@@ -52,10 +52,10 @@ import wrapper.libtasn1 : asn1_array2tree, asn1_parser2tree, asn1_delete_structu
 import tasn1_pkcs15 : tasn1_pkcs15_tab;
 
 import gui : create_dialog_dlg0;
-import util_opensc : connect_card, populate_tree_fs, PKCS15_FILE_TYPE, PKCS15,
+import util_opensc : connect_card, populate_tree_fs, populate_tree_fs_nix, PKCS15_FILE_TYPE, PKCS15,
     errorDescription, fs, appdf, is_ACOSV3_opmodeV3_FIPS_140_2L3,
-    is_ACOSV3_opmodeV3_FIPS_140_2L3_active, tnTypePtr;
-//    , PRKDF, PUKDF, PUKDF_TRUSTED, SKDF, CDF, CDF_TRUSTED, CDF_USEFUL, DODF, AODF;
+    is_ACOSV3_opmodeV3_FIPS_140_2L3_active, tnTypePtr,
+    PRKDF, PUKDF, PUKDF_TRUSTED, SKDF, CDF, CDF_TRUSTED, CDF_USEFUL, DODF, AODF;
 import callbacks : btn_sanity_cb,
 ////    config,
     groupCfg,
@@ -212,18 +212,18 @@ version(I18N)
         import libopensc.types : sc_serial_number;
         import libopensc.cardctl : SC_CARDCTL_GET_SERIALNR;
         import util_general : ubaIntegral2string;
-        import acos5_shared_rust : SC_CARDCTL_ACOS5_GET_COS_VERSION, SC_CARDCTL_ACOS5_GET_ROM_SHA1, CardCtlArray20, SC_CARD_TYPE_ACOS5_64_V2, SC_CARDCTL_ACOS5_GET_FREE_SPACE;
+        import acos5_shared_rust : SC_CARDCTL_ACOS5_GET_COS_VERSION, SC_CARDCTL_ACOS5_GET_ROM_SHA1, SC_CARD_TYPE_ACOS5_64_V2, SC_CARDCTL_ACOS5_GET_FREE_SPACE;
 /+ +/
 /*
-        CardCtlArray20  rom_sha1;
+        ubyte[20]  rom_sha1;
         if (card.type > SC_CARD_TYPE_ACOS5_64_V2) {
-            rc = sc_card_ctl(card, SC_CARDCTL_ACOS5_GET_ROM_SHA1, &rom_sha1); // that's very slow
+            rc = sc_card_ctl(card, SC_CARDCTL_ACOS5_GET_ROM_SHA1, &rom_sha1[0]); // that's very slow
             if (rc != SC_SUCCESS)
             {
                 writeln("FAILED: SC_CARDCTL_ACOS5_GET_ROM_SHA1");
                 //exit(1);
             }
-            AA["slot_token"].SetStringId2("", 44,  1, ubaIntegral2string(rom_sha1.value));
+            AA["slot_token"].SetStringId2("", 44,  1, ubaIntegral2string(rom_sha1));
         }
 */
         uint  free_space;
@@ -243,7 +243,7 @@ version(I18N)
             exit(1);
         }
         groupCfg = ubaIntegral2string(serial_number.value[0..serial_number.len]);
-        rc = sc_card_ctl(card, SC_CARDCTL_ACOS5_GET_COS_VERSION, &cos_version);
+        rc = sc_card_ctl(card, SC_CARDCTL_ACOS5_GET_COS_VERSION, &cos_version[0]);
         if (rc != SC_SUCCESS)
         {
             writeln("FAILED: SC_CARDCTL_ACOS5_GET_COS_VERSION");
@@ -251,7 +251,7 @@ version(I18N)
         }
 `;
     mixin (connect_card!(commands1, "EXIT_FAILURE", "3"));
-    AA["slot_token"].SetStringId2("", 41,  1, cos_version.value[5].to!string~"."~cos_version.value[6].to!string);
+    AA["slot_token"].SetStringId2("", 41,  1, cos_version[5].to!string~"."~cos_version[6].to!string);
 /*
     if (config.GetVariableIntDef(groupCfg.toStringz, "seen", 99) == 99) // then not yet seen this card before, do some sanity-check
     {
@@ -286,7 +286,9 @@ version(I18N)
         */
 
         rc = sc_card_ctl(card, SC_CARDCTL_ACOS5_HASHMAP_SET_FILE_INFO, null);
-        populate_tree_fs(); // populates PrKDF, PuKDF (and dropdown key pair id),
+        version (Windows) populate_tree_fs(); // populates PrKDF, PuKDF (and dropdown key pair id),
+        else              populate_tree_fs_nix();
+
 /+
         sc_path  path;
         sc_format_path("3F0041004120", &path);
@@ -886,7 +888,7 @@ The checks may be grouped into these categories:
                                              firmwareVersion.major.to!string~"."~firmwareVersion.minor.to!string*/);
                 else
                 {
-                    SetStringId2("", 41,  1, cos_version.value[5].to!string~"."~cos_version.value[6].to!string);
+                    SetStringId2("", 41,  1, cos_version[5].to!string~"."~cos_version[6].to!string);
                 }
                 SetStringId2("", 40,  1, cast(string) utcTime[]);
             } // what about other data like free space, ROM-SHA1 etc.

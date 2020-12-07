@@ -49,7 +49,7 @@ import acos5_64_shared;
 
 import util_opensc : connect_card, readFile, decompose, PKCS15Path_FileType, PKCS15_FILE_TYPE,
     is_ACOSV3_opmodeV3_FIPS_140_2L3, is_ACOSV3_opmodeV3_FIPS_140_2L3_active, tnTypePtr, tlv_Range_mod, fsInfoSize;
-import acos5_shared_rust : SC_CARD_TYPE_ACOS5_64_V3, CardCtlArray8, CardCtlArray20;
+import acos5_shared_rust : SC_CARD_TYPE_ACOS5_64_V3;
 
 ub8 map2DropDown = [1, 2, 3, 4, 5, 6, 7, 8];
 
@@ -63,7 +63,7 @@ int isappDFdefined;
 int isappDFexists;
 string appDF;
 
-CardCtlArray8  cos_version;
+ub8  cos_version;
 
 nothrow :
 
@@ -364,7 +364,7 @@ int btn_sanity_cb(Ihandle* ih)
     if (card.version_.hw_major)
         h.SetStringId2 ("", 2, 1, card.version_.hw_major.to!string~"."~card.version_.hw_minor.to!string);
     else
-        h.SetStringId2 ("", 2, 1, cos_version.value[5].to!string~"."~cos_version.value[6].to!string);
+        h.SetStringId2 ("", 2, 1, cos_version[5].to!string~"."~cos_version[6].to!string);
     int rv;
     if (card.type==SC_CARD_TYPE_ACOS5_64_V3)
     {
@@ -434,6 +434,7 @@ int btn_sanity_cb(Ihandle* ih)
         rc = sc_select_file(card, &path, null);
         isappDFexists =  rc==SC_SUCCESS? 1 : 0;
         AA["sanity_text"].SetString(IUP_APPEND, "isappDFexists = "~isappDFexists.to!string);
+////assumeWontThrow(writeln("isappDFexists: ", isappDFexists));
     }
 `;
     mixin (connect_card!commands);
@@ -458,9 +459,9 @@ int btn_virgin_init_cb(Ihandle* ih)
 //        import libopensc.opensc : sc_card_ctl;
 //        import acos5_shared_rust : SC_CARDCTL_ACOS5_CREATE_MF_FILESYSTEM;
 
-        CardCtlArray20  pins;
-        pins.value = [8, 0x38, 0x37, 0x36, 0x35, 0x34, 0x33, 0x32, 0x31, 0,   // +91
-                      8, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0 ];
+//        CardCtlArray20  pins;
+//        pins.value = [8, 0x38, 0x37, 0x36, 0x35, 0x34, 0x33, 0x32, 0x31, 0,   // +91
+//                      8, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0 ];
 //        sc_card_ctl(card, SC_CARDCTL_ACOS5_CREATE_MF_FILESYSTEM, &pins);
 `;
 ////    mixin (connect_card!(commands, "EXIT_FAILURE", "3"));

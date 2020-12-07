@@ -31,6 +31,8 @@ NO extern(C) functions are declared/exported from "libopensc.so|opensc.dll" bina
 module libopensc.cardctl;
 
 import libopensc.types : FreeEnumMembers;
+version(OPENSC_VERSION_LATEST)
+import libopensc.pkcs15 : sc_pkcs15_tokeninfo;
 
 
 //uint _CTL_PREFIX()(char a, char b, char c)  { return a << 24 | b << 16 | c << 8; }
@@ -93,3 +95,11 @@ struct sc_cardctl_pkcs11_init_pin {
 }
 //	alias sc_cardctl_pkcs11_init_pin_t = sc_cardctl_pkcs11_init_pin;
 
+/*
+ * Generic cardctl - card driver can examine token info
+ */
+version(OPENSC_VERSION_LATEST)
+struct sc_cardctl_parsed_token_info {
+	uint flags;
+	sc_pkcs15_tokeninfo* tokeninfo;
+}

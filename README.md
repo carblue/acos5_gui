@@ -1,27 +1,23 @@
-# acos5_64_gui
-An Administration tool for ACS ACOS5-64 (v2: Smart Card/CryptoMate64 and v3: Smart Card/CryptoMate Nano), based on driver acos5_64 and acos5_64_pkcs15init for OpenSC.
+# acos5_gui
+An Administration tool for ACS ACOS5 (V2: Smart Card/CryptoMate64 and V3: Smart Card/CryptoMate Nano), based on driver [acos5](https://github.com/carblue/acos5 "https://github.com/carblue/acos5") for OpenSC.
 
-For some of OpenSC's internal card drivers, there exist command-line tools. This is the Graphical User Interface tool for external driver acos5_64, built using the IUP GUI framework.
-
-The repo is now based on a new driver implementation [acos5_64](https://github.com/carblue/acos5_64 "https://github.com/carblue/acos5_64") (since release v0.0.7).<br>
+For some of OpenSC's internal card drivers, there exist command-line tools. This is the Graphical User Interface tool for external driver acos5, built using the IUP GUI framework.
 
 For some details, it's recommended to consult the hardware's "Reference Manual", available on request from  info@acs.com.hk<br>
 
-**ATTENTION**: Known Issue: Driver and acos5_64_gui are designed to retain readiness for operation of ACS proprietary tools with a card. While testing that with ACS ACSCMU, I did a Login and changed the token label. The result was, that ACSCMU corrupted EF.TokenInfo file 0x5032. This is just another example why ACSCMU of client kit IMO is crap. One has to correct EF.TokenInfo manually afterwards.
-Otherwise acos5_64_gui can't decode and display that file's content any more. OpenSC's ASN.1 parsing is more tolerant (than libtasn1) towards that issue and will read and interpret the misplaced "tokenflags".<br>
+**ATTENTION**: Known Issue: Driver and acos5_gui are designed to retain readiness for operation of ACS proprietary tools with a card. While testing that with ACS ACSCMU, I did a Login and changed the token label. The result was, that ACSCMU corrupted EF.TokenInfo file 0x5032. This is just another example why ACSCMU of client kit IMO is suboptimal. One has to correct EF.TokenInfo manually afterwards.
+Otherwise acos5_gui can't decode and display that file's content any more. OpenSC's ASN.1 parsing is more tolerant (than libtasn1) towards that issue and will read and interpret the misplaced "tokenflags".<br>
 
-The default in dub.json (with new D binding opensc version 0.20.0-alpha.1) assumes an OpenSC binary version 0.19.0 is installed. For an OpenSC binary version 0.20.0, change "subConfigurations": "opensc": "deimosPrior" to "opensc": "deimos".
-It's recommended to use OpenSC binary version 0.20.0 once this got released.
+The default in dub.json (with new D binding opensc code) assumes an OpenSC binary version 0.21.0 is installed. For an OpenSC binary version 0.20.0, change "subConfigurations": "opensc": "deimos" to "opensc": "deimosPrior".
+It's recommended to use OpenSC binary version 0.21.0.
 
-Next to libraries required according to dub.json, both of the following libraries are prerequisites being installed and OpenSC (opensc.conf) configured to use them:
-[acos5_64](https://github.com/carblue/acos5_64 "https://github.com/carblue/acos5_64") and
-[acos5_64_pkcs15init](https://github.com/carblue/acos5_64_pkcs15init "https://github.com/carblue/acos5_64_pkcs15init").<br>
-**The repo will always be closely related to the driver acos5_64 and acos5_64_pkcs15init development. Make sure to have the latest releases installed.**
+Next to libraries required according to dub.json, both libraries built from the driver repo are prerequisites being installed and OpenSC (opensc.conf) configured to use them:  
+**This repo will always be closely related to the driver acos5 development. Make sure to have the latest commit installed.**
 
 Prerequisites required to be installed:<br>
-Ubuntu: $ sudo apt-get update && sudo apt-get install opensc libtasn1-6<br>
-Other dependencies:<br>
-Look at [IUP binding](https://github.com/carblue/iup "https://github.com/carblue/iup") for more details about IUP and installation. The required binaries are currently:<br>
+Ubuntu: $ sudo apt-get update && sudo apt-get install opensc libtasn1-6  
+Other dependencies:  
+Look at [IUP binding](https://github.com/carblue/iup "https://github.com/carblue/iup") for more details about IUP and installation. The required binaries are currently:  
 Linux: libfreetype.so<br>
 From IUP:<br>
                               Windows: freetype.dll and freetype.lib<br>
@@ -44,11 +40,11 @@ Inspect dub.json and check whether the settings are correct for You. If You go w
 		"opensc": "deimos"
 	},
 ```
-the entry for `"opensc":` must be `"deimos"` if OpenSC version 0.20.0 is installed, or<br>
-the entry for `"opensc":` must be `"deimosPrior"` if OpenSC version 0.19.0 is installed. Other OpenSC versions are not suitable.
+the entry for `"opensc":` must be `"deimos"` if OpenSC version 0.21.0 is installed, or<br>
+the entry for `"opensc":` must be `"deimosPrior"` if OpenSC version 0.20.0 is installed. Other OpenSC versions are not suitable.
 
 One of the D compilers DMD or LDC, and DUB are required (downloads from https://dlang.org/download.html have DUB included), then run e.g. wih DMD installed<br>
-dub build  (or `dub run`, in order to build and invoke acos5_64_gui)
+dub build  (or `dub run`, in order to build and invoke acos5_gui)
 
 
 ![alt text](Screenshot_20190912_acos5_64_gui.png "figure 1")<br>
@@ -71,7 +67,7 @@ Features planned/about to be implemented:
 - [ ] Initialize card<br>
 ...
 
-The appearance of `acos5_64_gui` (visibility of tabs) depends on card content. E.g. if there is no MF, then there is no value in showing any tab except the one dedicated to creating an initial PKCS#15 file system. Or if there is no EF.SKDF file on the token, then the tab "KeySym (AES/3DES)" won't be accessible. All these checks take time and not all need to be done on each app invokation. {UPDATE: currently deactivated: The file `.acos5_64_gui` will be created in user's home directory on first invokation, in order to remember results of some of these checks. But this feature is evolving and implemented partially only, e.g. it doesn't currently recognise changes in check results. Therefore, if You feel something is wrong regarding that, for the time being delete everything for that card serial no. within `.acos5_64_gui` and save or delete `.acos5_64_gui`, and restart `acos5_64_gui`}<br>
+The appearance of `acos5_gui` (visibility of tabs) depends on card content. E.g. if there is no MF, then there is no value in showing any tab except the one dedicated to creating an initial PKCS#15 file system. Or if there is no EF.SKDF file on the token, then the tab "KeySym (AES/3DES)" won't be accessible. All these checks take time and not all need to be done on each app invokation. {UPDATE: currently deactivated: The file `.acos5_gui` will be created in user's home directory on first invokation, in order to remember results of some of these checks. But this feature is evolving and implemented partially only, e.g. it doesn't currently recognise changes in check results. Therefore, if You feel something is wrong regarding that, for the time being delete everything for that card serial no. within `.acos5_gui` and save or delete `.acos5_gui`, and restart `acos5_gui`}<br>
 
 A short introduction to usage (by tab):
 
@@ -96,7 +92,7 @@ EF.TokenInfo<br>
 All Directory files like PRKDF, PUKDF, PUKDF_TRUSTED, SKDF, CDF, CDF_TRUSTED, CDF_USEFUL, DODF, AODF<br>
 This follows the philosophy of OpenSC to inspect a card for "general" information without requiring a Login. A Login is required only for those actions e.g. on files, that request it by there file meta data in file's header. Next to legitimation by a pin verification there is also authentication of a key, possible in the near future (it's not yet implemented in the driver). The way this works is this:<br>
 
-`acos5_64_gui` has code to inspect all files of the PKCS#15 file structure and to make sure, the content is PKCS#15 compliant and of type expected (as far as possible, because with OPTIONAL entries missing, there may be indistinguishableness). A failing detection is reported to stdout on Linux and visible by a bullet instead of a 'sheet of paper' symbol.
+`acos5_gui` has code to inspect all files of the PKCS#15 file structure and to make sure, the content is PKCS#15 compliant and of type expected (as far as possible, because with OPTIONAL entries missing, there may be indistinguishableness). A failing detection is reported to stdout on Linux and visible by a bullet instead of a 'sheet of paper' symbol.
 
 PS:<br>
 Block cipher CBC deciphering doesn't work well for OpenSC versions < 0.20.0 with ACOS5-64: The first 16 bytes of each {AES: 240 bytes/DES: 248 bytes} chunk are wrong due to a cos5 bug:<br>
@@ -105,19 +101,14 @@ A to-file will be created (potentially replacing any existing) into an existing 
 
 Chronophage windows (using VS 2017) throws an unresolved symbol link error at me, one of the unpleasant ones unknown how to fix that and a google search points to a plethora of directions. It's long ago that I tolerated windows devour my spare dev time.
 
-`acos5_64_gui` takes some time for start-up: A lot of card interaction occurs right in the beginning. Once the initial work is done and the GUI is reactive, there is only one other action, that takes remarkable time (freezing the GUI): RSA key generation with high bit sizes. CryptoMate64 takes about 3-5 minutes for a 4096 bit key pair generation and occasionally, the generation even fails. Just retry until that succeeds. The generation is available into either existing files or newly to be created files.
+`acos5_gui` takes some time for start-up: A lot of card interaction occurs right in the beginning. Once the initial work is done and the GUI is reactive, there is only one other action, that takes remarkable time (freezing the GUI): RSA key generation with high bit sizes. CryptoMate64 takes about 3-5 minutes for a 4096 bit key pair generation and occasionally, the generation even fails. Just retry until that succeeds. The generation is available into either existing files or newly to be created files.
 
-There is no permanent connection to the card from `acos5_64_gui`, just on demand, but don't mix usages of `acos5_64_gui` (while it's accessing the card) with other card/token usages (that access the card), e.g. by Thunderbird, ssh or alike: I didn't yet investigate how the PKCS#11 library opensc-pkcs11 and the driver behave concerning multi-threading.<br>
-With an USB token, card access is visible, but there are also "false" LED messages indicating card access: I assume something isn't perfect within the pcsc-lite layer, because sometimes, when I know the card access from `acos5_64_gui` is finished and the LED entered to a blinking state, it may continue to light up permanently without a sensible reason.
+There is no permanent connection to the card from `acos5_gui`, just on demand, but don't mix usages of `acos5_gui` (while it's accessing the card) with other card/token usages (that access the card), e.g. by Thunderbird, ssh or alike: I didn't yet investigate how the PKCS#11 library opensc-pkcs11 and the driver behave concerning multi-threading.<br>
+With an USB token, card access is visible, but there are also "false" LED messages indicating card access: I assume something isn't perfect within the pcsc-lite layer, because sometimes, when I know the card access from `acos5_gui` is finished and the LED entered to a blinking state, it may continue to light up permanently without a sensible reason.
 I'm used to stop that by invoking gscriptor from pcsc-tools, connect, disconnect and quit, possibly repeating that if required.
 
-The regular case should be, that after about 1 minute of inactivity with `acos5_64_gui`, the USB LED should stop blinking, signaling it's unpowered state.<br>
-While being inactive with `acos5_64_gui` (or only actions that don't access the card), any other app may be used that connects to the card. After closing that app, work with `acos5_64_gui` may be resumed.<br>
+The regular case should be, that after about 1 minute of inactivity with `acos5_gui`, the USB LED should stop blinking, signaling it's unpowered state.<br>
+While being inactive with `acos5_gui` (or only actions that don't access the card), any other app may be used that connects to the card. After closing that app, work with `acos5_gui` may be resumed.<br>
 If You access a repo, e.g. GitHub via [ssh](https://help.github.com/en/articles/changing-a-remotes-url#switching-remote-urls-from-https-to-ssh "https://help.github.com/en/articles/changing-a-remotes-url#switching-remote-urls-from-https-to-ssh"), it may happen, that git starts to issue Cryptoki calls which ends in accessing the card periodically: That's a strange issue with respect to `git-upload-pack`. Somehow I managed to stop that.<br>
-Also, don't plug-in more than 1 ACOS5-64 token simultaneously, or unplug or change the token while `acos5_64_gui` is running: `acos5_64_gui` is not yet designed to handle that (e.g. it memoizes the file system, assuming it's th same when resuming).<br>
+Also, don't plug-in more than 1 ACOS5 token simultaneously, or unplug or change the token while `acos5_gui` is running: `acos5_gui` is not yet designed to handle that (e.g. it memoizes the file system, assuming it's th same when resuming).<br>
 The error handling is not complete at this stage: The problem with that is: The coding isn't easily done already and massive error handling code would currently obscure where the real action takes place. If You encounter any such situation, please report to issues.
-
-version(OPENSC_VERSION_LATEST) {}
-else
-                    if (!crypt_sym_data.encrypt && crypt_sym_data.cbc)
-                        return IUP_DEFAULT; // shall apply for OpenSC version < 0.20.0

@@ -80,8 +80,10 @@ enum /*SC_SEC_OPERATION*/ {
 	SC_SEC_OPERATION_SIGN          = 0x0002,
 	SC_SEC_OPERATION_AUTHENTICATE  = 0x0003,
 	SC_SEC_OPERATION_DERIVE        = 0x0004,
-	SC_SEC_OPERATION_WRAP          = 0x0005, // OPENSC_VERSION_LATEST
-	SC_SEC_OPERATION_UNWRAP        = 0x0006, // OPENSC_VERSION_LATEST
+	SC_SEC_OPERATION_WRAP          = 0x0005,
+	SC_SEC_OPERATION_UNWRAP        = 0x0006,
+	SC_SEC_OPERATION_ENCRYPT_SYM   = 0x0007,
+	SC_SEC_OPERATION_DECRYPT_SYM   = 0x0008,
 }
 //	mixin FreeEnumMembers!SC_SEC_OPERATION;
 
@@ -93,10 +95,9 @@ enum {
 	SC_SEC_ENV_KEY_REF_PRESENT     = 0x0004,
 	SC_SEC_ENV_KEY_REF_SYMMETRIC   = 0x0008,
 	SC_SEC_ENV_ALG_PRESENT         = 0x0010,
-	SC_SEC_ENV_TARGET_FILE_REF_PRESENT= 0x0020, // OPENSC_VERSION_LATEST
+	SC_SEC_ENV_TARGET_FILE_REF_PRESENT= 0x0020,
 }
 
-version(OPENSC_VERSION_LATEST)
 /* sc_security_env additional parameters */
 enum {
 	SC_SEC_ENV_MAX_PARAMS        = 10,
@@ -116,7 +117,7 @@ enum uint SC_ALGORITHM_DES                = 64;
 enum uint SC_ALGORITHM_3DES               = 65;
 enum uint SC_ALGORITHM_GOST               = 66;
 enum uint SC_ALGORITHM_AES                = 67;
-enum uint SC_ALGORITHM_UNDEFINED          = 68; /* OPENSC_VERSION_LATEST : used with CKK_GENERIC_SECRET type keys */
+enum uint SC_ALGORITHM_UNDEFINED          = 68; /* used with CKK_GENERIC_SECRET type keys */
 
 	/* Hash algorithms */
 enum uint SC_ALGORITHM_MD5                = 128;
@@ -150,15 +151,15 @@ enum uint SC_ALGORITHM_RSA_RAW            = 0x0000_0001;  // RSA-X-509 #define C
 	 * for a given operation.)
 	 */
 version(OPENSC_VERSION_LATEST) {
-	enum uint SC_ALGORITHM_RSA_PADS     = 0x0000_001F;  /* NWilson@42f3199: = 0x0004_000F, */
-	enum uint SC_ALGORITHM_RSA_PAD_NONE = 0x0000_0001;  // NWilson@42f3199: = SC_ALGORITHM_RSA_RAW, /* alias for RAW */
+	enum uint SC_ALGORITHM_RSA_PADS     = 0x0000_003F;  /* NWilson@42f3199: = 0x0004_000F, */
+	enum uint SC_ALGORITHM_RSA_PAD_OAEP = 0x0000_0020;  /* PKCS#1 v2.0 OAEP */
 }
 else {
-	enum uint SC_ALGORITHM_RSA_PADS     = 0x0000_001E;  /* NWilson@42f3199: = 0x0004_000F, */
-	enum uint SC_ALGORITHM_RSA_PAD_NONE = 0x0000_0000;  // NWilson@42f3199: = SC_ALGORITHM_RSA_RAW, /* alias for RAW */
+	enum uint SC_ALGORITHM_RSA_PADS     = 0x0000_001F;  /* NWilson@42f3199: = 0x0004_000F, */
 }
 
 
+enum uint SC_ALGORITHM_RSA_PAD_NONE       = 0x0000_0001;  // NWilson@42f3199: = SC_ALGORITHM_RSA_RAW, /* alias for RAW */
 enum uint SC_ALGORITHM_RSA_PAD_PKCS1      = 0x0000_0002;  /* PKCS#1 v1.5 padding */ // RSA-PKCS  #define CKM_RSA_PKCS  0x00000001
 enum uint SC_ALGORITHM_RSA_PAD_ANSI       = 0x0000_0004;
 enum uint SC_ALGORITHM_RSA_PAD_ISO9796    = 0x0000_0008;  //           #define CKM_RSA_9796 0x00000002
@@ -198,6 +199,15 @@ enum uint SC_ALGORITHM_RSA_HASH_SHA256    = 0x0000_2000;
 enum uint SC_ALGORITHM_RSA_HASH_SHA384    = 0x0000_4000;
 enum uint SC_ALGORITHM_RSA_HASH_SHA512    = 0x0000_8000;
 enum uint SC_ALGORITHM_RSA_HASH_SHA224    = 0x0001_0000;
+enum uint SC_ALGORITHM_RSA_HASHES         = 0x0001_FF00;  /* NWilson@42f3199: = 0x0000_1FF0, */
+
+/* This defines the hashes to be used with MGF1 in PSS padding */
+enum uint SC_ALGORITHM_MGF1_SHA1      = 0x0010_0000;
+enum uint SC_ALGORITHM_MGF1_SHA256    = 0x0020_0000;
+enum uint SC_ALGORITHM_MGF1_SHA384    = 0x0040_0000;
+enum uint SC_ALGORITHM_MGF1_SHA512    = 0x0080_0000;
+enum uint SC_ALGORITHM_MGF1_SHA224    = 0x0100_0000;
+enum uint SC_ALGORITHM_MGF1_HASHES    = 0x01F0_0000;
 
 	/*
 	 * NWilson@42f3199:
@@ -207,7 +217,9 @@ enum uint SC_ALGORITHM_RSA_HASH_SHA224    = 0x0001_0000;
 	 * algorithm is chosen the entire unhashed document is passed in).
 	 */
 enum uint SC_ALGORITHM_GOSTR3410_RAW            = 0x0002_0000;
+enum uint SC_ALGORITHM_GOSTR3410_HASH_NONE      = SC_ALGORITHM_GOSTR3410_RAW /*XXX*/;  /* NWilson@42f3199: = SC_ALGORITHM_GOSTR3410_RAW, */
 enum uint SC_ALGORITHM_GOSTR3410_HASH_GOSTR3411 = 0x0008_0000;
+enum uint SC_ALGORITHM_GOSTR3410_HASHES         = 0x000A_0000;  /* NWilson@42f3199: = 0x0000_A000, */
 	/*TODO: -DEE Should the above be 0x0000E000 */
 	/* Or should the HASH_NONE be 0x00000010  and HASHES be 0x00008010 */
 
@@ -216,25 +228,6 @@ enum uint SC_ALGORITHM_GOSTR3410_HASH_GOSTR3411 = 0x0008_0000;
 	/* Not clear if these need their own bits or not */
 	/* The PIV card does not support any hashes */
 
-version(OPENSC_VERSION_LATEST)
-{
-enum uint SC_ALGORITHM_RSA_HASHES           = 0x0001_FF00;  /* NWilson@42f3199: = 0x0000_1FF0, */
-enum uint SC_ALGORITHM_GOSTR3410_HASH_NONE  = SC_ALGORITHM_GOSTR3410_RAW /*XXX*/;  /* NWilson@42f3199: = SC_ALGORITHM_GOSTR3410_RAW, */
-enum uint SC_ALGORITHM_GOSTR3410_HASHES     = 0x000A_0000;  /* NWilson@42f3199: = 0x0000_A000, */
-
-/* This defines the hashes to be used with MGF1 in PSS padding */
-enum uint SC_ALGORITHM_MGF1_SHA1      = 0x0010_0000;
-enum uint SC_ALGORITHM_MGF1_SHA256    = 0x0020_0000;
-enum uint SC_ALGORITHM_MGF1_SHA384    = 0x0040_0000;
-enum uint SC_ALGORITHM_MGF1_SHA512    = 0x0080_0000;
-enum uint SC_ALGORITHM_MGF1_SHA224    = 0x0100_0000;
-enum uint SC_ALGORITHM_MGF1_HASHES    = 0x01F0_0000;
-}
-else {
-enum uint SC_ALGORITHM_RSA_HASHES           = 0x0001_FE00;  /* NWilson@42f3199: = 0x0000_1FF0, */
-enum uint SC_ALGORITHM_GOSTR3410_HASH_NONE  = 0x0004_0000;  /* NWilson@42f3199: = SC_ALGORITHM_GOSTR3410_RAW, */
-enum uint SC_ALGORITHM_GOSTR3410_HASHES     = 0x0008_0000;  /* NWilson@42f3199: = 0x0000_A000, */
-}
 	/*
 	 * NWilson@42f3199, deleteing the preceding part of the comment:
 	 * The ECDSA flags are exclusive, and exactly one of them applies to any given
@@ -244,8 +237,8 @@ enum uint SC_ALGORITHM_GOSTR3410_HASHES     = 0x0008_0000;  /* NWilson@42f3199: 
 	 * which determine the hash ids the card is willing to put in RSA message
 	 * padding.
 	 */
-enum uint SC_ALGORITHM_ECDSA_RAW          = 0x0010_0000;
 enum uint SC_ALGORITHM_ECDH_CDH_RAW       = 0x0020_0000;
+enum uint SC_ALGORITHM_ECDSA_RAW          = 0x0010_0000;
 enum uint SC_ALGORITHM_ECDSA_HASH_NONE    = SC_ALGORITHM_RSA_HASH_NONE;     /*  NWilson@42f3199: = SC_ALGORITHM_ECDSA_RAW, */
 enum uint SC_ALGORITHM_ECDSA_HASH_SHA1    = SC_ALGORITHM_RSA_HASH_SHA1;     /*  NWilson@42f3199: = 0x0004_0000, */
 enum uint SC_ALGORITHM_ECDSA_HASH_SHA224  = SC_ALGORITHM_RSA_HASH_SHA224;   /*  NWilson@42f3199: = 0x0008_0000, */
@@ -253,16 +246,16 @@ enum uint SC_ALGORITHM_ECDSA_HASH_SHA256  = SC_ALGORITHM_RSA_HASH_SHA256;   /*  
 enum uint SC_ALGORITHM_ECDSA_HASH_SHA384  = SC_ALGORITHM_RSA_HASH_SHA384;   /*  NWilson@42f3199: = 0x0020_0000, */
 enum uint SC_ALGORITHM_ECDSA_HASH_SHA512  = SC_ALGORITHM_RSA_HASH_SHA512;   /*  NWilson@42f3199: = 0x0040_0000, */
 enum uint SC_ALGORITHM_ECDSA_HASHES       = SC_ALGORITHM_ECDSA_HASH_SHA1 |  /*  NWilson@42f3199: = 0x007D_0000, */
-																	 SC_ALGORITHM_ECDSA_HASH_SHA224 |
-																	 SC_ALGORITHM_ECDSA_HASH_SHA256 |
-																	 SC_ALGORITHM_ECDSA_HASH_SHA384 |
-																	 SC_ALGORITHM_ECDSA_HASH_SHA512;
+											SC_ALGORITHM_ECDSA_HASH_SHA224 |
+											SC_ALGORITHM_ECDSA_HASH_SHA256 |
+											SC_ALGORITHM_ECDSA_HASH_SHA384 |
+											SC_ALGORITHM_ECDSA_HASH_SHA512;
 
 /* define mask of all algorithms that can do raw */
-version(OPENSC_VERSION_LATEST)
-	enum uint SC_ALGORITHM_RAW_MASK = SC_ALGORITHM_RSA_RAW | SC_ALGORITHM_GOSTR3410_RAW | SC_ALGORITHM_ECDSA_RAW | SC_ALGORITHM_ECDH_CDH_RAW;  /*  NWilson@42f3199: deleted SC_ALGORITHM_RAW_MASK */
-else
-	enum uint SC_ALGORITHM_RAW_MASK = SC_ALGORITHM_RSA_RAW | SC_ALGORITHM_GOSTR3410_RAW | SC_ALGORITHM_ECDSA_RAW;  /*  NWilson@42f3199: deleted SC_ALGORITHM_RAW_MASK */
+enum uint SC_ALGORITHM_RAW_MASK =	SC_ALGORITHM_RSA_RAW |
+									SC_ALGORITHM_GOSTR3410_RAW |
+									SC_ALGORITHM_ECDH_CDH_RAW |
+									SC_ALGORITHM_ECDSA_RAW;
 
 /* extended algorithm bits for selected mechs */
 enum uint SC_ALGORITHM_EXT_EC_F_P          = 0x0000_0001;
@@ -273,7 +266,6 @@ enum uint SC_ALGORITHM_EXT_EC_UNCOMPRESES  = 0x0000_0010;
 enum uint SC_ALGORITHM_EXT_EC_COMPRESS     = 0x0000_0020;
 //}
 
-version(OPENSC_VERSION_LATEST)
 /* symmetric algorithm flags. More algorithms to be added when implemented. */
 enum : uint {
     SC_ALGORITHM_AES_ECB      = 0x0100_0000,
@@ -291,9 +283,14 @@ enum {
 	SC_EVENT_READER_EVENTS   = SC_EVENT_READER_ATTACHED | SC_EVENT_READER_DETACHED,
 }
 
+enum MAX_FILE_SIZE = 65535;
+
 struct sc_supported_algo_info {
 	uint          reference;
 	uint          mechanism;
+version(OPENSC_VERSION_LATEST)
+	sc_object_id  parameters; /* OID for ECC */
+else
 	sc_object_id* parameters; /* OID for ECC, NULL for RSA */
 	uint          operations;
 	sc_object_id  algo_id;
@@ -320,7 +317,6 @@ version(ENABLE_TOSTRING)
 	} // void toString
 } // struct sc_supported_algo_info
 
-version(OPENSC_VERSION_LATEST)
 struct sc_sec_env_param {
 	uint   param_type;
 	void*  value;
@@ -337,12 +333,10 @@ struct sc_security_env {
 	sc_path   file_ref;         /* if used, set flag SC_SEC_ENV_FILE_REF_PRESENT */
 	ubyte[8]  key_ref;          /* if used, set flag SC_SEC_ENV_KEY_REF_PRESENT */
 	size_t    key_ref_len;
-version(OPENSC_VERSION_LATEST)
 	sc_path   target_file_ref;  /* target key file in unwrap operation */
 
 	sc_supported_algo_info[SC_MAX_SUPPORTED_ALGORITHMS]  supported_algos;
 	/* optional parameters */
-version(OPENSC_VERSION_LATEST)
 	sc_sec_env_param[SC_SEC_ENV_MAX_PARAMS]  params;
 
 version(ENABLE_TOSTRING)
@@ -828,29 +822,43 @@ enum /* SC_PIN_STATE */ {
 	SC_PIN_STATE_LOGGED_IN   =  1,
 }
 
+/* A card driver receives the sc_pin_cmd_data and sc_pin_cmd_pin structures filled in by the
+ * caller, with the exception of the fields returned by the driver for SC_PIN_CMD_GET_INFO.
+ * It may use and update any of the fields before passing the structure to the ISO 7816 layer for
+ * processing.
+ */
 struct sc_pin_cmd_pin {
 	const(char)*   prompt;         /* Prompt to display */
 
-	const(ubyte)*  data;           /* PIN, if given by the application */
-	int            len;            /* set to -1 to get pin from pin pad */
+	const(ubyte)*  data;           /* PIN, set to NULL when using pin pad */
+	int            len;            /* set to 0 when using pin pad */
 
 	size_t         min_length;     /* min length of PIN */
 	size_t         max_length;     /* max length of PIN */
+version(OPENSC_VERSION_LATEST) {}
+else {
 	size_t         stored_length;  /* stored length of PIN */
+}
 
 	uint           encoding;       /* SC_PIN_ENCODING: ASCII-numeric, BCD, etc */
 
-	size_t         pad_length;     /* filled in by the card driver */
+	size_t         pad_length;     /* PIN padding options, used with SC_PIN_CMD_NEED_PADDING */
 	ubyte          pad_char;
 
-	size_t         offset;         /* PIN offset in the APDU */
+	size_t         offset;         /* PIN offset in the APDU when using pin pad */
+version(OPENSC_VERSION_LATEST) {}
+else {
 	size_t         length_offset;  /* Effective PIN length offset in the APDU */
+}
 
 	int            max_tries;      /* Used for signaling back from SC_PIN_CMD_GET_INFO */
 	int            tries_left;     /* Used for signaling back from SC_PIN_CMD_GET_INFO */
 	int            logged_in;      /* SC_PIN_STATE: Used for signaling back from SC_PIN_CMD_GET_INFO */
 
+version(OPENSC_VERSION_LATEST) {}
+else {
 	sc_acl_entry[SC_MAX_SDO_ACLS] acls;
+}
 
 version(ENABLE_TOSTRING)
 		void toString(scope void delegate(const(char)[]) sink, FormatSpec!char fmt) const
@@ -888,12 +896,20 @@ version(ENABLE_TOSTRING)
 		} // void toString
 }
 
+/* A NULL in apdu means that the APDU is prepared by the ISO 7816 layer, which also handles PIN
+ * padding and setting offset fields for the PINs (for PIN-pad use). A non-NULL in APDU means that
+ * the card driver has prepared the APDU (including padding) and set the PIN offset fields.
+ *
+ * Note that flags apply to both PINs for multi-PIN operations.
+ */
 struct sc_pin_cmd_data {
 	uint            cmd;   /* SC_PIN_CMD */
 	uint            flags; /* SC_PIN_CMD_DATA_FLAGS */
 
 	uint            pin_type;       /* usually SC_AC_CHV */
 	int             pin_reference;
+version(OPENSC_VERSION_LATEST)
+	int             puk_reference;  /* non-zero means that reference is available */
 
 	sc_pin_cmd_pin  pin1;
 	sc_pin_cmd_pin  pin2; /* Usage for SC_PIN_CMD_CHANGE, SC_PIN_CMD_UNBLOCK and SC_PIN_CMD_GET_SESSION_PIN/SC_CARD_CAP_SESSION_PIN */
@@ -1059,6 +1075,11 @@ enum {
 	SC_CARD_CAP_UNWRAP_KEY             = 0x0000_1000, // OPENSC_VERSION_LATEST
 }
 
+version(sym_hw_encrypt)
+/* Card supports symmetric/secret key algorithms (currently at least AES, modes ECB and CBC) */
+enum SC_CARD_CAP_SYM_KEY_ALGOS = 0x0000_2000;
+
+
 	struct sc_card {
 		sc_context*          ctx;
 		sc_reader*           reader;
@@ -1074,11 +1095,6 @@ enum {
 		size_t               max_recv_size;  /* Max Le supported by the card */
 		sc_app_info*[SC_MAX_CARD_APPS] app;
 		int                  app_count;
-
-version(OPENSC_VERSION_LATEST) {}
-else {
-		sc_file*             ef_dir;
-}
 
 		sc_ef_atr*           ef_atr;
 		sc_algorithm_info*   algorithms;
@@ -1326,12 +1342,37 @@ extern(C) nothrow
 		read_public_key_tf  read_public_key;
 		card_reader_lock_obtained_tf  card_reader_lock_obtained;
 
-version(OPENSC_VERSION_LATEST) {
 		wrap_tf             wrap;
 		unwrap_tf           unwrap;
-}
 
-version(ENABLE_TOSTRING)
+	version(sym_hw_encrypt) {
+		/* encrypt_sym:  Engages the enciphering operation with a sym. key.  Card will use the
+		 *   security environment set in a call to set_security_env or
+		 *   restore_security_env.
+		 *
+		 *   Responsibility for padding to block_size: Preliminary decision, that it's the
+		 *   card driver who is responsible for padding !
+		 *   ACOS5 hw op encrypt (Symmetric Key Encrypt): The operation computes DES/3DES/AES
+		 *     in ECB or CBC mode. The command takes blocks of data in multiples of 8 (for DES)
+		 *     or 16 (AES), up to 248 bytes ? and encrypts it. The implementation for ACOS5
+		 *     will be complex to manage: looping, switching CLA from  Plain Chaining Mode to
+		 *     Plain Mode (last block). Also, possible SM Mode will reduce data_len transferable
+		 *     in each command invocation.
+		 *   */
+		card_fun4_t         encrypt_sym;
+
+		/* decrypt_sym:  Engages the deciphering operation with a sym. key.  Card will use the
+		 *   security environment set in a call to set_security_env or
+		 *   restore_security_env.
+		 *
+		 *   Basically the same considerations as for encrypt and a relaxation: It is
+		 *   presupposed, that crgram_len already is a multiple of block_size !
+		 *   Card driver needs to remove padding bytes (if there are any) !
+		 *   */
+			card_fun4_t         decrypt_sym;
+	}
+
+	version(ENABLE_TOSTRING)
 		void toString(scope void delegate(const(char)[]) sink, FormatSpec!char fmt) const
 		{
 			try {
@@ -1445,7 +1486,7 @@ version(ENABLE_TOSTRING)
 		SC_CTX_FLAG_DEBUG_MEMORY           = 0x0000_0004,
 		SC_CTX_FLAG_ENABLE_DEFAULT_DRIVER  = 0x0000_0008,
 		SC_CTX_FLAG_DISABLE_POPUPS         = 0x0000_0010,
-		SC_CTX_FLAG_DISABLE_COLORS         = 0x0000_0020, // OPENSC_VERSION_LATEST
+		SC_CTX_FLAG_DISABLE_COLORS         = 0x0000_0020,
 	}
 
 	struct sc_context {
@@ -1581,13 +1622,13 @@ extern(C) @nogc nothrow
 	int  sc_transmit_apdu(scope sc_card* card, scope sc_apdu* apdu) /*impure, definitely may have side-effect*/ @trusted;
 
 	void sc_format_apdu(scope const sc_card* card, scope sc_apdu* apdu, int apdu_case, int ins, int p1, int p2) pure @trusted; // signature changed: orig: sc_card* card
-version(OPENSC_VERSION_LATEST)
-/** Format an APDU based on the data to be sent and received.
- *
- * Calls \a sc_transmit_apdu() by determining the APDU case based on \a datalen
- * and \a resplen. As result, no chaining or GET RESPONSE will be performed in
- * sc_format_apdu().
- */
+
+	/** Format an APDU based on the data to be sent and received.
+	 *
+	 * Calls \a sc_transmit_apdu() by determining the APDU case based on \a datalen
+	 * and \a resplen. As result, no chaining or GET RESPONSE will be performed in
+	 * sc_format_apdu().
+	 */
 	void sc_format_apdu_ex(sc_apdu* apdu,
 		ubyte cla, ubyte ins, ubyte p1, ubyte p2,
 		const(ubyte)* data, size_t datalen,
@@ -1615,7 +1656,7 @@ version(PATCH_LIBOPENSC_EXPORTS) {
 	 *  @param  apdu    APDU to be encoded as an octet string
 	 *  @param  proto   protocol version to be used
 	 *  @param  out     output buffer of size outlen.
-	 *  @param  outlen  size of hte output buffer
+	 *  @param  outlen  size of the output buffer
 	 *  @return SC_SUCCESS on success and an error code otherwise
 	 */
 	int sc_apdu2bytes(sc_context* ctx, const(sc_apdu)* apdu,
@@ -1658,6 +1699,32 @@ int sc_ctx_win32_get_config_value(const(char)* env, const(char)* reg, const(char
 	int sc_connect_card(sc_reader* reader, sc_card** card);
 	int sc_disconnect_card(sc_card* card)                                                                 @trusted;
 	int sc_detect_card_presence(sc_reader* reader);
+
+/**
+ * Waits for an event on readers.
+ *
+ * In case of a reader event (attached/detached), the list of reader is
+ * adjusted accordingly. This means that a subsequent call to
+ * `sc_ctx_detect_readers()` is not needed.
+ *
+ * @note Only PC/SC backend implements this. An infinite timeout on macOS does
+ * not detect reader events (use a limited timeout instead if needed).
+ *
+ * @param ctx (IN) pointer to a Context structure
+ * @param event_mask (IN) The types of events to wait for; this should
+ *   be ORed from one of the following:
+ *   - SC_EVENT_CARD_REMOVED
+ *   - SC_EVENT_CARD_INSERTED
+ *	 - SC_EVENT_READER_ATTACHED
+ *	 - SC_EVENT_READER_DETACHED
+ * @param event_reader (OUT) the reader on which the event was detected
+ * @param event (OUT) the events that occurred. This is also ORed
+ *   from the constants listed above.
+ * @param timeout Amount of millisecs to wait; -1 means forever
+ * @retval < 0 if an error occurred
+ * @retval = 0 if a an event happened
+ * @retval = 1 if the timeout occurred
+ */
 	int sc_wait_for_event(sc_context* ctx, uint event_mask, sc_reader** event_reader, uint* event, int timeout, void** reader_states);
 	int sc_reset(sc_card* card, int do_cold_reset);
 	int sc_cancel(sc_context* ctx);
@@ -1715,6 +1782,16 @@ version(PATCH_LIBOPENSC_EXPORTS) {
 	int sc_change_reference_data(sc_card* card, uint type, int ref_, const(ubyte)* old, size_t oldlen, const(ubyte)* newref, size_t newlen, int* tries_left);
 	int sc_reset_retry_counter(sc_card* card, uint type, int ref_, const(ubyte)* puk, size_t puklen, const(ubyte)* newref, size_t newlen);
 	int sc_build_pin(ubyte* buf, size_t buflen, sc_pin_cmd_pin* pin, int pad);
+version(sym_hw_encrypt) {
+	int sc_encrypt_sym(sc_card* card, const(ubyte)* plaintext, size_t plaintext_len,
+		ubyte* out_, size_t outlen/*, u8 block_size*/);
+	int sc_decrypt_sym(sc_card* card, const(ubyte)* crgram, size_t crgram_len,
+		ubyte* out_, size_t outlen/*, u8 block_size*/);
+}
+/********************************************************************/
+/*               ISO 7816-9 related functions                       */
+/********************************************************************/
+
 	int sc_create_file(sc_card* card, sc_file* file);
 	int sc_delete_file(sc_card* card, const(sc_path)* path);
 	int sc_card_ctl(sc_card* card, c_ulong command, void* arg);
@@ -1733,12 +1810,12 @@ version(PATCH_LIBOPENSC_EXPORTS) {
 /********************************************************************/
 /*               Key wrapping and unwrapping                        */
 /********************************************************************/
-version(OPENSC_VERSION_LATEST) {
+
 int sc_unwrap(sc_card* card, const(ubyte)* data,
 			 size_t data_len, ubyte* out_, size_t outlen);
 int sc_wrap(sc_card* card, const(ubyte)* data,
 			 size_t data_len, ubyte* out_, size_t outlen);
-}
+
 /********************************************************************/
 /*             sc_path_t handling functions                         */
 /********************************************************************/
@@ -1801,10 +1878,8 @@ int sc_valid_oid(const(sc_object_id)* oid);
 int sc_base64_encode(const(ubyte)* in_, size_t inlen, ubyte* out_, size_t outlen, size_t linelength);
 int sc_base64_decode(const(char)* in_, ubyte* out_, size_t outlen);
 void sc_mem_clear(void* ptr, size_t len);
-version(OPENSC_VERSION_LATEST) {
-	void *sc_mem_secure_alloc(size_t len);
-	void sc_mem_secure_free(void* ptr, size_t len);
-}
+void *sc_mem_secure_alloc(size_t len);
+void sc_mem_secure_free(void* ptr, size_t len);
 int sc_mem_reverse(ubyte* buf, size_t len);
 int sc_get_cache_dir(sc_context* ctx, char* buf, size_t bufsize);
 int sc_make_cache_dir(sc_context* ctx);
@@ -1826,7 +1901,6 @@ sc_algorithm_info* sc_card_find_rsa_alg(sc_card* card, uint key_length);
 sc_algorithm_info* sc_card_find_ec_alg(sc_card* card, uint field_length, sc_object_id* curve_oid);
 sc_algorithm_info* sc_card_find_gostr3410_alg(sc_card* card, uint key_length);
 
-version(OPENSC_VERSION_LATEST)
 version(PATCH_LIBOPENSC_EXPORTS)
 	sc_algorithm_info* sc_card_find_alg(sc_card* card,
 		uint algorithm, uint key_length, void* param);
@@ -1834,7 +1908,6 @@ version(PATCH_LIBOPENSC_EXPORTS)
 scconf_block* sc_match_atr_block(sc_context* ctx, sc_card_driver* driver, sc_atr* atr);
 uint sc_crc32(const(ubyte)* value, size_t len);
 
-version(OPENSC_VERSION_LATEST)
 version(PATCH_LIBOPENSC_EXPORTS)
 /**
  * Find a given tag in a compact TLV structure
@@ -1888,18 +1961,17 @@ version(PATCH_LIBOPENSC_EXPORTS)
 	 * */
 	int iso7816_write_binary_sfid(sc_card* card, ubyte sfid, ubyte* ef, size_t ef_len);
 
-version(OPENSC_VERSION_LATEST)
-/**
- * @brief Update a EF by short file identifier.
- *
- * @param[in] card   card
- * @param[in] sfid   Short file identifier
- * @param[in] ef     Data to write
- * @param[in] ef_len Length of \a ef
- *
- * @note The appropriate directory must be selected before calling this function.
- * */
-int iso7816_update_binary_sfid(sc_card* card, ubyte sfid,
+	/**
+	 * @brief Update a EF by short file identifier.
+	 *
+	 * @param[in] card   card
+	 * @param[in] sfid   Short file identifier
+	 * @param[in] ef     Data to write
+	 * @param[in] ef_len Length of \a ef
+	 *
+	 * @note The appropriate directory must be selected before calling this function.
+	 * */
+	int iso7816_update_binary_sfid(sc_card* card, ubyte sfid,
 		ubyte* ef, size_t ef_len);
 
 	/**
@@ -1911,6 +1983,33 @@ int iso7816_update_binary_sfid(sc_card* card, ubyte sfid,
 	 * @note The appropriate directory must be selected before calling this function.
 	 * */
 	int iso7816_logout(sc_card* card, ubyte pin_reference);
+/+
+version(PATCH_LIBOPENSC_EXPORTS)
+version(OPENSC_VERSION_LATEST)
+/*
+ * @brief Format PIN APDU for modifiction by card driver
+ *
+ * @param[in] card           card
+ * @param[in] apdu           apdu structure to update with PIN APDU
+ * @param[in] data           pin command data to set into the APDU
+ * @param[in] buf            buffer for APDU data field
+ * @param[in] buf_len        maximum buffer length
+ */
+int
+iso7816_build_pin_apdu(struct sc_card *card, struct sc_apdu *apdu,
+		struct sc_pin_cmd_data *data, u8 *buf, size_t buf_len);
++/
+
+version(OPENSC_VERSION_LATEST)
+	/**
+	 * Free a buffer returned by OpenSC.
+	 * Use this instead your C libraries free() to free memory allocated by OpenSC.
+	 * For more details see <https://github.com/OpenSC/OpenSC/issues/2054>
+	 *
+	 * @param[in] p the buffer
+	 */
+	void sc_free(void* p);
+
 } // extern(C) @nogc nothrow
 
 /* some wrappers */

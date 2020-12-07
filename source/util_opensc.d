@@ -162,7 +162,8 @@ enum PKCS15_FILE_TYPE : ubyte
     PKCS15_Data           = 19,
     PKCS15_ECCPRIVATEKEY  = 20,
     PKCS15_ECCPUBLICKEY   = 21,
-
+//    PKCS15_BIOMETRIC      = 22;
+//    PKCS15_AUTHKEY        = 23;
     PKCS15_NONE           = 0xFF, // should not happen to extract a path for this
 }
 mixin FreeEnumMembers!PKCS15_FILE_TYPE;
@@ -542,8 +543,8 @@ int is_string_valid_atr(const(char)* atr_str)
                 reader = sc_ctx_get_reader(ctx, i);
                 if (sc_detect_card_presence(reader) & SC_READER_CARD_PRESENT)
                 {
-                    if (verbose)
-                        fprintf(assumeWontThrow(stderr.getFP()), "Using reader with a card: %s\n", reader.name);
+////                    if (verbose)
+////                        fprintf(assumeWontThrow(stderr.getFP()), "Using reader with a card: %s\n", reader.name);
                     goto autofound;
                 }
             }
@@ -618,8 +619,8 @@ autofound:
         return 1;
     }
 
-    if (verbose)
-        printf("Using card driver %s.\n", card.driver.name);
+////    if (verbose)
+////        printf("Using card driver %s.\n", card.driver.name);
 
     if (do_lock)
     {
@@ -733,6 +734,353 @@ template connect_card(string commands, string returning="IUP_CONTINUE", string l
 
 
 /* recursive invocation */
+int enum_dir_nix(int depth, tnTypePtr pos/*, ref PKCS15Path_FileType[] collector*/) nothrow
+{
+    assert(pos);
+//assumeWontThrow(writefln("enum_dir_nix  pos.data: 0x[ %(%02X %) ]", pos.data));
+
+    int     rv;
+    ubyte   markedFileType;
+    ubyte   fdb = pos.data[0];
+    assert(fdb.among(EnumMembers!EFDB)); // [ EnumMembers!A ]
+    ushort  fid = ub22integral(pos.data[2..4]);
+    ub2     size_or_MRL_NOR = pos.data[4..6];
+//    ubyte   lcsi = pos.data[7];
+    auto    tr  = cast(iup.iup_plusD.Tree) AA["tree_fs"]; //  Handle ht = AA["tree_fs"];
+    with (tr)
+    {
+        SetStringId(fdb.is_DFMF ? IUP_ADDBRANCH : IUP_ADDLEAF,  depth,
+            assumeWontThrow(format!" %04X  %s"(fid, file_type(depth, cast(EFDB)fdb, fid, size_or_MRL_NOR))));
+        rv = SetUserId(depth+1, pos);
+        assert(rv);
+        SetAttributeId("TOGGLEVALUE", depth+1, pos.data[7]==5? IUP_ON : IUP_OFF);
+
+        markedFileType = pos.data[6];
+        if (markedFileType < PKCS15_NONE)
+        {
+////assumeWontThrow(writefln("1_This node got PKCS#15-marked: 0x[ %(%02X %) ]", pos.data));
+            if (markedFileType.among(EnumMembers!PKCS15_FILE_TYPE)
+                && markedFileType != PKCS15_NONE
+//                && markedFileType != PKCS15_APPDF
+                && markedFileType != PKCS15_SecretKey
+                && markedFileType != PKCS15_Pin )
+            {
+                SetAttributeId(IUP_IMAGE,       depth+1, IUP_IMGPAPER);
+                string title = GetStringId (IUP_TITLE, depth+1);
+//if (markedFileType==PKCS15_ODF)
+//writeln("##### markedFileType==11, title: ", title);
+//if (markedFileType==PKCS15_TOKENINFO)
+//writeln("##### markedFileType==12, title: ", title);
+                SetStringId (IUP_TITLE, depth+1, title~"    "~pkcs15_names[markedFileType][0]);
+            }
+        }
+
+        if (fdb.among(EFDB.CHV_EF, EFDB.Sym_Key_EF, EFDB.Purse_EF, EFDB.SE_EF))
+            SetAttributeId(IUP_IMAGE,       depth+1, "IMGEMPTY" /*IUP_IMGEMPTY*/);
+    } // with (tr)
+    // if it was a leaf (no DF/MF), that's all there is to it
+/+ +/
+    if (fdb.is_DFMF)
+    {
+        sc_path path;
+        immutable pos_pathLen = pos.data[1];
+        sc_path_set(&path, SC_PATH_TYPE.SC_PATH_TYPE_PATH, pos.data.ptr+8, pos_pathLen, 0, -1);
+
+        if ((rv= sc_select_file(card, &path, null)) != SC_SUCCESS)
+        {
+            assumeWontThrow(writeln("SELECT FILE failed: ", sc_strerror(rv).fromStringz));
+            return rv;
+        }
+
+        ushort  count_files_curr_df;
+        rv = sc_card_ctl(card, SC_CARDCTL_ACOS5_GET_COUNT_FILES_CURR_DF, &count_files_curr_df);
+        if (rv != SC_SUCCESS)
+        {
+            assumeWontThrow(writeln("FAILED: SC_CARDCTL_ACOS5_GET_COUNT_FILES_CURR_DF"));
+            return rv;
+        }
+        foreach (ubyte fno; 0 .. cast(ubyte)count_files_curr_df)
+        {
+            ub32  info = void;
+            {
+                // discard everything from file_info except  fid = file_info.value[2..4]
+                /* Note that reference/fno starts from 0 with V2 and V3, but with V4 reference starts from 1 ! The driver will care for that,
+                   thus it's okay here for V4 to start from 0 as well ! */
+                CardCtlArray8  file_info = { reference: fno };
+                rv = sc_card_ctl(card, SC_CARDCTL_ACOS5_GET_FILE_INFO, &file_info); // acos will deliver 8 bytes: [FDB, DCB(always 0), FILE ID, FILE ID, SIZE or MRL, SIZE or NOR, SFI, LCSI]
+                if (rv != SC_SUCCESS)
+                {
+                    assumeWontThrow(writeln("FAILED: SC_CARDCTL_ACOS5_GET_FILE_INFO"));
+                    return rv;
+                }
+
+                CardCtlArray32  hashmap_file_info = { key: ub22integral(file_info.value[2..4]) };
+                rv = sc_card_ctl(card, SC_CARDCTL_ACOS5_HASHMAP_GET_FILE_INFO, &hashmap_file_info);
+                assert(rv == SC_SUCCESS);
+////assumeWontThrow(writefln("branch: ?, %(%02X %)", collector[0].path));
+                info  = hashmap_file_info.value;
+////assumeWontThrow(writefln("info: %(%02X %)", info));
+//                assert(file_info.value[2..4] == hashmap_file_info.value[2..4]);
+            }
+//            info[0..8] = file_info.value; // is included in hashmap_file_info.value
+//            info[6] = PKCS15_NONE;
+//assumeWontThrow(writefln("info[2..4]: %(%02X %)", info[2..4]));
+/+
+            if (!collector.empty && collector[0].path.equal(pos.data[8..8+pos.data[1]]~info[2..4]) )
+            {
+////assumeWontThrow(writefln("branch: ?, %(%02X %)", collector[0].path));
+                if (depth==0 && info[0]==EFDB.Transparent_EF)  // EF.DIR
+                {
+////assumeWontThrow(writefln("branch: 1, info[6]: %s, collector[0].pkcs15FileType: %s", info[6], collector[0].pkcs15FileType));
+                    immutable expectedFileType = info[6] = collector[0].pkcs15FileType;
+//                    info[1] = 4;//cast(ubyte)(pos.data[1]+2);
+//                    info[8..12] = collector[0].path[0..4];
+                    collector = collector.remove(0);
+                    ubyte detectedFileType = PKCS15_NONE;
+                    readFile_wrapped(info, pos/*, expectedFileType*/, detectedFileType, true, collector);
+                    // correct missing from ACS-init absolute path prefix 0x3F00
+                    if (!collector.empty && collector[0].path[0]!=0x3F) {
+                        ubyte[] path_new = new ubyte[collector[0].path.length+2];
+                        path_new[0] = 0x3F;
+                        path_new[1] = 0;
+                        foreach (i; 0..collector[0].path.length) {
+                            path_new[i+2] = collector[0].path[i];
+                        }
+                        collector[0].path = path_new;
+                    }
+//assumeWontThrow(writefln("expectedFileType: %s, detectedFileType: %s, collector: ", expectedFileType, cast(PKCS15_FILE_TYPE)detectedFileType, collector));
+                    assert(expectedFileType==detectedFileType);
+                    // TODO mark previously appended childs, if required
+                }
+                else if (info[0]==EFDB.DF)  // EF.APP
+                {
+////assumeWontThrow(writefln("branch: 2, info[6]: %s, collector[0].pkcs15FileType: %s", info[6], collector[0].pkcs15FileType));
+                    immutable expectedFileType = info[6] = collector[0].pkcs15FileType; // FIXME that assumes, there is 1 app only
+                    assert(expectedFileType == PKCS15_APPDF);
+//                    info[1] = cast(ubyte)(pos.data[1]+2);
+//                    info[8..8+info[1]] = collector[0].path[0..info[1]];
+
+                    collector = collector.remove(0);
+                    assert(collector.empty);
+                    uba path5031 = info[8..8+info[1]]~[ubyte(0x50), ubyte(0x31)];
+                    collector ~= [ PKCS15Path_FileType( path5031, PKCS15_ODF ) ];
+                    uba path5032 = info[8..8+info[1]]~[ubyte(0x50), ubyte(0x32)];
+                    collector ~= [ PKCS15Path_FileType( path5032, PKCS15_TOKENINFO ) ];
+//assumeWontThrow(writeln(collector));
+                }
+                else if (info[0]==EFDB.Transparent_EF && pos.data[6] == PKCS15_APPDF)  // EF.PKCS15_ODF
+                {
+////assumeWontThrow(writefln("branch: 3, info[6]: %s, collector[0].pkcs15FileType: %s", info[6], collector[0].pkcs15FileType));
+//assumeWontThrow(writeln(collector));
+                    immutable expectedFileType = info[6] = collector[0].pkcs15FileType;
+//                    info[1] = cast(ubyte)(pos.data[1]+2);
+//                    info[8..8+info[1]] = collector[0].path[0..info[1]];
+                    ubyte detectedFileType = PKCS15_NONE;
+//                    PKCS15Path_FileType[] pkcs15Extracted;
+                    readFile_wrapped(info, pos/*, expectedFileType*/, detectedFileType, true, collector);
+//assumeWontThrow(writeln("detectedFileType: ", cast(PKCS15_FILE_TYPE)detectedFileType,", collector: ",collector));
+                    collector = collector.remove(0);
+//                    assert(expectedFileType==detectedFileType);
+if (expectedFileType!=detectedFileType)
+assumeWontThrow(writefln("### expectedFileType(%s), detectedFileType(%s)", expectedFileType, detectedFileType));
+//assumeWontThrow(writefln("expectedFileType: %s, detectedFileType: %s, collector: ", expectedFileType, cast(PKCS15_FILE_TYPE)detectedFileType, collector));
+//assumeWontThrow(writeln(collector));
+                }
+            } // if (!collector.empty && collector[0].path.equal...
++/
+
+            if (info[0]==EFDB.Transparent_EF && info[6].among(PKCS15_PRKDF, PKCS15_PUKDF, PKCS15_PUKDF_TRUSTED, PKCS15_SKDF, PKCS15_CDF, PKCS15_CDF_TRUSTED, PKCS15_CDF_USEFUL, PKCS15_DODF, PKCS15_AODF)) {
+                readFile_nix(info);
+            }
+            fs.insertAsChildLast(pos, info);
+        } // foreach (ubyte fno; 0 .. cast(ubyte)count_files_curr_df)
+
+        try
+            foreach (node; fs.rangeSiblings(pos /*is parent*/).retro)
+//            {
+//                assert(node);
+/*
+                int j = 8+pos_pathLen;
+                node.data[8..j] = pos.data[8..j];
+                node.data[j..j+2] = node.data[2..4];
+                node.data[1] = cast(ubyte)(pos_pathLen+2);
+*/
+//                assert(node.data[1] > 0  &&  node.data[1] <= 16  &&  node.data[1]%2 == 0);
+                if ((rv= enum_dir_nix(depth + 1, node/*, collector*/)) != SC_SUCCESS)
+                    return rv;
+//            }
+        catch (Exception e) { printf("### Exception in enum_dir_nix()\n"); /* todo: handle exception */ }
+    } // if (fdb.is_DFMF)
+/+ +/
+    return SC_SUCCESS;
+} // enum_dir_nix
+
+
+int populate_tree_fs_nix() nothrow
+{
+    int rv;
+
+    with (AA["tree_fs"])
+    {
+        SetAttribute(IUP_TITLE, " file system");
+        SetAttribute("TOGGLEVISIBLE", IUP_NO);
+    }
+
+    fs = TreeTypeFS();
+
+    CardCtlArray32  hashmap_file_info;
+    hashmap_file_info.key = 0x3F00;
+    rv = sc_card_ctl(card, SC_CARDCTL_ACOS5_HASHMAP_GET_FILE_INFO, &hashmap_file_info);
+    assert(rv == SC_SUCCESS);
+
+    fs.insertAsSiblingAfter(null, hashmap_file_info.value);
+//writefln("head(%s), head.nextSibling(%s), feet(%s), *head.nextSibling(%s)", fs.head, fs.head.nextSibling, fs.feet, *(fs.head.nextSibling)); // 0x[%(%02X %)]
+//    ub8 info = [0x3F, 0, 0x3F, 0, 0,0,0,0]; // acos will deliver 8 bytes: [FDB, DCB(always 0), FILE ID, FILE ID, SIZE or MRL, SIZE or NOR, SFI, LCSI]
+//    auto pos_root = new sitTypeFS(fs.begin().node);
+
+////    uba path2F00 = [0x3F, 0x0, 0x2F, 0x0];
+////    PKCS15Path_FileType[] collector = new PKCS15Path_FileType[0]; // = [ PKCS15Path_FileType( path2F00, PKCS15_DIR ) ];
+////    if (doCheckPKCS15 && isappDFexists)
+////        collector ~= PKCS15Path_FileType( path2F00, PKCS15_DIR );
+
+    rv = enum_dir_nix(0,  fs.root()/*, collector*/);
+    /* assuming there is 1 appDF only */
+
+    appdf = fs.rangePreOrder().locate!"a.data[6]==b"(PKCS15_APPDF);
+//    if (!appdf)
+//        return SC_SUCCESS;
+    if (isappDFexists)
+        assert(appdf);
+//    iter_begin = new itTypeFS(appdf);
+
+////    if (!collector.empty)
+////        rv = post_process_nix(/*pos_root.dup,*/ collector);
+
+    return rv;
+}
+
+
+void readFile_nix(ub32  info) nothrow
+{
+////assumeWontThrow(writefln("readFile(ub2 %s, EFDB %s, expectedFileType %s, fileInfo: %s)", fid, fdb, expectedFileType, pn.data[0..8]));
+    import wrapper.libtasn1 : asn1_get_length_der, asn1_create_element, asn1_delete_structure, asn1_dup_node, ASN1_SUCCESS, asn1_strerror2,
+        asn1_der_decoding/*, asn1_visit_structure*/, ASN1_PRINT_NAME_TYPE_VALUE, asn1_read_value, ASN1_ELEMENT_NOT_FOUND;
+version(Posix)
+    import wrapper.libtasn1 : asn1_visit_structure;
+
+ubyte expectedFileType = info[6];
+                assert(info[1]);
+                sc_path  path;
+                sc_format_path(ubaIntegral2string(info[8..8+info[1]]).toStringz , &path);
+                int  rv = sc_select_file(card, &path, null);
+//    PKCS15Path_FileType[]  pkcs15Extracted;
+//    ub2  fid2 = info[2..4];
+//    EFDB fdb2 = cast(EFDB) info[0];
+    ub2  size_or_MRL_NOR = info[4..6];
+
+//    with (EFDB)
+//    if (fdb.among(MF, DF, CHV_EF, Sym_Key_EF) || pn.data[24]==0xFF)
+//        return;
+//    Handle h = AA["fs_text"];
+    ushort size = ub22integral(size_or_MRL_NOR);
+    ubyte[] buf = new ubyte[size];
+//    ubyte* response;
+//    size_t responselen;
+    uint[] offsetTable = [0];
+
+            rv = sc_read_binary(card, 0, buf.ptr, buf.length, 0 /*flags*/);
+            assert((rv>0 && rv==buf.length) || rv==SC_ERROR_SECURITY_STATUS_NOT_SATISFIED);
+            if (rv==SC_ERROR_SECURITY_STATUS_NOT_SATISFIED)
+                return;
+
+//assumeWontThrow(writefln("0x[%(%02X %)]", buf));
+//            if (buf[0] == 0)
+//                return;
+            while (buf.length>=5 && !any(buf[$-5..$]))
+                buf.length = buf.length-1;
+
+            int xLen;
+            while (offsetTable[$-1] < size  &&  buf[offsetTable[$-1]] != 0)
+            {
+                offsetTable ~= min( cast(uint) (offsetTable[$-1]+1+ asn1_get_length_der(buf[offsetTable[$-1]+1..$],xLen)+xLen), size );
+                if (offsetTable[$-2] >= offsetTable[$-1])
+                    break;
+            }
+
+            if (offsetTable.length<2)
+                offsetTable ~= cast(uint)buf.length;
+////assumeWontThrow(writefln("offsetTable[0]: %s, offsetTable[$-1]: %s", offsetTable[0], offsetTable[$-1]));
+////assumeWontThrow(writefln("offsetTable[]: %s", offsetTable));
+
+    assert(offsetTable.length>=2);
+//    assumeWontThrow(writeln(offsetTable));
+    int  asn1_result;
+    string[] outStructure;
+
+    foreach (sw; offsetTable.slide(2))
+    {
+        asn1_node  structure;
+        asn1_result = asn1_create_element(PKCS15, pkcs15_names[expectedFileType][1], &structure);
+//    [ "EF(AODF)",         "PKCS15.AuthenticationType", "authObjects.path.path",         "PKCS15.AuthenticationTypeChoice", "authObj"],
+////        scope(exit)
+////            asn1_delete_structure(&structure);
+        if (asn1_result != ASN1_SUCCESS)
+        {
+            assumeWontThrow(writeln("### Structure creation: ", asn1_strerror2(asn1_result)));
+            continue;
+        }
+        asn1_result = asn1_der_decoding(&structure, buf[sw[0]..sw[1]], errorDescription);
+        if (asn1_result != ASN1_SUCCESS)
+        {
+            if (buf[0]==0) {
+                asn1_delete_structure(&structure);
+                return;
+            }
+            else {
+                assumeWontThrow(writeln("### asn1Decoding: ", errorDescription));
+//                assumeWontThrow(writefln("### asn1Decoding: expectedFileType(%s), sw0(%s), sw1(%s), pn.data(%(%02X %), bytes(%(%02X %))", expectedFileType, sw[0], sw[1], pn.data, fdb.among(EFDB.RSA_Key_EF,EFDB.ECC_KEY_EF)? response[0..responselen] : buf[sw[0]..sw[1]]));
+                asn1_delete_structure(&structure);
+                continue;
+            }
+        }
+
+        with(PKCS15_FILE_TYPE)
+        switch (expectedFileType)
+        {
+            case PKCS15_PRKDF:
+                PRKDF          ~= PKCS15_ObjectTyp(sw[0], sw[1], buf[sw[0]..sw[1]], null, structure, null);
+                break;
+            case PKCS15_PUKDF:
+                PUKDF          ~= PKCS15_ObjectTyp(sw[0], sw[1], buf[sw[0]..sw[1]], null, structure, null);
+                break;
+            case PKCS15_PUKDF_TRUSTED:
+                PUKDF_TRUSTED  ~= PKCS15_ObjectTyp(sw[0], sw[1], buf[sw[0]..sw[1]], null, structure, null);
+                break;
+            case PKCS15_CDF:
+                CDF            ~= PKCS15_ObjectTyp(sw[0], sw[1], buf[sw[0]..sw[1]], null, structure, null);
+                break;
+            case PKCS15_CDF_TRUSTED:
+                CDF_TRUSTED    ~= PKCS15_ObjectTyp(sw[0], sw[1], buf[sw[0]..sw[1]], null, structure, null);
+                break;
+            case PKCS15_CDF_USEFUL:
+                CDF_USEFUL     ~= PKCS15_ObjectTyp(sw[0], sw[1], buf[sw[0]..sw[1]], null, structure, null);
+                break;
+            case PKCS15_DODF:
+                DODF           ~= PKCS15_ObjectTyp(sw[0], sw[1], buf[sw[0]..sw[1]], null, asn1_dup_node(structure, ""), null);
+                break;
+            case PKCS15_SKDF:
+                SKDF           ~= PKCS15_ObjectTyp(sw[0], sw[1], buf[sw[0]..sw[1]], null, asn1_dup_node(structure, ""), null);
+                break;
+            case PKCS15_AODF:
+                AODF           ~= PKCS15_ObjectTyp(sw[0], sw[1], buf[sw[0]..sw[1]], null, asn1_dup_node(structure, ""), null);
+                break;
+            default: assert(0);
+        } // switch (expectedFileType)
+    } // foreach (sw; offsetTable.slide(2)) {
+} // readFile_nix
+
+
+/* recursive invocation */
 int enum_dir(int depth, tnTypePtr pos, ref PKCS15Path_FileType[] collector) nothrow
 {
     assert(pos);
@@ -799,8 +1147,9 @@ int enum_dir(int depth, tnTypePtr pos, ref PKCS15Path_FileType[] collector) noth
             ub32  info = void;
             {
                 // discard everything from file_info except  fid = file_info.value[2..4]
+                /* Note that reference/fno starts from 0 with V2 and V3, but with V4 reference starts from 1 ! The driver will care for that,
+                   thus it's okay here for V4 to start from 0 as well ! */
                 CardCtlArray8  file_info = { reference: fno };
-                // TODO reference for EVO starts from 1
                 rv = sc_card_ctl(card, SC_CARDCTL_ACOS5_GET_FILE_INFO, &file_info); // acos will deliver 8 bytes: [FDB, DCB(always 0), FILE ID, FILE ID, SIZE or MRL, SIZE or NOR, SFI, LCSI]
                 if (rv != SC_SUCCESS)
                 {
@@ -1028,7 +1377,6 @@ if (expectedFileType!=detectedFileType)
     return 0;
 } // post_process
 
-
 /*
   calling acos5_64 exported function(s) directly requires a context/card handle from opensc
   will be logged to "/tmp/opensc-debug.log", section "acos5_64_gui"
@@ -1163,9 +1511,25 @@ version(Posix)
     {
         case Transparent_EF:
             rv = sc_read_binary(card, 0, buf.ptr, buf.length, 0 /*flags*/);
-            assert((rv>0 && rv==buf.length) || rv==SC_ERROR_SECURITY_STATUS_NOT_SATISFIED);
-            if (rv==SC_ERROR_SECURITY_STATUS_NOT_SATISFIED)
+            assert((rv>0 && rv==buf.length) || rv==SC_ERROR_SECURITY_STATUS_NOT_SATISFIED || rv==SC_ERROR_PIN_CODE_INCORRECT);
+/*
+00 82 00 81 08 83 A0 77 77 C8 3A EB C3 .......ww.:..
+P:9188; T:0x140535552658688 12:59:41.608 [acos5_gui ] reader-pcsc.c:242:pcsc_internal_transmit: called
+P:9188; T:0x140535552658688 12:59:41.627 [acos5_gui ] reader-pcsc.c:333:pcsc_transmit:
+Incoming APDU (2 bytes):
+63 CF c.
+P:9188; T:0x140535552658688 12:59:41.627 [acos5_gui ] apdu.c:382:sc_single_transmit: returning with: 0 (Success)
+P:9188; T:0x140535552658688 12:59:41.627 [acos5_gui ] apdu.c:535:sc_transmit: returning with: 0 (Success)
+P:9188; T:0x140535552658688 12:59:41.627 [acos5_gui ] card.c:523:sc_unlock: called
+P:9188; T:0x140535552658688 12:59:41.627 [acos5_gui ] iso7816.c:123:iso7816_check_sw: PIN not verified (remaining tries: 15)
+P:9188; T:0x140535552658688 12:59:41.627 [acos5_gui ] acos5:179:authenticate_external: returning with: -1214 (PIN code or key incorrect)
+P:9188; T:0x140535552658688 12:59:41.627 [acos5_gui ] acos5:465:sm_manage_initialize: Error: #################### SM initializing failed ####################
+P:9188; T:0x140535552658688 12:59:41.627 [acos5_gui ] card.c:523:sc_unlock: called
+P:9188; T:0x140535552658688 12:59:41.627 [acos5_gui ] card.c:662:sc_read_binary: returning with: -1415 (EF offset too large)
+*/
+            if (rv==SC_ERROR_SECURITY_STATUS_NOT_SATISFIED || rv==SC_ERROR_PIN_CODE_INCORRECT)
                 return;
+
 //assumeWontThrow(writefln("0x[%(%02X %)]", buf));
 //            if (buf[0] == 0)
 //                return;
@@ -1179,7 +1543,11 @@ version(Posix)
 
             int xLen;
             while (offsetTable[$-1] < size  &&  buf[offsetTable[$-1]] != 0)
+            {
                 offsetTable ~= min( cast(uint) (offsetTable[$-1]+1+ asn1_get_length_der(buf[offsetTable[$-1]+1..$],xLen)+xLen), size );
+                if (offsetTable[$-2] >= offsetTable[$-1])
+                    break;
+            }
 
 /+
             uint idx() { return offsetTable[$-1]; }

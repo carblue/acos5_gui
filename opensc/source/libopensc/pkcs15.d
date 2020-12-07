@@ -796,7 +796,6 @@ struct sc_pkcs15_object {
 
 	sc_pkcs15_der                   content;
 
-version(OPENSC_VERSION_LATEST)
 	int session_object;	/* used internally. if nonzero, object is a session object. */
 
 version(ENABLE_TOSTRING)
@@ -960,7 +959,6 @@ struct sc_pkcs15_card {
 		int  use_pin_cache;
 		int  pin_cache_counter;
 		int  pin_cache_ignore_user_consent;
-version(OPENSC_VERSION_LATEST)
 		int  private_certificate;
 	}
 	sc_pkcs15_card_opts     opts;
@@ -984,7 +982,6 @@ mixin FreeEnumMembers!SC_PKCS15_TOKEN;
 
 enum SC_PKCS15_CARD_FLAG_EMULATED = 0x02000000;
 
-version(OPENSC_VERSION_LATEST)
 /* suitable for struct sc_pkcs15_card.opts.private_certificate */
 enum {
     SC_PKCS15_CARD_OPTS_PRIV_CERT_PROTECT    = 0,
@@ -1024,19 +1021,12 @@ extern (C) nothrow @nogc
 	sc_pkcs15_card* sc_pkcs15_card_new();
 	void sc_pkcs15_card_free(sc_pkcs15_card* p15card);
 	void sc_pkcs15_card_clear(sc_pkcs15_card* p15card);
-version(PATCH_LIBOPENSC_EXPORTS)
-version(OPENSC_VERSION_LATEST) {
 	sc_pkcs15_tokeninfo* sc_pkcs15_tokeninfo_new();
 	void sc_pkcs15_free_tokeninfo(sc_pkcs15_tokeninfo* tokeninfo);
-}
 
 	int  sc_pkcs15_decipher(sc_pkcs15_card* p15card, const(sc_pkcs15_object)* prkey_obj, c_ulong flags, const(ubyte)* in_, size_t inlen, ubyte* out_, size_t outlen);
-version(OPENSC_VERSION_LATEST)
-	int  sc_pkcs15_derive(sc_pkcs15_card* p15card, const(sc_pkcs15_object)* prkey_obj, c_ulong flags, const(ubyte)* in_, size_t inlen, ubyte* out_, c_ulong* poutlen);
-else
 	int  sc_pkcs15_derive(sc_pkcs15_card* p15card, const(sc_pkcs15_object)* prkey_obj, c_ulong flags, const(ubyte)* in_, size_t inlen, ubyte* out_, size_t* poutlen);
 
-version(OPENSC_VERSION_LATEST) {
 	int sc_pkcs15_unwrap(sc_pkcs15_card* p15card,
 		const(sc_pkcs15_object)* key,
 		sc_pkcs15_object* target_key,
@@ -1050,7 +1040,13 @@ version(OPENSC_VERSION_LATEST) {
 		c_ulong flags,
 		ubyte* cryptogram, c_ulong* crgram_len,
 		const(ubyte)* param, size_t paramlen);
-}
+
+version(sym_hw_encrypt)
+	int sc_pkcs15_decrypt_sym(sc_pkcs15_card* p15card,
+		const(sc_pkcs15_object)* obj,
+		c_ulong flags,
+		const(ubyte)* in_, size_t inlen, ubyte* out_, size_t outlen);
+
 	int  sc_pkcs15_compute_signature(sc_pkcs15_card* p15card, const(sc_pkcs15_object)* prkey_obj, c_ulong alg_flags, const(ubyte)* in_, size_t inlen, ubyte* out_, size_t outlen);
 
 	int  sc_pkcs15_read_pubkey(sc_pkcs15_card*, const(sc_pkcs15_object)*, sc_pkcs15_pubkey**);
@@ -1094,6 +1090,10 @@ version(PATCH_LIBOPENSC_EXPORTS) {
 	                                const(sc_object_id)* type,
 	                                ubyte** name, size_t* name_len);
 version(PATCH_LIBOPENSC_EXPORTS) {
+	version(OPENSC_VERSION_LATEST)
+	int sc_pkcs15_map_usage(uint cert_usage, int algorithm,
+	                        uint* pub_usage_ptr, uint* pr_usage_ptr,
+	                        int allow_nonrepudiation);
 	int  sc_pkcs15_get_extension(sc_context* ctx,
                                  sc_pkcs15_cert* cert,
                                  const(sc_object_id)* type,
@@ -1112,9 +1112,6 @@ version(PATCH_LIBOPENSC_EXPORTS) {
  * by <card>.  Information about the file, such as the file ID, is read
  * from <file>.  <certs> has to be NULL-terminated. */
 	int  sc_pkcs15_create_cdf(sc_pkcs15_card* card, sc_file* file, const(sc_pkcs15_cert_info)** certs);
-	version(OPENSC_VERSION_LATEST) {}
-	else
-	int  sc_pkcs15_create(sc_pkcs15_card* p15card, sc_card* card);
 }
 
 	int  sc_pkcs15_find_prkey_by_id(sc_pkcs15_card* card, const(sc_pkcs15_id)* id, sc_pkcs15_object** out_);
@@ -1168,13 +1165,6 @@ version(PATCH_LIBOPENSC_EXPORTS)
 	int sc_pkcs15_decode_pukdf_entry(sc_pkcs15_card* p15card, sc_pkcs15_object* obj, const(ubyte)** buf, size_t* bufsize);
 	int sc_pkcs15_decode_skdf_entry(sc_pkcs15_card* p15card, sc_pkcs15_object* obj, const(ubyte)** buf, size_t* bufsize);
 
-version(PATCH_LIBOPENSC_EXPORTS) {
-    version(OPENSC_VERSION_LATEST) {}
-    else {
-	    int sc_pkcs15_decode_enveloped_data(sc_context* ctx, sc_pkcs15_enveloped_data* result, const(ubyte)* buf, size_t buflen);
-	    int sc_pkcs15_encode_enveloped_data(sc_context* ctx, sc_pkcs15_enveloped_data* data, ubyte** buf, size_t* buflen);
-    }
-}
 	int sc_pkcs15_add_object(sc_pkcs15_card* p15card, sc_pkcs15_object* obj);
 	void sc_pkcs15_remove_object(sc_pkcs15_card* p15card, sc_pkcs15_object* obj);
 	int sc_pkcs15_add_df(sc_pkcs15_card*, uint, const(sc_path)*);
@@ -1227,8 +1217,7 @@ version(PATCH_LIBOPENSC_EXPORTS) {
 	/* find algorithm from card's supported algorithms by operation and mechanism */
 	sc_supported_algo_info* sc_pkcs15_get_supported_algo(sc_pkcs15_card* card, uint operation, uint mechanism);
 
-version(OPENSC_VERSION_LATEST)
-/* find algorithm from card's supported algorithms by operation, mechanism and object_id */
+	/* find algorithm from card's supported algorithms by operation, mechanism and object_id */
 	sc_supported_algo_info* sc_pkcs15_get_specific_supported_algo(sc_pkcs15_card*,
 		uint operation, uint mechanism, const(sc_object_id)* algo_oid);
 
@@ -1272,19 +1261,6 @@ struct sc_pkcs15_search_key {
 
 extern(C) int sc_pkcs15_search_objects(sc_pkcs15_card* p15card, sc_pkcs15_search_key* sk,
 	sc_pkcs15_object** ret, size_t ret_size);
-
-version(OPENSC_VERSION_LATEST) {}
-else {
-	/* This structure is passed to the new sc_pkcs15emu_*_init functions */
-	struct sc_pkcs15emu_opt
-	{
-		scconf_block*  blk;
-		uint           flags;
-	}
-	//alias sc_pkcs15emu_opt_t = sc_pkcs15emu_opt;
-
-	enum SC_PKCS15EMU_FLAGS_NO_CHECK = 0x00000001;
-}
 
 extern(C) {
 	int sc_pkcs15_bind_synthetic(sc_pkcs15_card*);

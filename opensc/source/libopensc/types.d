@@ -61,6 +61,7 @@ template FreeEnumMembers(T) if (is(T == enum))
 
 /* various maximum values */
 	alias SC_MAX_t = uint;
+version(OPENSC_VERSION_LATEST) {
 	enum : SC_MAX_t
 	{
 		SC_MAX_CARD_DRIVERS           = 48,
@@ -87,10 +88,47 @@ template FreeEnumMembers(T) if (is(T == enum))
 
 /* When changing this value, pay attention to the initialization of the ASN1
  * static variables that use this macro, like, for example,
- * 'c_asn1_supported_algorithms' in src/libopensc/pkcs15.c
+ * 'c_asn1_supported_algorithms' in src/libopensc/pkcs15.c,
+ * src/libopensc/pkcs15-prkey.c and src/libopensc/pkcs15-skey.c
+ * `grep "src/libopensc/types.h SC_MAX_SUPPORTED_ALGORITHMS  defined as"'
+ */
+		SC_MAX_SUPPORTED_ALGORITHMS   = 16,
+	}
+}
+else {
+	enum : SC_MAX_t
+	{
+		SC_MAX_CARD_DRIVERS           = 48,
+		SC_MAX_CARD_DRIVER_SNAME_SIZE = 16,
+		SC_MAX_CARD_APPS              =  8,
+		SC_MAX_APDU_BUFFER_SIZE       = 261, /* takes account of: CLA INS P1 P2 Lc [255 byte of data] Le */
+		SC_MAX_APDU_DATA_SIZE         = 0xFF,
+		SC_MAX_APDU_RESP_SIZE         = 0xFF+1,
+		SC_MAX_EXT_APDU_BUFFER_SIZE   = 0x1_0002,
+		SC_MAX_EXT_APDU_DATA_SIZE     = 0xFFFF,
+		SC_MAX_EXT_APDU_RESP_SIZE     = 0xFFFF+1,
+		SC_MAX_PIN_SIZE               = 0x100, /* OpenPGP card has 254 max */
+		SC_MAX_ATR_SIZE               = 33,
+		SC_MAX_UID_SIZE               = 10,
+		SC_MAX_AID_SIZE               = 16,
+		SC_MAX_AID_STRING_SIZE        = SC_MAX_AID_SIZE * 2 + 3,
+		SC_MAX_IIN_SIZE               = 10,
+		SC_MAX_OBJECT_ID_OCTETS       = 16,
+		SC_MAX_PATH_SIZE              = 16,
+		SC_MAX_PATH_STRING_SIZE       = SC_MAX_PATH_SIZE * 2 + 3,
+		SC_MAX_SDO_ACLS               = 8,
+		SC_MAX_CRTS_IN_SE             = 12,
+		SC_MAX_SE_NUM                 = 8,
+
+/* When changing this value, pay attention to the initialization of the ASN1
+ * static variables that use this macro, like, for example,
+ * 'c_asn1_supported_algorithms' in src/libopensc/pkcs15.c,
+ * src/libopensc/pkcs15-prkey.c and src/libopensc/pkcs15-skey.c
+ * `grep "src/libopensc/types.h SC_MAX_SUPPORTED_ALGORITHMS  defined as"'
  */
 		SC_MAX_SUPPORTED_ALGORITHMS   = 8,
 	}
+}
 
 	struct sc_lv_data {
 		ubyte*  value;
@@ -500,7 +538,10 @@ version(ENABLE_TOSTRING)
 	struct sc_acl_entry {
 		uint                       method;  // .init == SC_AC_NONE
 		uint                       key_ref;
+version(OPENSC_VERSION_LATEST) {}
+else {
 		sc_crt[SC_MAX_CRTS_IN_SE]  crts;
+}
 		sc_acl_entry*              next;
 
 version(ENABLE_TOSTRING)
@@ -558,6 +599,7 @@ version(ENABLE_TOSTRING)
 
 	enum SC_FILE_TYPE
 	{
+		SC_FILE_TYPE_UNKNOWN = 0,
 		SC_FILE_TYPE_DF = 4,
 		SC_FILE_TYPE_INTERNAL_EF = 3,
 //	SC_FILE_TYPE_INTERNAL_SE_EF = 7,
@@ -599,14 +641,8 @@ version(ENABLE_TOSTRING)
 		int        sid;          /* short EF identifier (1 byte) */ /*ACOS5: 1 byte  Short File Identifier (SFI) */
 		sc_acl_entry*[SC_MAX_AC_OPS] acl; /* Access Control List */
 
-version(OPENSC_VERSION_LATEST) {
-		size_t     record_length; /* In case of fixed-length or cyclic EF */ /* MRL */
-		size_t     record_count;  /* Valid, if not transparent EF or DF */ /* NOR */
-}
-else {
-		int        record_length; /* In case of fixed-length or cyclic EF */ /* MRL */
-		int        record_count;  /* Valid, if not transparent EF or DF */ /* NOR */
-}
+		size_t     record_length; /* max. length in case of record-oriented EF */
+		size_t     record_count;  /* Valid, if not transparent EF or DF */
 
 		ubyte*     sec_attr;      /* security data in proprietary format. tag '86' */ /*  Security Attribute Compact (SAC) tag '8C' and? Security Attribute Extended SAE  tag 'AB' */
 		size_t     sec_attr_len;

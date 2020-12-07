@@ -34,15 +34,12 @@ module ui.strings;
     import libopensc.pkcs15 : sc_pkcs15_card;
     import libopensc.types : sc_atr;
 
-version(OPENSC_VERSION_LATEST) {
     enum ui_str {
         MD_PINPAD_DLG_TITLE,
         MD_PINPAD_DLG_MAIN,
         MD_PINPAD_DLG_CONTENT_USER,
         MD_PINPAD_DLG_CONTENT_ADMIN,
-//        MD_PINPAD_DLG_CONTENT_CANCEL,
         MD_PINPAD_DLG_EXPANDED,
-//        MD_PINPAD_DLG_EXPANDED_CANCEL,
         MD_PINPAD_DLG_CONTROL_COLLAPSED,
         MD_PINPAD_DLG_CONTROL_EXPANDED,
         MD_PINPAD_DLG_ICON,
@@ -60,31 +57,6 @@ version(OPENSC_VERSION_LATEST) {
         NOTIFY_EXIT,
         MD_PINPAD_DLG_VERIFICATION,
     }
-} // version(OPENSC_VERSION_LATEST)
-else {
-    enum ui_str {
-        MD_PINPAD_DLG_TITLE,
-        MD_PINPAD_DLG_MAIN,
-        MD_PINPAD_DLG_CONTENT_USER,
-        MD_PINPAD_DLG_CONTENT_ADMIN,
-        MD_PINPAD_DLG_CONTENT_CANCEL,
-        MD_PINPAD_DLG_EXPANDED,
-        MD_PINPAD_DLG_EXPANDED_CANCEL,
-        MD_PINPAD_DLG_CONTROL_COLLAPSED,
-        MD_PINPAD_DLG_CONTROL_EXPANDED,
-        MD_PINPAD_DLG_ICON,
-        MD_PINPAD_DLG_CANCEL,
-        NOTIFY_CARD_INSERTED,
-        NOTIFY_CARD_INSERTED_TEXT,
-        NOTIFY_CARD_REMOVED,
-        NOTIFY_CARD_REMOVED_TEXT,
-        NOTIFY_PIN_GOOD,
-        NOTIFY_PIN_GOOD_TEXT,
-        NOTIFY_PIN_BAD,
-        NOTIFY_PIN_BAD_TEXT,
-        MD_PINPAD_DLG_CONTENT_USER_SIGN,
-    }
-}
 
 extern(C) const(char)* ui_get_str(sc_context* ctx, sc_atr* atr,
     sc_pkcs15_card* p15card, ui_str id) @nogc nothrow;

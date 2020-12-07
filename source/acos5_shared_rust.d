@@ -37,7 +37,7 @@ import core.stdc.config : c_ulong;
 +/
 enum int SC_CARD_TYPE_ACOS5_64_V2  = 16_003; /* driver acos5 implemented as external module: https://github.com/carblue/acos5  */
 enum int SC_CARD_TYPE_ACOS5_64_V3  = 16_004; /* driver acos5 */
-enum int SC_CARD_TYPE_ACOS5_64_EVO = 16_005;
+enum int SC_CARD_TYPE_ACOS5_EVO_V4 = 16_005;
 
 /+
 version(Have_acos5_64) {
@@ -81,13 +81,13 @@ enum ubyte BLOCKCIPHER_PAD_TYPE_ANSIX9_23           =  4; // If N padding bytes 
 
 enum c_ulong SC_CARDCTL_ACOS5_GET_COUNT_FILES_CURR_DF   =  0x0000_0011; // data: ushort* (*mut u16)
 enum c_ulong SC_CARDCTL_ACOS5_GET_FILE_INFO             =  0x0000_0012; // data: CardCtlArray8*
-enum c_ulong SC_CARDCTL_ACOS5_GET_FREE_SPACE            =  0x0000_0014; // data: uint* (*mut c_uint)
+enum c_ulong SC_CARDCTL_ACOS5_GET_FREE_SPACE            =  0x0000_0014; // data: uint* (*mut u32)
 enum c_ulong SC_CARDCTL_ACOS5_GET_IDENT_SELF            =  0x0000_0015; // data: bool* (*mut bool)
-enum c_ulong SC_CARDCTL_ACOS5_GET_COS_VERSION           =  0x0000_0016; // data: CardCtlArray8*
+enum c_ulong SC_CARDCTL_ACOS5_GET_COS_VERSION           =  0x0000_0016; // data: &ubyte[8]
 /* available only since ACOS5-64 V3: */
-enum c_ulong SC_CARDCTL_ACOS5_GET_ROM_MANUFACTURE_DATE  =  0x0000_0017; // data: uint* (*mut c_uint)
-enum c_ulong SC_CARDCTL_ACOS5_GET_ROM_SHA1              =  0x0000_0018; // data: CardCtlArray20*
-enum c_ulong SC_CARDCTL_ACOS5_GET_OP_MODE_BYTE          =  0x0000_0019; // data: ubyte* (*mut c_uchar)
+enum c_ulong SC_CARDCTL_ACOS5_GET_ROM_MANUFACTURE_DATE  =  0x0000_0017; // data: uint* (*mut u32)
+enum c_ulong SC_CARDCTL_ACOS5_GET_ROM_SHA1              =  0x0000_0018; // data: &ubyte[20]
+enum c_ulong SC_CARDCTL_ACOS5_GET_OP_MODE_BYTE          =  0x0000_0019; // data: ubyte* (*mut u8)
 enum c_ulong SC_CARDCTL_ACOS5_GET_FIPS_COMPLIANCE       =  0x0000_001A; // data: bool* (*mut bool)
 enum c_ulong SC_CARDCTL_ACOS5_GET_PIN_AUTH_STATE        =  0x0000_001B; // data: CardCtlAuthState*
 enum c_ulong SC_CARDCTL_ACOS5_GET_KEY_AUTH_STATE        =  0x0000_001C; // data: CardCtlAuthState*
@@ -119,13 +119,13 @@ struct CardCtlArray8
     ubyte      reference;  // IN  indexing begins with 0, used for SC_CARDCTL_GET_FILE_INFO and more
     ubyte[8]   value;      // OUT
 }
-
+/*
 // struct for SC_CARDCTL_GET_ROM_SHA1
 struct CardCtlArray20
 {
     ubyte[20]  value;      // OUT
 }
-
+*/
 // struct for SC_CARDCTL_GET_PIN_AUTH_STATE and SC_CARDCTL_GET_KEY_AUTH_STATE
 struct CardCtlAuthState
 {
@@ -172,9 +172,11 @@ struct CardCtl_generate_inject_asym {
 struct CardCtl_crypt_sym
 {
     const(char)*  infile; //  path/to/file where the indata may be read from, interpreted as an [c_uchar]; if!= null has preference over indata
+    const(ubyte)* inbuf;
     ubyte[528]    indata;
     size_t        indata_len;
     const(char)*  outfile; //  path/to/file where the outdata may be written to, interpreted as an [c_uchar]; if!= null has preference over outdata
+    ubyte*        outbuf;
     ubyte[544]    outdata;
     size_t        outdata_len;
     ubyte[16]     iv;

@@ -2,7 +2,7 @@
 	"name": "opensc",
 	"description": "Deimos-like binding to libopensc (reduced extend required by external modules [driver/SecureMessaging])",
 	"license": "LGPL-2.1",
-	"copyright": "Copyright © 2016-2019, Carsten Blüggel",
+	"copyright": "Copyright © 2016-2020, Carsten Blüggel",
 	"authors": ["Carsten Blüggel"],
 	"homepage": "https://github.com/carblue/opensc",
 	"importPaths": ["source/"],
@@ -11,42 +11,47 @@
 	"comment2-sourceFiles-windows-x86_64": ["libeay32.lib is missing in openssl, thus make up leeway here"],
 	"sourceFiles-windows-x86_64": ["lib/windows-x86_64/opensc.lib", "lib/windows-x86_64/libeay32.lib"],
 	"copyFiles-windows-x86_64"  : ["lib/windows-x86_64/opensc.dll"],
-	"libs-posix": [":libopensc.so.6"],
 	"configurations": [
 		{
 			"name": "deimos",
 			"targetType": "sourceLibrary",
 			"excludedSourceFiles": ["source/*"],
+			"libs-posix": [":libopensc.so.7"],
 			"versions": ["ENABLE_OPENSSL", "ENABLE_SM", "OPENSC_VERSION_LATEST"]
 		},
 		{
 			"name": "deimosPrior",
 			"targetType": "sourceLibrary",
 			"excludedSourceFiles": ["source/*"],
+			"libs-posix": [":libopensc.so.6"],
 			"versions": ["ENABLE_OPENSSL", "ENABLE_SM"]
 		},
 		{
 			"name": "unittest",
 			"targetType": "library",
 			"targetPath": "lib",
+			"libs-posix": [":libopensc.so.7"],
 			"versions": ["ENABLE_OPENSSL", "ENABLE_SM", "ENABLE_TOSTRING", "ENABLE_TOSTRING_SM_CWA", "OPENSC_VERSION_LATEST"]
 		},
 		{
 			"name": "unittestPrior",
 			"targetType": "library",
 			"targetPath": "lib",
+			"libs-posix": [":libopensc.so.6"],
 			"versions": ["ENABLE_OPENSSL", "ENABLE_SM", "ENABLE_TOSTRING", "ENABLE_TOSTRING_SM_CWA"]
 		},
 		{
 			"name": "unittest_travis",
 			"targetType": "library",
 			"targetPath": "lib",
+			"libs-posix": [":libopensc.so.7"],
 			"versions": ["ENABLE_OPENSSL", "ENABLE_SM", "ENABLE_TOSTRING", "ENABLE_TOSTRING_SM_CWA", "OPENSC_VERSION_LATEST"]
 		},
 		{
 			"name": "unittest_travisPrior",
 			"targetType": "library",
 			"targetPath": "lib",
+			"libs-posix": [":libopensc.so.6"],
 			"versions": ["ENABLE_OPENSSL", "ENABLE_SM", "ENABLE_TOSTRING", "ENABLE_TOSTRING_SM_CWA"]
 		},
 		{
@@ -54,6 +59,7 @@
 			"targetType": "staticLibrary",
 			"targetPath": "lib",
 			"targetName": "openscDtS",
+			"libs-posix": [":libopensc.so.7"],
 			"versions": ["ENABLE_OPENSSL", "ENABLE_SM", "ENABLE_TOSTRING", "ENABLE_TOSTRING_SM_CWA", "OPENSC_VERSION_LATEST"]
 		},
 		{
@@ -61,6 +67,7 @@
 			"targetType": "staticLibrary",
 			"targetPath": "lib",
 			"targetName": "openscDtSPrior",
+			"libs-posix": [":libopensc.so.6"],
 			"versions": ["ENABLE_OPENSSL", "ENABLE_SM", "ENABLE_TOSTRING", "ENABLE_TOSTRING_SM_CWA"]
 		}
 	]

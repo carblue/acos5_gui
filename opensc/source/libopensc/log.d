@@ -34,6 +34,7 @@ It's functions are NOT ALL exported from "libopensc.[so|dll]" binary, some not i
 module libopensc.log;
 
 import core.stdc.stdarg;
+import core.stdc.stdio : FILE;
 import std.conv : to;
 import libopensc.opensc : sc_context;
 
@@ -99,6 +100,7 @@ enum {
     SC_LOG_DEBUG_SM,                /* secure messaging */
     SC_LOG_DEBUG_ASN1,              /* asn1.c */
     SC_LOG_DEBUG_MATCH,             /* card matching */
+    SC_LOG_DEBUG_PIN,               /* PIN commands */
 }
 
 enum {
@@ -122,22 +124,18 @@ extern(C) @nogc nothrow /*pure*/ :
 
 
 void sc_do_log(scope sc_context* ctx, int level, const(char)* file, int line, const(char)* func, const(char)* format, ...) pure @trusted;
-version(OPENSC_VERSION_LATEST)
 void sc_do_log_color(sc_context* ctx, int level, const(char)* file, int line,
 	                 const(char)* func, int color, const(char)* format, ...); // __attribute__ ((format (SC_PRINTF_FORMAT, 7, 8)));
 void sc_do_log_noframe(sc_context* ctx, int level, const(char)* format, va_list args);
 void _sc_debug(sc_context* ctx, int level, const(char)* format, ...);
 void _sc_log(sc_context* ctx, const(char)* format, ...);
-version(OPENSC_VERSION_LATEST) {
-import core.stdc.stdio : FILE;
 int sc_color_fprintf(int colors, sc_context* ctx, FILE * stream, const char * format, ...); // __attribute__ ((format (SC_PRINTF_FORMAT, 4, 5)));
-}
 
 /**
  * @brief Log binary data to a sc context
  *
  * @param[in] ctx   Context for logging
- * @param[in] level
+ * @param[in] level Debug level
  * @param[in] label Label to prepend to the buffer
  * @param[in] data  Binary data
  * @param[in] len   Length of \a data
