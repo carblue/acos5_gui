@@ -182,6 +182,8 @@ struct CardCtl_crypt_sym
     ubyte[16]     iv;
     size_t        iv_len; // 0==unused or equal to block_size, i.e. 16 for AES, else 8
 
+    uint          algorithm; // e.g. SC_ALGORITHM_AES
+    uint          algorithm_flags; // e.g. SC_ALGORITHM_AES_CBC_PAD
 //  ubyte key_id; // how the key is known by OpenSC in SKDF: id
     ubyte key_ref; // how the key is known by cos5: e.g. internal local key with id 3 has key_ref: 0x83
     ubyte block_size; // 16: AES; 8: 3DES or DES
