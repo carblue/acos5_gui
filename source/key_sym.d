@@ -2006,7 +2006,7 @@ int button_radioKeySym_cb(Ihandle* ih)
                 rv = sc_pkcs15init_authenticate(profile, p15card, file, SC_AC_OP.SC_AC_OP_UPDATE);
                 if (rv < 0)
                     return IUP_DEFAULT;
-                rv= sc_update_record(card, keySym_recordNo.get, keySym_ByteStringStore.get.ptr, keySym_ByteStringStore.getLen, SC_RECORD_BY_REC_NR);
+                rv= sc_update_record(card, keySym_recordNo.get, 0, keySym_ByteStringStore.get.ptr, keySym_ByteStringStore.getLen, SC_RECORD_BY_REC_NR);
                 assert(rv == keySym_ByteStringStore.getLen);
             }
 `;

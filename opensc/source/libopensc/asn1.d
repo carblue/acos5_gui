@@ -16,7 +16,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 /*
 Written in the D programming language.
@@ -93,14 +93,11 @@ extern(C) nothrow @nogc
 	/* ASN.1 object decoding functions */
 version(PATCH_LIBOPENSC_EXPORTS)
 	int sc_asn1_utf8string_to_ascii(const(ubyte)* buf, size_t buflen, ubyte* outbuf, size_t outlen);
-	int sc_asn1_decode_bit_string(const(ubyte)* inbuf, size_t inlen, void* outbuf, size_t outlen);
 
+	int sc_asn1_decode_bit_string(const(ubyte)* inbuf, size_t inlen, void* outbuf, size_t outlen, const int strict);
 	/* non-inverting version */
-	int sc_asn1_decode_bit_string_ni(const(ubyte)* inbuf, size_t inlen, void* outbuf, size_t outlen);
-version(OPENSC_VERSION_LATEST)
+	int sc_asn1_decode_bit_string_ni(const(ubyte)* inbuf, size_t inlen, void* outbuf, size_t outlen, const int strict);
 	int sc_asn1_decode_integer(const(ubyte)* inbuf, size_t inlen, int* out_, int strict);
-else
-	int sc_asn1_decode_integer(const(ubyte)* inbuf, size_t inlen, int* out_);
 	int sc_asn1_decode_object_id(const(ubyte)* inbuf, size_t inlen, sc_object_id* id);
 	int sc_asn1_encode_object_id(ubyte** buf, size_t* buflen, const(sc_object_id)* id);
 
@@ -115,14 +112,21 @@ else
 	int sc_asn1_sig_value_rs_to_sequence(sc_context* ctx, ubyte* in_, size_t inlen, ubyte** buf, size_t* buflen);
 	int sc_asn1_sig_value_sequence_to_rs(sc_context* ctx, const(ubyte)* in_, size_t inlen, ubyte* buf, size_t buflen);
 
-	enum : uint {
-		SC_ASN1_CLASS_MASK      = 0x3000_0000,
-		SC_ASN1_UNI             = 0x0000_0000, /* Universal */
-		SC_ASN1_APP             = 0x1000_0000, /* Application */
-		SC_ASN1_CTX             = 0x2000_0000, /* Context */
-		SC_ASN1_PRV             = 0x3000_0000, /* Private */
-		SC_ASN1_CONS            = 0x0100_0000,
+	/* ECDSA signature decoding*/
+	int sc_asn1_decode_ecdsa_signature(sc_context* ctx, const(ubyte)* data, size_t datalen,
+		size_t fieldsize, ubyte** out_, size_t outlen);
 
+enum : uint {
+		/* long form tags use these */
+		/* Same as  SC_ASN1_TAG_* shifted left by 24 bits  */
+		SC_ASN1_CLASS_MASK      = 0xC000_0000,
+		SC_ASN1_UNI             = 0x0000_0000, /* Universal */
+		SC_ASN1_APP             = 0x4000_0000, /* Application */
+		SC_ASN1_CTX             = 0x8000_0000, /* Context */
+		SC_ASN1_PRV             = 0xC000_0000, /* Private */
+		SC_ASN1_CONS            = 0x2000_0000,
+
+		SC_ASN1_CLASS_CONS      = 0xE000_0000, /* CLASS and CONS */
 		SC_ASN1_TAG_MASK        = 0x00FF_FFFF,
 		SC_ASN1_TAGNUM_SIZE     = 3,
 
@@ -165,6 +169,7 @@ else
 		SC_ASN1_CALLBACK        = 384,
 	}
 
+	/* use with short one byte tags */
 	enum : ubyte {
 		SC_ASN1_TAG_CLASS             = 0xC0,
 		SC_ASN1_TAG_UNIVERSAL         = 0x00,
@@ -174,6 +179,7 @@ else
 
 		SC_ASN1_TAG_CONSTRUCTED       = 0x20,
 		SC_ASN1_TAG_PRIMITIVE         = 0x1F,
+		SC_ASN1_TAG_CLASS_CONS        = 0xE0,
 
 		SC_ASN1_TAG_EOC               = 0,
 		SC_ASN1_TAG_BOOLEAN           = 1,

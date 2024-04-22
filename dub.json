@@ -8,7 +8,7 @@
 	"dependencies": {
 		"pkcs11": "~>2.40.0-alpha.4",
 		"iup": "~>3.27.0-alpha.2",
-		"openssl": "~>2.0.1+1.1.0h",
+		"openssl": "~>3.3.3",
 		"tasn1": { "path": "tasn1" },
 		"opensc": { "path": "opensc" }
 	},

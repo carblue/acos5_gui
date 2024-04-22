@@ -17,7 +17,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
 /**
@@ -108,9 +108,10 @@ enum {
 /* PK algorithms */
 //enum /* SC_ALGORITHM */ : uint {
 enum uint SC_ALGORITHM_RSA                = 0;
-enum uint SC_ALGORITHM_DSA                = 1;
 enum uint SC_ALGORITHM_EC                 = 2;
 enum uint SC_ALGORITHM_GOSTR3410          = 3;
+enum uint SC_ALGORITHM_EDDSA              = 4;
+enum uint SC_ALGORITHM_XEDDSA             = 5;
 
 	/* Symmetric algorithms */
 enum uint SC_ALGORITHM_DES                = 64;
@@ -151,20 +152,21 @@ enum uint SC_ALGORITHM_RSA_RAW            = 0x0000_0001;  // RSA-X-509 #define C
 	 * for a given operation.)
 	 */
 version(OPENSC_VERSION_LATEST) {
-	enum uint SC_ALGORITHM_RSA_PADS     = 0x0000_003F;  /* NWilson@42f3199: = 0x0004_000F, */
-	enum uint SC_ALGORITHM_RSA_PAD_OAEP = 0x0000_0020;  /* PKCS#1 v2.0 OAEP */
+	enum uint SC_ALGORITHM_RSA_PADS              = 0x0000_00FF;
+	enum uint SC_ALGORITHM_RSA_PAD_PKCS1_TYPE_01 = 0x0000_0040; /* PKCS#1 v1.5 padding type 1 */
+	enum uint SC_ALGORITHM_RSA_PAD_PKCS1_TYPE_02 = 0x0000_0080; /* PKCS#1 v1.5 padding type 2 */
+	enum uint SC_ALGORITHM_RSA_PAD_PKCS1 = SC_ALGORITHM_RSA_PAD_PKCS1_TYPE_01 | SC_ALGORITHM_RSA_PAD_PKCS1_TYPE_02; /* PKCS#1 v1.5 (type 1 or 2) */
 }
 else {
-	enum uint SC_ALGORITHM_RSA_PADS     = 0x0000_001F;  /* NWilson@42f3199: = 0x0004_000F, */
+	enum uint SC_ALGORITHM_RSA_PADS       = 0x0000_003F;
+	enum uint SC_ALGORITHM_RSA_PAD_PKCS1  = 0x0000_0002; /* PKCS#1 v1.5 padding */
 }
 
-
-enum uint SC_ALGORITHM_RSA_PAD_NONE       = 0x0000_0001;  // NWilson@42f3199: = SC_ALGORITHM_RSA_RAW, /* alias for RAW */
-enum uint SC_ALGORITHM_RSA_PAD_PKCS1      = 0x0000_0002;  /* PKCS#1 v1.5 padding */ // RSA-PKCS  #define CKM_RSA_PKCS  0x00000001
-enum uint SC_ALGORITHM_RSA_PAD_ANSI       = 0x0000_0004;
-enum uint SC_ALGORITHM_RSA_PAD_ISO9796    = 0x0000_0008;  //           #define CKM_RSA_9796 0x00000002
-enum uint SC_ALGORITHM_RSA_PAD_PSS        = 0x0000_0010;  // since v0.19.0
-//enum uint SC_ALGORITHM_RSA_PAD_PSS_MGF1   = 0x0004_0000   /* PKCS#1 v2.0 PSS */ this is from NWilson@42f3199
+enum uint SC_ALGORITHM_RSA_PAD_NONE     = 0x0000_0001;
+enum uint SC_ALGORITHM_RSA_PAD_ANSI     = 0x0000_0004;
+enum uint SC_ALGORITHM_RSA_PAD_ISO9796  = 0x0000_0008;
+enum uint SC_ALGORITHM_RSA_PAD_PSS      = 0x0000_0010;  /* PKCS#1 v2.0 PSS */
+enum uint SC_ALGORITHM_RSA_PAD_OAEP     = 0x0000_0020;  /* PKCS#1 v2.0 OAEP */
 
 	/*
 	 * If the card is willing to produce a cryptogram (from following hashed input; the card is not supposed to hash itself) with the following
@@ -251,6 +253,10 @@ enum uint SC_ALGORITHM_ECDSA_HASHES       = SC_ALGORITHM_ECDSA_HASH_SHA1 |  /*  
 											SC_ALGORITHM_ECDSA_HASH_SHA384 |
 											SC_ALGORITHM_ECDSA_HASH_SHA512;
 
+/* EdDSA algorithms */
+enum uint SC_ALGORITHM_EDDSA_RAW  = 0x0040_0000;
+enum uint SC_ALGORITHM_XEDDSA_RAW = 0x0080_0000;
+
 /* define mask of all algorithms that can do raw */
 enum uint SC_ALGORITHM_RAW_MASK =	SC_ALGORITHM_RSA_RAW |
 									SC_ALGORITHM_GOSTR3410_RAW |
@@ -288,10 +294,7 @@ enum MAX_FILE_SIZE = 65535;
 struct sc_supported_algo_info {
 	uint          reference;
 	uint          mechanism;
-version(OPENSC_VERSION_LATEST)
 	sc_object_id  parameters; /* OID for ECC */
-else
-	sc_object_id* parameters; /* OID for ECC, NULL for RSA */
 	uint          operations;
 	sc_object_id  algo_id;
 	uint          algo_ref;
@@ -318,18 +321,27 @@ version(ENABLE_TOSTRING)
 } // struct sc_supported_algo_info
 
 struct sc_sec_env_param {
-	uint   param_type;
-	void*  value;
-	uint   value_len;
+	uint    param_type;
+	void*   value;
+version(OPENSC_VERSION_LATEST)
+	size_t  value_len;
+else
+	uint    value_len;
 } // sc_sec_env_param_t;
 
 struct sc_security_env {
 	c_ulong   flags;            /* e.g. SC_SEC_ENV_KEY_REF_SYMMETRIC, ... */
 	int       operation;        /* SC_SEC_OPERATION */
+version(OPENSC_VERSION_LATEST) {
+	c_ulong   algorithm;        /* if used, set flag SC_SEC_ENV_ALG_PRESENT */
+	c_ulong   algorithm_flags;  /* e.g. SC_ALGORITHM_RSA_RAW */
+	c_ulong   algorithm_ref;    /* if used, set flag SC_SEC_ENV_ALG_REF_PRESENT */
+}
+else {
 	uint      algorithm;        /* if used, set flag SC_SEC_ENV_ALG_PRESENT */
 	uint      algorithm_flags;  /* e.g. SC_ALGORITHM_RSA_RAW */
-
 	uint      algorithm_ref;    /* if used, set flag SC_SEC_ENV_ALG_REF_PRESENT */
+}
 	sc_path   file_ref;         /* if used, set flag SC_SEC_ENV_FILE_REF_PRESENT */
 	ubyte[8]  key_ref;          /* if used, set flag SC_SEC_ENV_KEY_REF_PRESENT */
 	size_t    key_ref_len;
@@ -373,6 +385,9 @@ version(ENABLE_TOSTRING)
 //	alias sc_security_env_t = sc_security_env;
 
 struct sc_algorithm_id {
+version(OPENSC_VERSION_LATEST)
+	c_ulong       algorithm;
+else
 	uint          algorithm;
 	sc_object_id  oid;
 	void*         params;
@@ -436,8 +451,14 @@ struct sc_ec_parameters {
 
 struct sc_algorithm_info {
 	uint       algorithm;
+version(OPENSC_VERSION_LATEST) {
+	size_t     key_length;
+	c_ulong    flags;
+}
+else {
 	uint       key_length;
 	uint       flags;
+}
 
 	union anonymous {
 		struct sc_rsa_info {
@@ -463,6 +484,9 @@ version(ENABLE_TOSTRING)
 		sc_rsa_info  _rsa;
 
 		struct sc_ec_info {
+		version(OPENSC_VERSION_LATEST)
+			c_ulong           ext_flags;
+		else
 			uint              ext_flags;
 			sc_ec_parameters  params;
 		}
@@ -831,14 +855,13 @@ struct sc_pin_cmd_pin {
 	const(char)*   prompt;         /* Prompt to display */
 
 	const(ubyte)*  data;           /* PIN, set to NULL when using pin pad */
+version(OPENSC_VERSION_LATEST)
+	size_t         len;            /* set to 0 when using pin pad */
+else
 	int            len;            /* set to 0 when using pin pad */
 
 	size_t         min_length;     /* min length of PIN */
 	size_t         max_length;     /* max length of PIN */
-version(OPENSC_VERSION_LATEST) {}
-else {
-	size_t         stored_length;  /* stored length of PIN */
-}
 
 	uint           encoding;       /* SC_PIN_ENCODING: ASCII-numeric, BCD, etc */
 
@@ -846,19 +869,10 @@ else {
 	ubyte          pad_char;
 
 	size_t         offset;         /* PIN offset in the APDU when using pin pad */
-version(OPENSC_VERSION_LATEST) {}
-else {
-	size_t         length_offset;  /* Effective PIN length offset in the APDU */
-}
 
 	int            max_tries;      /* Used for signaling back from SC_PIN_CMD_GET_INFO */
 	int            tries_left;     /* Used for signaling back from SC_PIN_CMD_GET_INFO */
 	int            logged_in;      /* SC_PIN_STATE: Used for signaling back from SC_PIN_CMD_GET_INFO */
-
-version(OPENSC_VERSION_LATEST) {}
-else {
-	sc_acl_entry[SC_MAX_SDO_ACLS] acls;
-}
 
 version(ENABLE_TOSTRING)
 		void toString(scope void delegate(const(char)[]) sink, FormatSpec!char fmt) const
@@ -908,7 +922,6 @@ struct sc_pin_cmd_data {
 
 	uint            pin_type;       /* usually SC_AC_CHV */
 	int             pin_reference;
-version(OPENSC_VERSION_LATEST)
 	int             puk_reference;  /* non-zero means that reference is available */
 
 	sc_pin_cmd_pin  pin1;
@@ -1075,9 +1088,9 @@ enum {
 	SC_CARD_CAP_UNWRAP_KEY             = 0x0000_1000, // OPENSC_VERSION_LATEST
 }
 
-version(sym_hw_encrypt)
+//version(sym_hw_encrypt)
 /* Card supports symmetric/secret key algorithms (currently at least AES, modes ECB and CBC) */
-enum SC_CARD_CAP_SYM_KEY_ALGOS = 0x0000_2000;
+//enum SC_CARD_CAP_SYM_KEY_ALGOS = 0x0000_2000;
 
 
 	struct sc_card {
@@ -1217,8 +1230,11 @@ version(ENABLE_TOSTRING)
 extern(C) nothrow
 {
 	alias card_fun1_t = int function(sc_card* card);
-	alias card_fun2_t = int function(sc_card* card, uint idxORrec_nr,       ubyte*  buf, size_t count, c_ulong flags);
-	alias card_fun3_t = int function(sc_card* card, uint idxORrec_nr, const(ubyte)* buf, size_t count, c_ulong flags);
+	alias card_fun6_t = int function(sc_card* card, uint rec_nr, uint idx,        ubyte* buf, size_t count, c_ulong  flags);
+	alias card_fun5_t = int function(sc_card* card, uint idxORrec_nr,             ubyte* buf, size_t count, c_ulong* flags);
+	alias card_fun2_t = int function(sc_card* card, uint idxORrec_nr,             ubyte* buf, size_t count, c_ulong  flags);
+	alias card_fun3_t = int function(sc_card* card, uint idxORrec_nr,      const(ubyte)* buf, size_t count, c_ulong  flags);
+	alias card_fun7_t = int function(sc_card* card, uint rec_nr, uint idx, const(ubyte)* buf, size_t count, c_ulong  flags);
 	alias card_fun4_t = int function(sc_card* card, const(ubyte)* in_, size_t in_len, ubyte* out_, size_t out_len);
 	alias erase_binary_tf = int function(sc_card* card, uint idx, size_t count, c_ulong flags);
 	alias append_record_tf = int function(sc_card* card, const(ubyte)* buf, size_t count, c_ulong flags);
@@ -1265,14 +1281,14 @@ extern(C) nothrow
 
 	/* ISO 7816-4 functions */
 
-		card_fun2_t         read_binary;
+		card_fun5_t         read_binary;
 		card_fun3_t         write_binary;
 		card_fun3_t         update_binary;
 		erase_binary_tf     erase_binary;
-		card_fun2_t         read_record;
+		card_fun6_t         read_record;
 		card_fun3_t         write_record;
 		append_record_tf    append_record;
-		card_fun3_t         update_record;
+		card_fun7_t         update_record;
 
 		/* select_file: Does the equivalent of SELECT FILE command specified
 		 *   in ISO7816-4. Stores information about the selected file to
@@ -1345,7 +1361,10 @@ extern(C) nothrow
 		wrap_tf             wrap;
 		unwrap_tf           unwrap;
 
-	version(sym_hw_encrypt) {
+		card_fun4_t         encrypt_sym;
+		card_fun4_t         decrypt_sym;
+
+		version(sym_hw_encrypt) {
 		/* encrypt_sym:  Engages the enciphering operation with a sym. key.  Card will use the
 		 *   security environment set in a call to set_security_env or
 		 *   restore_security_env.
@@ -1491,8 +1510,9 @@ version(ENABLE_TOSTRING)
 
 	struct sc_context {
 		scconf_context*       conf;
-		scconf_block*[3]      conf_blocks;
+		scconf_block*[4]      conf_blocks;
 		char*                 app_name;
+		char*                 exe_path;
 		int                   debug_;
 		c_ulong               flags;
 
@@ -1510,8 +1530,13 @@ version(ENABLE_TOSTRING)
 		sc_thread_context_t*  thread_ctx;
 		void*                 mutex;
 
+		void*                 ossl3ctx; // TODO
+
 		uint                  magic;
-/+
+version(OPENSC_VERSION_LATEST)
+		int                   disable_hw_pkcs1_padding;
+
+		/+
 version(none/*ENABLE_TOSTRING*/)
 		string toString() nothrow
 		{
@@ -1678,6 +1703,8 @@ version(PATCH_LIBOPENSC_EXPORTS) {
 		const(char)*          app_name;
 		c_ulong               flags;
 		sc_thread_context_t*  thread_ctx;
+		int                   debug_;
+		FILE*                 debug_file;
 	}
 
 version(PATCH_LIBOPENSC_EXPORTS)
@@ -1690,6 +1717,15 @@ int sc_ctx_win32_get_config_value(const(char)* env, const(char)* reg, const(char
 
 	sc_reader* sc_ctx_get_reader(sc_context* ctx, uint i);
 	int sc_ctx_use_reader(sc_context* ctx, void* pcsc_context_handle, void* pcsc_card_handle);
+
+/**
+ * detect if the given handles are referencing `reader`
+ *
+ * 0 -> handles also point to `reader`
+ * 1 -> handles don't point to `reader`, but to a different reader
+ */
+	int pcsc_check_reader_handles(sc_context* ctx, sc_reader* reader, void* pcsc_context_handle, void* pcsc_card_handle);
+
 	sc_reader* sc_ctx_get_reader_by_name(sc_context* ctx, const(char)* name);
 	sc_reader* sc_ctx_get_reader_by_id(sc_context* ctx, uint id);
 	uint sc_ctx_get_reader_count(sc_context* ctx);
@@ -1737,7 +1773,7 @@ version(PATCH_LIBOPENSC_EXPORTS) {
 }
 	int sc_select_file(sc_card* card, const(sc_path)* path, sc_file** file);
 	int sc_list_files(sc_card* card, ubyte* buf, size_t buflen);
-	int sc_read_binary(sc_card* card, uint idx, ubyte* buf, size_t count, c_ulong flags);
+	int sc_read_binary(sc_card* card, uint idx, ubyte* buf, size_t count, c_ulong* flags);
 	int sc_write_binary(sc_card* card, uint idx, const(ubyte)* buf, size_t count, c_ulong flags);
 	int sc_update_binary(sc_card* card, uint idx, const(ubyte)* buf, size_t count, c_ulong flags);
 	int sc_erase_binary(sc_card* card, uint idx, size_t count, c_ulong flags);
@@ -1763,11 +1799,11 @@ version(PATCH_LIBOPENSC_EXPORTS) {
 	 * @param  flags   flags (may contain a short file id of a file to select)
 	 * @retval number of bytes read or an error value
 	 */
-	int sc_read_record  (sc_card* card, uint rec_nr, ubyte* buf, size_t count, c_ulong flags);
+	int sc_read_record  (sc_card* card, uint rec_nr, uint idx, ubyte* buf, size_t count, c_ulong flags);
 
 	int sc_write_record (sc_card* card, uint rec_nr, const(ubyte)* buf, size_t count, c_ulong flags);
 	int sc_append_record(sc_card* card, const(ubyte)* buf, size_t count, c_ulong flags);
-	int sc_update_record(sc_card* card, uint rec_nr, const(ubyte)* buf, size_t count, c_ulong flags);
+	int sc_update_record(sc_card* card, uint rec_nr, uint idx, const(ubyte)* buf, size_t count, c_ulong flags);
 	int sc_delete_record(sc_card* card, uint rec_nr);
 	int sc_get_data(sc_card* card, uint tag, ubyte* buf, size_t len);
 	int sc_put_data(sc_card* card, uint tag, const(ubyte)* buf, size_t len);
@@ -1776,21 +1812,18 @@ version(PATCH_LIBOPENSC_EXPORTS) {
 	int sc_set_security_env(sc_card* card, const(sc_security_env)* env, int se_num);
 	int sc_decipher(sc_card* card, const(ubyte)* crgram, size_t crgram_len, ubyte* out_, size_t outlen);
 	int sc_compute_signature(sc_card* card, const(ubyte)* data, size_t data_len, ubyte* out_, size_t outlen);
-	int sc_verify(sc_card* card, uint type, int ref_, const(ubyte)* buf, size_t buflen, int* tries_left);
+	int sc_verify(sc_card* card, uint type, int ref_, const(ubyte)* pin, size_t pinlen, int* tries_left);
 	int sc_logout(sc_card* card);
 	int sc_pin_cmd(sc_card* card, sc_pin_cmd_data*, int* tries_left);
 	int sc_change_reference_data(sc_card* card, uint type, int ref_, const(ubyte)* old, size_t oldlen, const(ubyte)* newref, size_t newlen, int* tries_left);
 	int sc_reset_retry_counter(sc_card* card, uint type, int ref_, const(ubyte)* puk, size_t puklen, const(ubyte)* newref, size_t newlen);
 	int sc_build_pin(ubyte* buf, size_t buflen, sc_pin_cmd_pin* pin, int pad);
-version(sym_hw_encrypt) {
-	int sc_encrypt_sym(sc_card* card, const(ubyte)* plaintext, size_t plaintext_len,
-		ubyte* out_, size_t outlen/*, u8 block_size*/);
-	int sc_decrypt_sym(sc_card* card, const(ubyte)* crgram, size_t crgram_len,
-		ubyte* out_, size_t outlen/*, u8 block_size*/);
-}
-/********************************************************************/
+	int sc_encrypt_sym(sc_card* card, const(ubyte)* Data, size_t DataLen,
+		ubyte* out_, size_t* outlen);
+	int sc_decrypt_sym(sc_card* card, const(ubyte)* EncryptedData, size_t EncryptedDataLen,
+		ubyte* out_, size_t* outlen);
+
 /*               ISO 7816-9 related functions                       */
-/********************************************************************/
 
 	int sc_create_file(sc_card* card, sc_file* file);
 	int sc_delete_file(sc_card* card, const(sc_path)* path);
@@ -1897,14 +1930,29 @@ int sc_update_dir(sc_card* card, sc_app_info* app);
 version(PATCH_LIBOPENSC_EXPORTS)
 	void sc_invalidate_cache(sc_card* card);
 void sc_print_cache(sc_card* card);
-sc_algorithm_info* sc_card_find_rsa_alg(sc_card* card, uint key_length);
-sc_algorithm_info* sc_card_find_ec_alg(sc_card* card, uint field_length, sc_object_id* curve_oid);
-sc_algorithm_info* sc_card_find_gostr3410_alg(sc_card* card, uint key_length);
+version(OPENSC_VERSION_LATEST) {
+	sc_algorithm_info* sc_card_find_rsa_alg(sc_card* card, size_t key_length);
+	sc_algorithm_info* sc_card_find_ec_alg(sc_card* card,  size_t field_length, sc_object_id* curve_oid);
+}
+else {
+	sc_algorithm_info* sc_card_find_rsa_alg(sc_card* card, uint   key_length);
+	sc_algorithm_info* sc_card_find_ec_alg(sc_card* card,  uint   field_length, sc_object_id* curve_oid);
+}
 
-version(PATCH_LIBOPENSC_EXPORTS)
-	sc_algorithm_info* sc_card_find_alg(sc_card* card,
-		uint algorithm, uint key_length, void* param);
-
+version(PATCH_LIBOPENSC_EXPORTS) {
+version(OPENSC_VERSION_LATEST) {
+	sc_algorithm_info* sc_card_find_eddsa_alg(sc_card* card, size_t field_length, sc_object_id* curve_oid);
+	sc_algorithm_info* sc_card_find_xeddsa_alg(sc_card* card, size_t field_length, sc_object_id* curve_oid);
+	sc_algorithm_info* sc_card_find_gostr3410_alg(sc_card* card, size_t key_length);
+	sc_algorithm_info* sc_card_find_alg(sc_card* card, uint algorithm, size_t key_length, void* param);
+}
+else {
+	sc_algorithm_info* sc_card_find_eddsa_alg(sc_card* card, uint   field_length, sc_object_id* curve_oid);
+	sc_algorithm_info* sc_card_find_xeddsa_alg(sc_card* card, uint   field_length, sc_object_id* curve_oid);
+	sc_algorithm_info* sc_card_find_gostr3410_alg(sc_card* card, uint   key_length);
+	sc_algorithm_info* sc_card_find_alg(sc_card* card, uint algorithm, uint   key_length, void* param);
+}
+}
 scconf_block* sc_match_atr_block(sc_context* ctx, sc_card_driver* driver, sc_atr* atr);
 uint sc_crc32(const(ubyte)* value, size_t len);
 
@@ -1983,24 +2031,20 @@ version(PATCH_LIBOPENSC_EXPORTS)
 	 * @note The appropriate directory must be selected before calling this function.
 	 * */
 	int iso7816_logout(sc_card* card, ubyte pin_reference);
-/+
-version(PATCH_LIBOPENSC_EXPORTS)
-version(OPENSC_VERSION_LATEST)
-/*
- * @brief Format PIN APDU for modifiction by card driver
- *
- * @param[in] card           card
- * @param[in] apdu           apdu structure to update with PIN APDU
- * @param[in] data           pin command data to set into the APDU
- * @param[in] buf            buffer for APDU data field
- * @param[in] buf_len        maximum buffer length
- */
-int
-iso7816_build_pin_apdu(struct sc_card *card, struct sc_apdu *apdu,
-		struct sc_pin_cmd_data *data, u8 *buf, size_t buf_len);
-+/
 
-version(OPENSC_VERSION_LATEST)
+version(PATCH_LIBOPENSC_EXPORTS)
+    /**
+     * @brief Format PIN APDU for modifiction by card driver
+     *
+     * @param[in] card           card
+     * @param[in] apdu           apdu structure to update with PIN APDU
+     * @param[in] data           pin command data to set into the APDU
+     * @param[in] buf            buffer for APDU data field
+     * @param[in] buf_len        maximum buffer length
+     */
+    int iso7816_build_pin_apdu(sc_card* card, sc_apdu* apdu,
+	                           sc_pin_cmd_data* data, ubyte* buf, size_t buf_len);
+
 	/**
 	 * Free a buffer returned by OpenSC.
 	 * Use this instead your C libraries free() to free memory allocated by OpenSC.

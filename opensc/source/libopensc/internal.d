@@ -17,7 +17,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 /*
 Written in the D programming language.
@@ -125,22 +125,19 @@ scconf_block* _sc_match_atr_block(sc_context* ctx, sc_card_driver* driver, sc_at
 	 * be null terminated. */
 	int _sc_match_atr(sc_card* card, const(sc_atr_table)* table, int* type_out) pure @trusted;  // const since v0.19.0 : const struct sc_atr_table *table
 
-	int _sc_card_add_rsa_alg(sc_card* card, uint key_length, c_ulong flags, c_ulong exponent);
-	int _sc_card_add_ec_alg(sc_card* card, uint key_length, c_ulong flags, c_ulong ext_flags, sc_object_id* curve_oid);
+version(OPENSC_VERSION_LATEST) {
+    int _sc_card_add_rsa_alg(sc_card* card, size_t key_length, c_ulong flags, c_ulong exponent);
+	int _sc_card_add_ec_alg(sc_card* card,  size_t key_length, c_ulong flags, c_ulong ext_flags, sc_object_id* curve_oid);
+}
+else {
+    int _sc_card_add_rsa_alg(sc_card* card, uint   key_length, c_ulong flags, c_ulong exponent);
+	int _sc_card_add_ec_alg(sc_card* card,  uint   key_length, c_ulong flags, c_ulong ext_flags, sc_object_id* curve_oid);
+}
 version(PATCH_LIBOPENSC_EXPORTS) {
 	int _sc_card_add_algorithm(sc_card* card, const(sc_algorithm_info)* info);                     // duplicated for acos5
 	int _sc_card_add_symmetric_alg(sc_card* card, uint algorithm, uint key_length, c_ulong flags); // duplicated for acos5
 
-	/********************************************************************/
 	/*                 pkcs1 padding/encoding functions                 */
-	/********************************************************************/
-
-	int sc_pkcs1_strip_01_padding(sc_context* ctx, const(ubyte)* in_dat, size_t in_len,        // duplicated for acos5
-		ubyte* out_dat, size_t* out_len);
-	int sc_pkcs1_strip_02_padding(sc_context* ctx, const(ubyte)* in_dat, size_t in_len,        // duplicated for acos5
-		ubyte* out_dat, size_t* out_len);
-	int sc_pkcs1_strip_digest_info_prefix(uint* algorithm,
-		const(ubyte)* in_dat, size_t in_len, ubyte* out_dat, size_t* out_len);
 }
 
 /**
@@ -155,4 +152,4 @@ version(PATCH_LIBOPENSC_EXPORTS) {
  * @return SC_SUCCESS on success and an error code otherwise
  */
 int sc_pkcs1_encode(sc_context* ctx, c_ulong flags,
-	const(ubyte)* in_, size_t inlen, ubyte* out_, size_t* outlen, size_t mod_bits/*modlen*/); // since version 0.20.0: modlen renamed to mod_bits: is length of the modulus in bits; before (modlen) it was in bytes !
+	const(ubyte)* in_, size_t inlen, ubyte* out_, size_t* outlen, size_t mod_bits, void *pMechanism); // since version 0.20.0: modlen renamed to mod_bits: is length of the modulus in bits; before (modlen) it was in bytes !

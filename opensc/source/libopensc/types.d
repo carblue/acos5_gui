@@ -16,7 +16,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 /*
 Written in the D programming language.
@@ -85,6 +85,7 @@ version(OPENSC_VERSION_LATEST) {
 		SC_MAX_SDO_ACLS               = 8,
 		SC_MAX_CRTS_IN_SE             = 12,
 		SC_MAX_SE_NUM                 = 8,
+		SC_MAX_PKCS15_EMULATORS	      = 48,
 
 /* When changing this value, pay attention to the initialization of the ASN1
  * static variables that use this macro, like, for example,
@@ -538,10 +539,6 @@ version(ENABLE_TOSTRING)
 	struct sc_acl_entry {
 		uint                       method;  // .init == SC_AC_NONE
 		uint                       key_ref;
-version(OPENSC_VERSION_LATEST) {}
-else {
-		sc_crt[SC_MAX_CRTS_IN_SE]  crts;
-}
 		sc_acl_entry*              next;
 
 version(ENABLE_TOSTRING)
@@ -621,11 +618,36 @@ version(ENABLE_TOSTRING)
 	}
 	mixin FreeEnumMembers!SC_FILE_EF;
 
+
+    /* File flags */
+    enum SC_FILE_FLAG
+    {
+        SC_FILE_FLAG_COMPRESSED_AUTO = 0x01,
+        SC_FILE_FLAG_COMPRESSED_ZLIB = 0x02,
+        SC_FILE_FLAG_COMPRESSED_GZIP = 0x04,
+    }
+
+    /* File status flags */
+    /* ISO7816-4: Unless otherwise specified, the security attributes are valid for the operational state.*/
 	enum
 	{
-		SC_FILE_STATUS_ACTIVATED = 0,
-		SC_FILE_STATUS_INVALIDATED = 1,
-		SC_FILE_STATUS_CREATION = 2,
+		SC_FILE_STATUS_ACTIVATED   = 0,  /* ISO7816-4: Operational state (activated)   (5, 7) */
+		SC_FILE_STATUS_INVALIDATED = 1,  /* ISO7816-4: Operational state (deactivated) (4, 6) */
+		SC_FILE_STATUS_CREATION    = 2,  /* ISO7816-4: Creation state, (1) */
+
+		SC_FILE_STATUS_INITIALISATION =	0x03, /* ISO7816-4: Initialisation state, (3) */
+		SC_FILE_STATUS_NO_INFO		  =	0x04, /* ISO7816-4: No information given, (0) */
+		SC_FILE_STATUS_TERMINATION	  =	0x0c, /* ISO7816-4: Termination state (12,13,14,15) */
+		SC_FILE_STATUS_PROPRIETARY	  =	0xf0, /* ISO7816-4: codes > 15 */
+
+		/* reserved for future use by ISO/IEC */
+		SC_FILE_STATUS_RFU_2		  =	0x07, /* ISO7816-4: (0x02) */
+		SC_FILE_STATUS_RFU_8		  =	0x08, /* ISO7816-4: (0x08) */
+		SC_FILE_STATUS_RFU_9		  =	0x09, /* ISO7816-4: (0x09) */
+		SC_FILE_STATUS_RFU_10		  =	0x0a, /* ISO7816-4: (0x0a) */
+		SC_FILE_STATUS_RFU_11		  =	0x0b, /* ISO7816-4: (0x0b) */
+
+		C_FILE_STATUS_UNKNOWN		  =	0xff, /* if tag 0x8A is missing, there is no information about LCSB */
 	}
 
 	struct sc_file {
@@ -640,6 +662,7 @@ version(ENABLE_TOSTRING)
 		int        id;           /* file identifier (2 bytes) */
 		int        sid;          /* short EF identifier (1 byte) */ /*ACOS5: 1 byte  Short File Identifier (SFI) */
 		sc_acl_entry*[SC_MAX_AC_OPS] acl; /* Access Control List */
+		int        acl_inactive;                        /* if set, the card access control mechanism is not active */
 
 		size_t     record_length; /* max. length in case of record-oriented EF */
 		size_t     record_count;  /* Valid, if not transparent EF or DF */
@@ -751,6 +774,8 @@ version(ENABLE_TOSTRING)
 		SC_APDU_FLAGS_NO_RETRY_WL  = 0x0000_0004UL,
 		/* APDU is from Secure Messaging  */
 		SC_APDU_FLAGS_NO_SM        = 0x0000_0008UL,
+		/* let SM do the command chaining  */
+		SC_APDU_FLAGS_SM_CHAINING  = 0x0000_0010UL,
 	}
 
 	enum /* SC_APDU_ALLOCATE_FLAG */ : uint { // currently unused

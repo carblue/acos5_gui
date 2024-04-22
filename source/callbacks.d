@@ -415,7 +415,7 @@ int btn_sanity_cb(Ihandle* ih)
                 size_2f00 = ub22integral(V);
 
         auto  buf = new ubyte[](size_2f00);
-        rv = sc_read_binary(card, 0, buf.ptr, buf.length, 0 /*flags*/);
+        rv = sc_read_binary(card, 0, buf.ptr, buf.length, null /*flags*/);
         assert(rv>0 && rv==buf.length);
 
         foreach (d,T,L,V; tlv_Range_mod(buf[2..$]))

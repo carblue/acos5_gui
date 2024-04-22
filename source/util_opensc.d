@@ -988,7 +988,7 @@ ubyte expectedFileType = info[6];
 //    size_t responselen;
     uint[] offsetTable = [0];
 
-            rv = sc_read_binary(card, 0, buf.ptr, buf.length, 0 /*flags*/);
+            rv = sc_read_binary(card, 0, buf.ptr, buf.length, null /*flags*/);
             assert((rv>0 && rv==buf.length) || rv==SC_ERROR_SECURITY_STATUS_NOT_SATISFIED);
             if (rv==SC_ERROR_SECURITY_STATUS_NOT_SATISFIED)
                 return;
@@ -1510,7 +1510,7 @@ version(Posix)
     switch (fdb)
     {
         case Transparent_EF:
-            rv = sc_read_binary(card, 0, buf.ptr, buf.length, 0 /*flags*/);
+            rv = sc_read_binary(card, 0, buf.ptr, buf.length, null /*flags*/);
             assert((rv>0 && rv==buf.length) || rv==SC_ERROR_SECURITY_STATUS_NOT_SATISFIED || rv==SC_ERROR_PIN_CODE_INCORRECT);
 /*
 00 82 00 81 08 83 A0 77 77 C8 3A EB C3 .......ww.:..
@@ -1580,19 +1580,19 @@ P:9188; T:0x140535552658688 12:59:41.627 [acos5_gui ] card.c:662:sc_read_binary:
 ////assumeWontThrow(writefln("offsetTable[]: %s", offsetTable));
             break;
         case Linear_Fixed_EF, Linear_Variable_EF, SE_EF:
-            foreach (rec_idx; 1 .. 1+nor)
+            foreach (rec_no; 1 .. 1+nor)
             {
                 if (fdb==SE_EF)
                     buf = new ubyte[size? size : mrl];
                 else
                     buf[] = 0;
-                if (is_ACOSV3_opmodeV3_FIPS_140_2L3 && fdb==SE_EF && sacRead.among(1,3) && rec_idx<=seFIPS.length)
+                if (is_ACOSV3_opmodeV3_FIPS_140_2L3 && fdb==SE_EF && sacRead.among(1,3) && rec_no<=seFIPS.length)
                 {
-                    buf[0..33] = seFIPS[rec_idx-1];
+                    buf[0..33] = seFIPS[rec_no-1];
                     rv = 33;
                 }
                 else
-                    rv = sc_read_record(card, rec_idx, buf.ptr, buf.length, SC_RECORD_BY_REC_NR);
+                    rv = sc_read_record(card, rec_no, 0, buf.ptr, buf.length, SC_RECORD_BY_REC_NR);
 ////                assert( rv>0 && rv==buf.length);
                     assert((rv>0 && rv==buf.length) || rv==SC_ERROR_SECURITY_STATUS_NOT_SATISFIED);
                     if (rv==SC_ERROR_SECURITY_STATUS_NOT_SATISFIED)
@@ -1600,7 +1600,7 @@ P:9188; T:0x140535552658688 12:59:41.627 [acos5_gui ] card.c:662:sc_read_binary:
 if (rv != buf.length)
     assumeWontThrow(writefln("### returned length from sc_read_record to short: Received %s, but expected %s. fid: %(%02X %)", rv, buf.length, fid));
 //assumeWontThrow(writefln("0x[%(%02X %)]", buf));
-                h.SetString("APPEND", "Record "~rec_idx.to!string);
+                h.SetString("APPEND", "Record "~rec_no.to!string);
                 if (fdb==SE_EF)
                     while (buf.length && buf[$-1]==0)
                         buf.length = buf.length-1;
@@ -1611,7 +1611,7 @@ if (rv != buf.length)
             return;
         case RSA_Key_EF, ECC_KEY_EF:
 //assumeWontThrow(writefln("sc_read_binary: idx: 0, buf.ptr: %s, buf.length: %s", buf.ptr, buf.length));
-            rv= sc_read_binary(card, 0, buf.ptr, buf.length, 0);
+            rv= sc_read_binary(card, 0, buf.ptr, buf.length, null);
             if (rv != buf.length || rv==0) {
                 // if rv==0 it's probably because the file is non-readable
 //                assumeWontThrow(writefln("### returned length from get_key to short: Received %s, but expected %s. fid: %(%02X %)", rv, buf.length, fid));

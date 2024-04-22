@@ -2,6 +2,7 @@
  * cardctl.h: card_ctl command numbers
  *
  * Copyright (C) 2003  Olaf Kirch <okir@lse.de>
+ * Copyright (C) 2018-2019 GSMK - Gesellschaft für Sichere Mobile Kommunikation mbH
  * Copyright (C) 2016-  for the binding: Carsten Blüggel <bluecars@posteo.eu>
  *
  * This library is free software; you can redistribute it and/or
@@ -16,7 +17,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 /*
 Written in the D programming language.
@@ -31,7 +32,6 @@ NO extern(C) functions are declared/exported from "libopensc.so|opensc.dll" bina
 module libopensc.cardctl;
 
 import libopensc.types : FreeEnumMembers;
-version(OPENSC_VERSION_LATEST)
 import libopensc.pkcs15 : sc_pkcs15_tokeninfo;
 
 
@@ -47,10 +47,11 @@ enum SC_CARDCTL : uint {
 	SC_CARDCTL_LIFECYCLE_GET,             // cmd 3
 	SC_CARDCTL_LIFECYCLE_SET,             // cmd 4
 	SC_CARDCTL_GET_SERIALNR,              // cmd 5 // data: sc_serial_number*
-	SC_CARDCTL_GET_SE_INFO,               // cmd 6
-	SC_CARDCTL_GET_CHV_REFERENCE_IN_SE,   // cmd 7
-	SC_CARDCTL_PKCS11_INIT_TOKEN,         // cmd 8 (C_InitToken)
-	SC_CARDCTL_PKCS11_INIT_PIN,           // cmd 9 (C_InitPIN)
+	SC_CARDCTL_GET_CHANGE_COUNTER,        // cmd 6
+	SC_CARDCTL_GET_SE_INFO,               // cmd 7
+	SC_CARDCTL_GET_CHV_REFERENCE_IN_SE,   // cmd 8
+	SC_CARDCTL_PKCS11_INIT_TOKEN,         // cmd 9  (C_InitToken)
+	SC_CARDCTL_PKCS11_INIT_PIN,           // cmd 10 (C_InitPIN)
 }
 
 mixin FreeEnumMembers!SC_CARDCTL;
@@ -98,7 +99,6 @@ struct sc_cardctl_pkcs11_init_pin {
 /*
  * Generic cardctl - card driver can examine token info
  */
-version(OPENSC_VERSION_LATEST)
 struct sc_cardctl_parsed_token_info {
 	uint flags;
 	sc_pkcs15_tokeninfo* tokeninfo;

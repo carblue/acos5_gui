@@ -1266,7 +1266,7 @@ int set_more_for_keyAsym_Id(int keyAsym_Id) nothrow
         rv= sc_select_file(card, &path, null);
         assert(rv==0);
         ub16 buf;
-        rv= sc_read_binary(card, 5, buf.ptr, buf.length, 0);
+        rv= sc_read_binary(card, 5, buf.ptr, buf.length, null);
         assert(rv==buf.length);
         valuePublicExponent.set(buf, true);
 `;

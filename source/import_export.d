@@ -145,7 +145,7 @@ int btn_exportArchive_cb(Ihandle* ih)
                     // possible fdb:
                     if (/*true*/ed.readable)
                     {
-                        rv = sc_read_record(card, i, buf.ptr, buf.length, SC_RECORD_BY_REC_NR);
+                        rv = sc_read_record(card, i, 0, buf.ptr, buf.length, SC_RECORD_BY_REC_NR);
                         if (!(rv>0 && rv==buf.length))
                         {
 assumeWontThrow(writeln("### rv: ", rv));
@@ -170,7 +170,7 @@ assumeWontThrow(writefln("### unreadable: ed.fid: %(%02X %)", ed.fid));
                     if (/*true*/ed.readable)
                     {
 //                      if (ed.fdb == 1 || ed.fdb == 9)
-                            rv = sc_read_binary(card, 0, buf.ptr, buf.length, 0 /*flags*/);
+                            rv = sc_read_binary(card, 0, buf.ptr, buf.length, null /*flags*/);
                         if (!(rv>0 && rv==buf.length))
                         {
 assumeWontThrow(writeln("### rv: ", rv));

@@ -16,7 +16,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 /*
 Written in the D programming language.
@@ -333,7 +333,12 @@ struct sc_pkcs15init_prkeyargs {
 	char*            label;
 	ubyte*           guid;
 	size_t           guid_len;
-	c_ulong          usage;
+	version(OPENSC_VERSION_LATEST) {
+		uint         usage;
+	}
+	else {
+		c_ulong      usage;
+	}
 	c_ulong          x509_usage;
 	uint             flags;
 	uint             access_flags;
@@ -383,7 +388,12 @@ struct sc_pkcs15init_pubkeyargs {
 	sc_pkcs15_id      id;
 	sc_pkcs15_id      auth_id;
 	const(char)*      label;
-	c_ulong           usage;
+	version(OPENSC_VERSION_LATEST) {
+		uint          usage;
+	}
+	else {
+		c_ulong       usage;
+	}
 	c_ulong           x509_usage;
 
 	union anonymous {
@@ -435,7 +445,12 @@ struct sc_pkcs15init_skeyargs {
 	sc_pkcs15_id   id;
 	sc_pkcs15_id   auth_id;
 	const(char)*   label;
-	c_ulong        usage;
+	version(OPENSC_VERSION_LATEST) {
+		uint       usage;
+	}
+	else {
+		c_ulong    usage;
+	}
 	uint           flags;
 	uint           access_flags;
 	c_ulong        algorithm; /* User requested algorithm */
@@ -563,8 +578,14 @@ int  sc_pkcs15init_update_certificate(sc_pkcs15_card*,
 				size_t);
 int  sc_pkcs15init_create_file(sc_profile*,
 				sc_pkcs15_card*, sc_file*);
-int  sc_pkcs15init_update_file(sc_profile*,
-				sc_pkcs15_card*, sc_file*, void*, uint);
+version(OPENSC_VERSION_LATEST) {
+	int  sc_pkcs15init_update_file(sc_profile*,
+		sc_pkcs15_card*, sc_file*, void*, size_t);
+}
+else {
+	int  sc_pkcs15init_update_file(sc_profile*,
+		sc_pkcs15_card*, sc_file*, void*, uint);
+}
 int  sc_pkcs15init_authenticate(sc_profile*, sc_pkcs15_card*, sc_file*, int);
 
 int  sc_pkcs15init_fixup_file(sc_profile*, sc_pkcs15_card*,

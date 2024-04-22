@@ -1,5 +1,5 @@
 # acos5_gui
-An Administration tool for ACS ACOS5 (V2: Smart Card/CryptoMate64 and V3: Smart Card/CryptoMate Nano), based on driver [acos5](https://github.com/carblue/acos5 "https://github.com/carblue/acos5") for OpenSC.
+An administration tool for ACS ACOS5 (V2: Smart Card/CryptoMate64 and V3: Smart Card/CryptoMate Nano), based on driver [acos5](https://github.com/carblue/acos5 "https://github.com/carblue/acos5") for OpenSC.
 
 For some of OpenSC's internal card drivers, there exist command-line tools. This is the Graphical User Interface tool for external driver acos5, built using the IUP GUI framework.
 
@@ -8,8 +8,8 @@ For some details, it's recommended to consult the hardware's "Reference Manual",
 **ATTENTION**: Known Issue: Driver and acos5_gui are designed to retain readiness for operation of ACS proprietary tools with a card. While testing that with ACS ACSCMU, I did a Login and changed the token label. The result was, that ACSCMU corrupted EF.TokenInfo file 0x5032. This is just another example why ACSCMU of client kit IMO is suboptimal. One has to correct EF.TokenInfo manually afterwards.
 Otherwise acos5_gui can't decode and display that file's content any more. OpenSC's ASN.1 parsing is more tolerant (than libtasn1) towards that issue and will read and interpret the misplaced "tokenflags".<br>
 
-The default in dub.json (with new D binding opensc code) assumes an OpenSC binary version 0.21.0 is installed. For an OpenSC binary version 0.20.0, change "subConfigurations": "opensc": "deimos" to "opensc": "deimosPrior".
-It's recommended to use OpenSC binary version 0.21.0.
+The default in dub.json assumes an OpenSC binary version 0.25.0 or 0.25.1 is installed. For an OpenSC binary version 0.24.0, change "subConfigurations": "opensc": "deimos" to "opensc": "deimosPrior".
+It's recommended to use OpenSC binary version 0.25.
 
 Next to libraries required according to dub.json, both libraries built from the driver repo are prerequisites being installed and OpenSC (opensc.conf) configured to use them:  
 **This repo will always be closely related to the driver acos5 development. Make sure to have the latest commit installed.**
@@ -40,8 +40,8 @@ Inspect dub.json and check whether the settings are correct for You. If You go w
 		"opensc": "deimos"
 	},
 ```
-the entry for `"opensc":` must be `"deimos"` if OpenSC version 0.21.0 is installed, or<br>
-the entry for `"opensc":` must be `"deimosPrior"` if OpenSC version 0.20.0 is installed. Other OpenSC versions are not suitable.
+the entry for `"opensc":` must be `"deimos"` if OpenSC version 0.25.0 or 0.25.1 is installed, or<br>
+the entry for `"opensc":` must be `"deimosPrior"` if OpenSC version 0.24.0 is installed. Other OpenSC versions are not suitable.
 
 One of the D compilers DMD or LDC, and DUB are required (downloads from https://dlang.org/download.html have DUB included), then run e.g. wih DMD installed<br>
 dub build  (or `dub run`, in order to build and invoke acos5_gui)
@@ -112,3 +112,23 @@ While being inactive with `acos5_gui` (or only actions that don't access the car
 If You access a repo, e.g. GitHub via [ssh](https://help.github.com/en/articles/changing-a-remotes-url#switching-remote-urls-from-https-to-ssh "https://help.github.com/en/articles/changing-a-remotes-url#switching-remote-urls-from-https-to-ssh"), it may happen, that git starts to issue Cryptoki calls which ends in accessing the card periodically: That's a strange issue with respect to `git-upload-pack`. Somehow I managed to stop that.<br>
 Also, don't plug-in more than 1 ACOS5 token simultaneously, or unplug or change the token while `acos5_gui` is running: `acos5_gui` is not yet designed to handle that (e.g. it memoizes the file system, assuming it's th same when resuming).<br>
 The error handling is not complete at this stage: The problem with that is: The coding isn't easily done already and massive error handling code would currently obscure where the real action takes place. If You encounter any such situation, please report to issues.
+
+TODO, to be enhanced:
+just a dub build on new hardware (3 years inactivity in the meantime 2021-2024) revealed:
+
+    Starting Performing "debug" build using /usr/bin/dmd for x86_64.
+    Building derelict-util 3.0.0-beta.2: building configuration [library]
+    Building pkcs11 2.40.0-alpha.4: building configuration [derelict]
+    Building tasn1:wrapper 0.0.7: building configuration [library]
+    Building acos5_gui 0.0.15+commit.2.g96878eb: building configuration [application]
+     Linking acos5_gui
+/usr/bin/ld: cannot find -lftgl: No such file or directory
+/usr/bin/ld: cannot find -l:libopensc.so.7: No such file or directory
+collect2: error: ld returned 1 exit status
+Error: linker exited with status 1
+       cc ... .dub/packages/iup/3.27.0-alpha.2/iup/iup/lib/posix-x86_64 -lcrypto -lssl -lftgl -liup -liupcontrols -l:libopensc.so.7 -ldl -l:libtasn1.so.6 -L/usr/lib/x86_64-linux-gnu -lphobos2 -lpthread -lm -lrt -ldl
+Error /usr/bin/dmd failed with exit code 1.
+user@host ...acos5_gui$
+
+So, the only unexpected was the missing libftgl.so from ubuntu package libftgl-dev or ??? Explain how that relates to folder/file /home/user/Downloads/IUP_331/iup-3.31_Linux54_64_lib/ftgl/lib/Linux54_64/libftgl.so,  i.e. what to do about libftgl.so ? (and when exactly libftgl.so is needed, where comes the dependancy from?)
+The other error was expected, as there was OpenSC 0.25.1 installed with libopensc.so.11 (not libopensc.so.7) !

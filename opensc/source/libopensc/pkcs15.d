@@ -16,7 +16,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 /*
 Written in the D programming language.
@@ -291,25 +291,6 @@ struct sc_pkcs15_prkey_rsa {
 	sc_pkcs15_bignum  dmq1;
 }
 
-struct sc_pkcs15_pubkey_dsa
-{
-	sc_pkcs15_bignum pub;
-	sc_pkcs15_bignum p;
-	sc_pkcs15_bignum q;
-	sc_pkcs15_bignum g;
-}
-
-struct sc_pkcs15_prkey_dsa {
-	/* public components */
-	sc_pkcs15_bignum pub;
-	sc_pkcs15_bignum p;
-	sc_pkcs15_bignum q;
-	sc_pkcs15_bignum g;
-
-	/* private key */
-	sc_pkcs15_bignum priv;
-}
-
 struct sc_pkcs15_gost_parameters
 {
 	sc_object_id  key;
@@ -322,11 +303,20 @@ struct sc_pkcs15_pubkey_ec {
 	sc_pkcs15_u8      ecpointQ; /* This is NOT DER, just value and length */
 }
 
+struct sc_pkcs15_pubkey_eddsa {
+	sc_pkcs15_u8      pubkey;
+}
+
 struct sc_pkcs15_prkey_ec
 {
 	sc_ec_parameters  params;
 	sc_pkcs15_bignum  privateD; /* note this is bignum */
 	sc_pkcs15_u8      ecpointQ; /* This is NOT DER, just value and length */
+}
+
+struct sc_pkcs15_prkey_eddsa {
+	sc_pkcs15_u8      pubkey;
+	sc_pkcs15_u8      value;
 }
 
 struct sc_pkcs15_pubkey_gostr3410 {
@@ -339,16 +329,18 @@ struct sc_pkcs15_prkey_gostr3410 {
 	sc_pkcs15_bignum           d;
 }
 
-struct sc_pkcs15_pubkey
-{
+struct sc_pkcs15_pubkey {
+version(OPENSC_VERSION_LATEST)
+	c_ulong           algorithm;
+else
 	int               algorithm;
 	sc_algorithm_id*  alg_id;
 
 	/* Decoded key */
 	union anonymous {
 		sc_pkcs15_pubkey_rsa        rsa;
-		sc_pkcs15_pubkey_dsa        dsa;
 		sc_pkcs15_pubkey_ec         ec;
+		sc_pkcs15_pubkey_eddsa      eddsa;
 		sc_pkcs15_pubkey_gostr3410  gostr3410;
 	}
 	anonymous         u;
@@ -387,16 +379,18 @@ version(ENABLE_TOSTRING)
 } // struct sc_pkcs15_pubkey
 //alias sc_pkcs15_pubkey_t = sc_pkcs15_pubkey;
 
-struct sc_pkcs15_prkey
-{
-	uint       algorithm;
+struct sc_pkcs15_prkey {
+version(OPENSC_VERSION_LATEST)
+    c_ulong    algorithm;
+else
+    uint       algorithm;
 /* TODO do we need:	sc_algorithm_id* alg_id; */
 
 	union anonymous
 	{
 		sc_pkcs15_prkey_rsa        rsa;
-		sc_pkcs15_prkey_dsa        dsa;
 		sc_pkcs15_prkey_ec         ec;
+		sc_pkcs15_prkey_eddsa      eddsa;
 		sc_pkcs15_prkey_gostr3410  gostr3410;
 		sc_pkcs15_skey             secret;
 	}
@@ -606,7 +600,7 @@ struct sc_pkcs15_prkey_info {
 	int                                native;
 	int                                key_reference;
 	/* convert to union if other types are supported */
-	size_t                             modulus_length; /* RSA */
+	size_t                             modulus_length; /* RSA, in bits */
 	size_t                             field_length;   /* EC in bits */
 
 	uint[SC_MAX_SUPPORTED_ALGORITHMS]  algo_refs;
@@ -732,15 +726,17 @@ enum
 
 	SC_PKCS15_TYPE_PRKEY            = 0x100,
 	SC_PKCS15_TYPE_PRKEY_RSA        = 0x101,
-	SC_PKCS15_TYPE_PRKEY_DSA        = 0x102,
 	SC_PKCS15_TYPE_PRKEY_GOSTR3410  = 0x103,
 	SC_PKCS15_TYPE_PRKEY_EC         = 0x104,
+	SC_PKCS15_TYPE_PRKEY_EDDSA		= 0x105,
+	SC_PKCS15_TYPE_PRKEY_XEDDSA		= 0x106,
 
 	SC_PKCS15_TYPE_PUBKEY           = 0x200,
 	SC_PKCS15_TYPE_PUBKEY_RSA       = 0x201,
-	SC_PKCS15_TYPE_PUBKEY_DSA       = 0x202,
 	SC_PKCS15_TYPE_PUBKEY_GOSTR3410 = 0x203,
 	SC_PKCS15_TYPE_PUBKEY_EC        = 0x204,
+	SC_PKCS15_TYPE_PUBKEY_EDDSA		= 0x205,
+	SC_PKCS15_TYPE_PUBKEY_XEDDSA	= 0x206,
 
 	SC_PKCS15_TYPE_SKEY             = 0x300,
 	SC_PKCS15_TYPE_SKEY_GENERIC     = 0x301,
@@ -982,6 +978,13 @@ mixin FreeEnumMembers!SC_PKCS15_TOKEN;
 
 enum SC_PKCS15_CARD_FLAG_EMULATED = 0x02000000;
 
+/* suitable for struct sc_pkcs15_card.opts.use_file_cache */
+enum {
+	SC_PKCS15_OPTS_CACHE_NO_FILES      = 0,
+	SC_PKCS15_OPTS_CACHE_PUBLIC_FILES  = 1,
+	SC_PKCS15_OPTS_CACHE_ALL_FILES     = 2,
+}
+
 /* suitable for struct sc_pkcs15_card.opts.private_certificate */
 enum {
     SC_PKCS15_CARD_OPTS_PRIV_CERT_PROTECT    = 0,
@@ -1024,7 +1027,7 @@ extern (C) nothrow @nogc
 	sc_pkcs15_tokeninfo* sc_pkcs15_tokeninfo_new();
 	void sc_pkcs15_free_tokeninfo(sc_pkcs15_tokeninfo* tokeninfo);
 
-	int  sc_pkcs15_decipher(sc_pkcs15_card* p15card, const(sc_pkcs15_object)* prkey_obj, c_ulong flags, const(ubyte)* in_, size_t inlen, ubyte* out_, size_t outlen);
+	int  sc_pkcs15_decipher(sc_pkcs15_card* p15card, const(sc_pkcs15_object)* prkey_obj, c_ulong flags, const(ubyte)* in_, size_t inlen, ubyte* out_, size_t outlen, void* pMechanism);
 	int  sc_pkcs15_derive(sc_pkcs15_card* p15card, const(sc_pkcs15_object)* prkey_obj, c_ulong flags, const(ubyte)* in_, size_t inlen, ubyte* out_, size_t* poutlen);
 
 	int sc_pkcs15_unwrap(sc_pkcs15_card* p15card,
@@ -1041,23 +1044,24 @@ extern (C) nothrow @nogc
 		ubyte* cryptogram, c_ulong* crgram_len,
 		const(ubyte)* param, size_t paramlen);
 
-version(sym_hw_encrypt)
-	int sc_pkcs15_decrypt_sym(sc_pkcs15_card* p15card,
-		const(sc_pkcs15_object)* obj,
-		c_ulong flags,
-		const(ubyte)* in_, size_t inlen, ubyte* out_, size_t outlen);
+	int  sc_pkcs15_compute_signature(sc_pkcs15_card* p15card, const(sc_pkcs15_object)* prkey_obj, c_ulong alg_flags,
+		const(ubyte)* in_, size_t inlen, ubyte* out_, size_t outlen, void *pMechanism);
 
-	int  sc_pkcs15_compute_signature(sc_pkcs15_card* p15card, const(sc_pkcs15_object)* prkey_obj, c_ulong alg_flags, const(ubyte)* in_, size_t inlen, ubyte* out_, size_t outlen);
+	int sc_pkcs15_encrypt_sym(sc_pkcs15_card* p15card, const(sc_pkcs15_object)* obj, c_ulong flags,
+	    const(ubyte)* in_, size_t inlen, ubyte* out_, size_t* outlen, const(ubyte)* param, size_t paramlen);
+
+    int sc_pkcs15_decrypt_sym(sc_pkcs15_card* p15card, const(sc_pkcs15_object)* obj, c_ulong flags,
+		const(ubyte)* in_, size_t inlen, ubyte* out_, size_t* outlen, const(ubyte)* param, size_t paramlen);
 
 	int  sc_pkcs15_read_pubkey(sc_pkcs15_card*, const(sc_pkcs15_object)*, sc_pkcs15_pubkey**);
 	int  sc_pkcs15_decode_pubkey_rsa(sc_context*, sc_pkcs15_pubkey_rsa*, const(ubyte)*, size_t);
 	int  sc_pkcs15_encode_pubkey_rsa(sc_context*, sc_pkcs15_pubkey_rsa*, ubyte**, size_t*);
-	int  sc_pkcs15_decode_pubkey_dsa(sc_context*, sc_pkcs15_pubkey_dsa*, const(ubyte)*, size_t);
-	int  sc_pkcs15_encode_pubkey_dsa(sc_context*, sc_pkcs15_pubkey_dsa*, ubyte**, size_t*);
 	int  sc_pkcs15_decode_pubkey_gostr3410(sc_context*, sc_pkcs15_pubkey_gostr3410*, const(ubyte)*, size_t);
 	int  sc_pkcs15_encode_pubkey_gostr3410(sc_context*, sc_pkcs15_pubkey_gostr3410*, ubyte**, size_t*);
 	int  sc_pkcs15_decode_pubkey_ec(sc_context*, sc_pkcs15_pubkey_ec*, const(ubyte)*, size_t);
 	int  sc_pkcs15_encode_pubkey_ec(sc_context*, sc_pkcs15_pubkey_ec*, ubyte**, size_t*);
+	int  sc_pkcs15_encode_pubkey_eddsa(sc_context*, sc_pkcs15_pubkey_eddsa*, ubyte**, size_t*);
+
 	int  sc_pkcs15_decode_pubkey(sc_context*, sc_pkcs15_pubkey*, const(ubyte)*, size_t);
 	int  sc_pkcs15_encode_pubkey(sc_context*, sc_pkcs15_pubkey*, ubyte**, size_t*);
 	int  sc_pkcs15_encode_pubkey_as_spki(sc_context*, sc_pkcs15_pubkey*, ubyte**, size_t*);
@@ -1073,15 +1077,18 @@ version(PATCH_LIBOPENSC_EXPORTS) {
 	int  sc_pkcs15_encode_prkey(sc_context*, sc_pkcs15_prkey*, ubyte**, size_t*);
 }
 	void sc_pkcs15_free_prkey(sc_pkcs15_prkey* prkey);
+	void sc_pkcs15_erase_prkey(sc_pkcs15_prkey* prkey);
 	void sc_pkcs15_free_key_params(sc_pkcs15_key_params* params);
 
-	int  sc_pkcs15_read_data_object(sc_pkcs15_card* p15card, const(sc_pkcs15_data_info)* info, sc_pkcs15_data** data_object_out);
+	int  sc_pkcs15_read_data_object(sc_pkcs15_card* p15card, const(sc_pkcs15_data_info)* info,
+		int private_obj, sc_pkcs15_data** data_object_out);
 	int  sc_pkcs15_find_data_object_by_id(sc_pkcs15_card* p15card, const(sc_pkcs15_id)* id, sc_pkcs15_object** out_);
 	int  sc_pkcs15_find_data_object_by_app_oid(sc_pkcs15_card* p15card, const(sc_object_id)* app_oid, sc_pkcs15_object** out_);
 	int  sc_pkcs15_find_data_object_by_name(sc_pkcs15_card* p15card, const(char)* app_label, const(char)* label, sc_pkcs15_object** out_);
 	void sc_pkcs15_free_data_object(sc_pkcs15_data* data_object);
 
-	int  sc_pkcs15_read_certificate(sc_pkcs15_card* card, const(sc_pkcs15_cert_info)* info, sc_pkcs15_cert** cert);
+	int  sc_pkcs15_read_certificate(sc_pkcs15_card* card, const(sc_pkcs15_cert_info)* info,
+		int private_obj, sc_pkcs15_cert** cert);
 	void sc_pkcs15_free_certificate(sc_pkcs15_cert* cert);
 	int  sc_pkcs15_find_cert_by_id(sc_pkcs15_card* card, const sc_pkcs15_id* id, sc_pkcs15_object** out_);
 
@@ -1090,10 +1097,14 @@ version(PATCH_LIBOPENSC_EXPORTS) {
 	                                const(sc_object_id)* type,
 	                                ubyte** name, size_t* name_len);
 version(PATCH_LIBOPENSC_EXPORTS) {
-	version(OPENSC_VERSION_LATEST)
-	int sc_pkcs15_map_usage(uint cert_usage, int algorithm,
+version(OPENSC_VERSION_LATEST)
+	int sc_pkcs15_map_usage(uint cert_usage, c_ulong algorithm,
 	                        uint* pub_usage_ptr, uint* pr_usage_ptr,
 	                        int allow_nonrepudiation);
+else
+    int sc_pkcs15_map_usage(uint cert_usage, int algorithm,
+			                uint* pub_usage_ptr, uint* pr_usage_ptr,
+			                int allow_nonrepudiation);
 	int  sc_pkcs15_get_extension(sc_context* ctx,
                                  sc_pkcs15_cert* cert,
                                  const(sc_object_id)* type,
@@ -1181,10 +1192,11 @@ version(PATCH_LIBOPENSC_EXPORTS)
 	void sc_pkcs15_free_cert_info(sc_pkcs15_cert_info* cert);
 	void sc_pkcs15_free_data_info(sc_pkcs15_data_info* data);
 	void sc_pkcs15_free_auth_info(sc_pkcs15_auth_info* auth_info);
+	void sc_pkcs15_free_skey_info(sc_pkcs15_skey_info* key);
 	void sc_pkcs15_free_object(sc_pkcs15_object* obj);
 
 	/* Generic file i/o */
-	int sc_pkcs15_read_file(sc_pkcs15_card* p15card, const(sc_path)* path, ubyte** buf, size_t* buflen);
+	int sc_pkcs15_read_file(sc_pkcs15_card* p15card, const(sc_path)* path, ubyte** buf, size_t* buflen, int private_data);
 
 	/* Caching functions */
 	int sc_pkcs15_read_cached_file(sc_pkcs15_card* p15card, const(sc_path)* path, ubyte** buf, size_t* bufsize);
@@ -1271,6 +1283,10 @@ extern(C) {
 	int sc_pkcs15emu_add_rsa_pubkey(sc_pkcs15_card*, const(sc_pkcs15_object)*, const(sc_pkcs15_pubkey_info)*);
 	int sc_pkcs15emu_add_ec_prkey(sc_pkcs15_card*, const(sc_pkcs15_object)*, const(sc_pkcs15_prkey_info)*);
 	int sc_pkcs15emu_add_ec_pubkey(sc_pkcs15_card*, const(sc_pkcs15_object)*, const(sc_pkcs15_pubkey_info)*);
+	int sc_pkcs15emu_add_eddsa_prkey(sc_pkcs15_card*, const(sc_pkcs15_object)*, const(sc_pkcs15_prkey_info)*);
+    int sc_pkcs15emu_add_eddsa_pubkey(sc_pkcs15_card*, const(sc_pkcs15_object)*, const(sc_pkcs15_pubkey_info)*);
+    int sc_pkcs15emu_add_xeddsa_prkey(sc_pkcs15_card*, const(sc_pkcs15_object)*, const(sc_pkcs15_prkey_info)*);
+    int sc_pkcs15emu_add_xeddsa_pubkey(sc_pkcs15_card*, const(sc_pkcs15_object)*, const(sc_pkcs15_pubkey_info)*);
 	int sc_pkcs15emu_add_x509_cert(sc_pkcs15_card*, const(sc_pkcs15_object)*, const(sc_pkcs15_cert_info)*);
 	int sc_pkcs15emu_add_data_object(sc_pkcs15_card*, const(sc_pkcs15_object)*, const(sc_pkcs15_data_info)*);
 

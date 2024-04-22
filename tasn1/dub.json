@@ -3,8 +3,8 @@
 	"name": "tasn1",
 	"description": "Deimos-like binding to GNU Libtasn1, a library for Abstract Syntax Notation One (ASN.1) and Distinguished Encoding Rules (DER) manipulation.",
 	"license": "LGPL-2.1+",
-	"copyright": "Copyright © 2018, Carsten Blüggel",
-	"homepage": "https://github.com/carblue/tasn1",
+	"copyright": "Copyright © 2018-, Carsten Blüggel",
+	"homepage": "https://github.com/carblue/acos5_gui/tree/master/tasn1",
 	"authors": [
 		"Carsten Blüggel"
 	],
